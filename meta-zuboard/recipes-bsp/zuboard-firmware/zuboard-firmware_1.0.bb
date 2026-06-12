@@ -20,7 +20,7 @@ LICENSE = "CLOSED"
 # Both repos are expected to ship the same tag. If they ever diverge, override
 # ZUBOARD_PS_TAG / ZUBOARD_PL_TAG individually (e.g. in your distro/local.conf).
 # -----------------------------------------------------------------------------
-ZUBOARD_RELEASE_TAG ?= "v0.0.1_t"
+ZUBOARD_RELEASE_TAG ?= "v0.0.1"
 ZUBOARD_PS_TAG ?= "${ZUBOARD_RELEASE_TAG}"
 ZUBOARD_PL_TAG ?= "${ZUBOARD_RELEASE_TAG}"
 
@@ -40,7 +40,7 @@ FIRMWARE_INSTALL_DIR ?= "/opt/monutchee/msys/firmware"
 # lower-cased: R5c1.elf -> SRC_URI[r5c1.sha256sum]):
 #     ZUBOARD_PS_FILES ?= "R5c0.elf R5c1.elf"
 # -----------------------------------------------------------------------------
-ZUBOARD_PS_FILES ?= "R5c0.elf"
+ZUBOARD_PS_FILES ?= "R5c0.elf R5c1.elf"
 
 # PL (FPGA) bitstream.
 ZUBOARD_PL_FILE ?= "fpga.bit"
@@ -64,9 +64,9 @@ python () {
 
 # One checksum per remote file. Names: 'fpga' for the bitstream, and the ELF
 # file name minus extension (lower-cased) for each PS core.
-SRC_URI[fpga.sha256sum] = "c42fec55268f3fb4b613528b40c761219351c72f6deca3538f00a39ba49725c6"
-SRC_URI[r5c0.sha256sum] = "9b3df5c26072603ff612f2b13bf35c379e1f3b361ec4d5bb6c597414a133e266"
-# SRC_URI[r5c1.sha256sum] = "<fill in once R5c1.elf is published>"
+SRC_URI[fpga.sha256sum] = "7b9288b9d9873ec514c532835c63d70e35c57a6820ecfd4e7f67942f896d6e68"
+SRC_URI[r5c0.sha256sum] = "739cd012520970f3ab4e2cc23e7cf0021a84b32c6d5a3c680f9d55a46fa946c6"
+SRC_URI[r5c1.sha256sum] = "a2f348a4843bc6e5ff7de2e07a46c4f747c69156f4b1756b8a7071c803394a5e"
 
 S = "${WORKDIR}"
 
