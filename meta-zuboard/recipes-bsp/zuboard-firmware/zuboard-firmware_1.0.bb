@@ -50,7 +50,8 @@ ZUBOARD_PL_BASEURL = "https://github.com/lesterlo/ZuBoardDemo_PL/releases/downlo
 
 # The release asset names do not encode the tag, so downloadfilename embeds the
 # tag to keep DL_DIR entries unique (avoids stale-cache checksum errors on bump).
-SRC_URI = "${ZUBOARD_PL_BASEURL}/${ZUBOARD_PL_TAG}/${ZUBOARD_PL_FILE};name=fpga;downloadfilename=zuboard-pl-${ZUBOARD_PL_TAG}-${ZUBOARD_PL_FILE}"
+SRC_URI = "${ZUBOARD_PL_BASEURL}/${ZUBOARD_PL_TAG}/${ZUBOARD_PL_FILE};name=fpga;downloadfilename=zuboard-pl-${ZUBOARD_PL_TAG}-${ZUBOARD_PL_FILE} \
+           file://msys"
 
 # Expand one SRC_URI entry per PS ELF listed in ZUBOARD_PS_FILES.
 python () {
@@ -88,15 +89,21 @@ PACKAGE_ARCH = "${MACHINE_ARCH}"
 do_install() {
     install -d ${D}${FIRMWARE_INSTALL_DIR}
 
-    # PS: one ELF per R5 core.
+    # PS: one ELF per R5 core. Installed under canonical lower-case names
+    # (R5c0.elf -> r5c0.elf) so they match the 'msys' tool and sysfs usage.
     for f in ${ZUBOARD_PS_FILES}; do
+        dest=$(echo "$f" | tr '[:upper:]' '[:lower:]')
         install -m 0644 ${WORKDIR}/zuboard-ps-${ZUBOARD_PS_TAG}-$f \
-            ${D}${FIRMWARE_INSTALL_DIR}/$f
+            ${D}${FIRMWARE_INSTALL_DIR}/$dest
     done
 
     # PL: FPGA bitstream.
     install -m 0644 ${WORKDIR}/zuboard-pl-${ZUBOARD_PL_TAG}-${ZUBOARD_PL_FILE} \
         ${D}${FIRMWARE_INSTALL_DIR}/${ZUBOARD_PL_FILE}
+
+    # Firmware management CLI -> /usr/bin/msys
+    install -d ${D}${bindir}
+    install -m 0755 ${WORKDIR}/msys ${D}${bindir}/msys
 }
 
-FILES:${PN} = "${FIRMWARE_INSTALL_DIR}"
+FILES:${PN} = "${FIRMWARE_INSTALL_DIR} ${bindir}/msys"

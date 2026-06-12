@@ -1,0 +1,197 @@
+#!/bin/sh
+# msys - FPGA / Cortex-R5 firmware management for the msys (ZuBoard) board.
+#
+# Commands:
+#   msys install <fpga|r5c0|r5c1|all>   Copy firmware into the kernel firmware dir
+#   msys load    <fpga|r5c0|r5c1|all>   Hand firmware to fpga_manager / remoteproc
+#   msys start   <r5c0|r5c1|all>        Start a loaded R5 core
+#   msys stop    <r5c0|r5c1|all>        Stop a running R5 core
+#   msys status  [fpga|r5c0|r5c1|all]   Show current state
+#   msys help                           Show this help
+#
+# The FPGA runs automatically once loaded; R5 cores need an explicit 'start'.
+# POSIX sh (runs under busybox ash and bash) - no bashisms.
+
+set -u
+
+PROG=msys
+
+# Paths (overridable via env, mainly for testing).
+FW_SRC="${MSYS_FW_SRC:-/opt/monutchee/msys/firmware}"
+FW_DST="${MSYS_FW_DST:-/lib/firmware}"
+FPGA_MGR="${MSYS_FPGA_MGR:-/sys/class/fpga_manager/fpga0}"
+RPROC_BASE="${MSYS_RPROC_BASE:-/sys/class/remoteproc}"
+
+err()  { printf '%s: error: %s\n' "$PROG" "$*" >&2; }
+die()  { err "$*"; exit 1; }
+info() { printf '%s: %s\n' "$PROG" "$*"; }
+
+usage() {
+    cat <<EOF
+Usage: $PROG <command> <target>
+
+Commands:
+  install <fpga|r5c0|r5c1|all>   Copy firmware from $FW_SRC into $FW_DST
+  load    <fpga|r5c0|r5c1|all>   Hand the firmware to fpga_manager / remoteproc
+  start   <r5c0|r5c1|all>        Start a loaded R5 core
+  stop    <r5c0|r5c1|all>        Stop a running R5 core
+  status  [fpga|r5c0|r5c1|all]   Show current state (default: all)
+  help                           Show this help
+
+Targets:
+  fpga   -> fpga.bit   (programmed via $FPGA_MGR, runs immediately)
+  r5c0   -> r5c0.elf   ($RPROC_BASE/remoteproc0)
+  r5c1   -> r5c1.elf   ($RPROC_BASE/remoteproc1)
+
+Typical flow:
+  $PROG install all
+  $PROG load fpga          # FPGA starts automatically
+  $PROG load r5c0          # stage the R5 firmware...
+  $PROG start r5c0         # ...then run it
+EOF
+}
+
+require_root() {
+    [ "$(id -u)" = 0 ] || die "must be run as root"
+}
+
+# Firmware file name for a target (also validates the target name).
+fw_file() {
+    case "$1" in
+        fpga) echo fpga.bit ;;
+        r5c0) echo r5c0.elf ;;
+        r5c1) echo r5c1.elf ;;
+        *)    return 1 ;;
+    esac
+}
+
+# remoteproc sysfs dir for an R5 target.
+rproc_dir() {
+    case "$1" in
+        r5c0) echo "$RPROC_BASE/remoteproc0" ;;
+        r5c1) echo "$RPROC_BASE/remoteproc1" ;;
+        *)    return 1 ;;
+    esac
+}
+
+is_rproc() { case "$1" in r5c0|r5c1) return 0 ;; *) return 1 ;; esac; }
+
+# Resolve a requested target into a concrete list. For 'all', only include
+# targets that are actually present for the given command (so a not-yet-released
+# r5c1 is silently skipped instead of erroring).
+resolve_list() {
+    cmd=$1; req=$2
+    if [ "$req" != all ]; then
+        echo "$req"
+        return
+    fi
+    list=""
+    case "$cmd" in
+        install)
+            for t in fpga r5c0 r5c1; do
+                [ -f "$FW_SRC/$(fw_file "$t")" ] && list="$list $t"
+            done ;;
+        load)
+            for t in fpga r5c0 r5c1; do
+                [ -f "$FW_DST/$(fw_file "$t")" ] && list="$list $t"
+            done ;;
+        start|stop)
+            for t in r5c0 r5c1; do
+                [ -d "$(rproc_dir "$t")" ] && list="$list $t"
+            done ;;
+    esac
+    echo "$list"
+}
+
+do_install() {
+    require_root
+    file=$(fw_file "$1") || die "unknown target '$1'"
+    src="$FW_SRC/$file"
+    [ -f "$src" ] || die "firmware not found: $src"
+    mkdir -p "$FW_DST"
+    cp -f "$src" "$FW_DST/$file" || die "failed to copy $src -> $FW_DST/"
+    info "installed $file -> $FW_DST/"
+}
+
+do_load() {
+    require_root
+    file=$(fw_file "$1") || die "unknown target '$1'"
+    [ -f "$FW_DST/$file" ] || die "$file not in $FW_DST; run '$PROG install $1' first"
+    if [ "$1" = fpga ]; then
+        [ -w "$FPGA_MGR/firmware" ] || die "fpga_manager not found at $FPGA_MGR"
+        printf '%s\n' "$file" > "$FPGA_MGR/firmware" || die "failed to program FPGA"
+        info "FPGA programmed with $file (running)"
+    else
+        rp=$(rproc_dir "$1")
+        [ -d "$rp" ] || die "remoteproc for $1 not found at $rp"
+        # remoteproc only accepts a new firmware name while offline.
+        if [ "$(cat "$rp/state" 2>/dev/null)" = running ]; then
+            info "$1 is running; stopping before reload"
+            printf 'stop\n' > "$rp/state" || die "failed to stop $1"
+        fi
+        printf '%s\n' "$file" > "$rp/firmware" || die "failed to set firmware for $1"
+        info "loaded $file on $1 (run '$PROG start $1' to execute)"
+    fi
+}
+
+do_start() {
+    require_root
+    is_rproc "$1" || die "'start' applies to r5c0/r5c1 only (the FPGA runs on load)"
+    rp=$(rproc_dir "$1")
+    [ -d "$rp" ] || die "remoteproc for $1 not found at $rp"
+    printf 'start\n' > "$rp/state" || die "failed to start $1"
+    info "$1 started"
+}
+
+do_stop() {
+    require_root
+    is_rproc "$1" || die "'stop' applies to r5c0/r5c1 only"
+    rp=$(rproc_dir "$1")
+    [ -d "$rp" ] || die "remoteproc for $1 not found at $rp"
+    printf 'stop\n' > "$rp/state" || die "failed to stop $1"
+    info "$1 stopped"
+}
+
+do_status() {
+    if [ "$1" = fpga ]; then
+        st=$(cat "$FPGA_MGR/state" 2>/dev/null || echo "n/a")
+        printf '  %-5s state=%s firmware=%s\n' fpga "$st" "$(fw_file fpga)"
+    else
+        rp=$(rproc_dir "$1") || { err "unknown target '$1'"; return 1; }
+        st=$(cat "$rp/state" 2>/dev/null || echo "n/a")
+        fw=$(cat "$rp/firmware" 2>/dev/null || echo "-")
+        printf '  %-5s state=%s firmware=%s\n' "$1" "$st" "$fw"
+    fi
+}
+
+[ $# -ge 1 ] || { usage; exit 1; }
+cmd=$1
+shift
+
+case "$cmd" in
+    install|load|start|stop)
+        [ $# -ge 1 ] || die "'$cmd' needs a target (fpga|r5c0|r5c1|all)"
+        targets=$(resolve_list "$cmd" "$1")
+        [ -n "$targets" ] || { info "nothing to $cmd"; exit 0; }
+        rc=0
+        for tgt in $targets; do
+            "do_$cmd" "$tgt" || rc=1
+        done
+        exit $rc
+        ;;
+    status)
+        targets="${1:-all}"
+        [ "$targets" = all ] && targets="fpga r5c0 r5c1"
+        for tgt in $targets; do
+            do_status "$tgt"
+        done
+        ;;
+    help|-h|--help)
+        usage
+        ;;
+    *)
+        err "unknown command '$cmd'"
+        usage
+        exit 1
+        ;;
+esac
