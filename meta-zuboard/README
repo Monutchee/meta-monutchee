@@ -27,7 +27,7 @@ Table of Contents
 =================
 
   I. Adding the meta-zuboard layer to your build
- II. Misc
+ II. JTAG provisioning image
 
 
 I. Adding the meta-zuboard layer to your build
@@ -35,7 +35,68 @@ I. Adding the meta-zuboard layer to your build
 
 Run 'bitbake-layers add-layer meta-zuboard'
 
-II. Misc
-========
+II. JTAG provisioning image
+===========================
 
---- replace with specific information about the meta-zuboard layer ---
+Build the RAM-resident provisioning image and the production WIC together:
+
+  bitbake mncos-jtag-image
+
+The complete bundle is exported to:
+
+  build/export/jtag-tftpboot
+
+Use that directory as the TFTP server root. From the same directory, start the
+JTAG boot with XSDB. The hw_server and TFTP server addresses are required; the
+temporary static board address is optional:
+
+  xsdb load-jtag-image.tcl <hw-server-ip> <tftp-server-ip> [board-ip]
+
+For example:
+
+  xsdb load-jtag-image.tcl 127.0.0.1 192.168.1.10
+
+With no board-ip argument, U-Boot obtains the board address through DHCP. DHCP
+autoload is disabled, so it only configures networking; the loader-provided
+TFTP server address remains authoritative. A static board address is optional:
+
+  xsdb load-jtag-image.tcl 127.0.0.1 192.168.1.10 192.168.1.20
+
+The TCL script writes a one-shot marker before starting U-Boot. U-Boot consumes
+the marker and automatically runs "run tftpbootstep". Normal production boots
+do not write the marker and keep their existing boot behavior.
+
+The TCL arguments configure U-Boot for that one JTAG boot without rebuilding
+or saving the environment.
+
+To JTAG/TFTP boot and test the full mncos-image-minimal rootfs instead, build
+that target and run the same loader from build/export/tftpboot. The directory
+determines which rootfs.cpio.gz.u-boot is downloaded; the U-Boot marker and
+runtime U-Boot IP override behavior are shared by both images.
+
+After the provisioning Linux boots, write the verified production WIC to the
+detected non-removable eMMC device with:
+
+  mncos-flash-emmc
+
+If the Linux-side TFTP server differs from the build-time default, pass it to
+the flashing utility as well:
+
+  mncos-flash-emmc --server 192.168.1.10
+
+The provisioning Linux has separate build-time network defaults in
+meta-mncos. They can be overridden in local.conf when that RAM image itself
+needs a different static address:
+
+  MNCOS_TFTP_SERVER_IP = "172.30.19.19"
+  MNCOS_TFTP_CLIENT_IP = "172.30.19.20"
+  MNCOS_TFTP_PREFIX_LENGTH = "24"
+
+The utility downloads target.wic.xz and target.wic.xz.sha256 over TFTP, checks
+the SHA-256 and XZ stream, verifies the target capacity, and requires an ERASE
+confirmation before writing. Use --target only when automatic eMMC detection
+cannot select exactly one device.
+
+The board device tree must enable the eMMC controller and expose its user-area
+block device to Linux. The current zub1cg.dtsi explicitly enables only sdhci1
+for the SD card, so eMMC pinmux/controller support is still a board prerequisite.

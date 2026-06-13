@@ -1,4 +1,5 @@
 TFTPBOOT_DEST_DIR ?= "${TOPDIR}/export/tftpboot"
+JTAG_LOADER_TCL ?= ""
 
 # Function to copy required files to export/tftpboot
 do_copy_tftpboot() {
@@ -51,6 +52,11 @@ do_copy_tftpboot() {
 
     # Boot script
     copy_or_warn "${DEPLOY_DIR_IMAGE}/boot.scr" "${DEST_DIR}/boot.scr"
+
+    # Optional JTAG loader. Network settings are runtime TCL arguments.
+    if [ -n "${JTAG_LOADER_TCL}" ]; then
+        copy_or_warn "${JTAG_LOADER_TCL}" "${DEST_DIR}/load-jtag-image.tcl"
+    fi
 
     # Summary
     if [ ${retVal} -eq 0 ]; then

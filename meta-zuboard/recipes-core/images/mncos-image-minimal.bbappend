@@ -2,6 +2,8 @@ SUMMARY = "For ZUBoard with OpenAMP support"
 DESCRIPTION = "An image including OpenAMP, libmetal, and device tree support for ZUBoard."
 
 IMAGE_CLASSES:append = " export-tftpboot-file"
+JTAG_LOADER_TCL = "${ZUBOARD_LAYERDIR}/recipes-core/images/files/load-jtag-image.tcl"
+do_copy_tftpboot[file-checksums] += "${JTAG_LOADER_TCL}:True"
 
 # Board-specific firmware (FPGA bitstream + R5 ELFs) -> /opt/monutchee/firmware.
 # Kept here in meta-zuboard so meta-mncos stays a generic, portable OS layer.
