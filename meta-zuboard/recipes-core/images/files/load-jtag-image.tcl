@@ -1,11 +1,62 @@
+#!/usr/bin/env xsdb
 # Boot an MNCOS image through JTAG and automatically start its TFTP load.
 # Run this script from build/export/tftpboot to test mncos-image-minimal, or
-# from build/export/jtag-tftpboot to boot the eMMC provisioning image.
+# from build/export/jtag-tftpboot to boot the ZUBoard production-flash image.
 #
 # Usage:
-#   xsdb load-jtag-image.tcl <hw-server-ip> <tftp-server-ip> [board-ip]
+#   ./load-jtag-image.tcl <hw-server-ip> <tftp-server-ip> [board-ip]
 #
 # If board-ip is omitted, U-Boot obtains it through DHCP before loading files.
+# Files fetched by U-Boot are copied to /srv/tftp before JTAG loading starts.
+# Set MNCOS_TFTP_ROOT in the host environment to use a different directory.
+
+proc require_bundle_file {bundle_dir name} {
+    set path [file join $bundle_dir $name]
+    if { ![file isfile $path] } {
+        error "Required JTAG bundle file is missing: $path"
+    }
+}
+
+proc stage_tftp_files {bundle_dir tftp_root} {
+    set required_files {
+        Image
+        system.dtb
+        rootfs.cpio.gz.u-boot
+        boot.scr
+    }
+    set optional_files {
+        target.wic.xz
+        target.wic.xz.sha256
+    }
+
+    foreach name $required_files {
+        require_bundle_file $bundle_dir $name
+    }
+
+    if { ![file exists $tftp_root] } {
+        if { [catch {file mkdir $tftp_root} message] } {
+            error "Could not create TFTP directory $tftp_root: $message"
+        }
+    }
+    if { ![file isdirectory $tftp_root] } {
+        error "TFTP path is not a directory: $tftp_root"
+    }
+    puts "Staging TFTP files in $tftp_root"
+    foreach name [concat $required_files $optional_files] {
+        set source [file join $bundle_dir $name]
+        if { ![file isfile $source] } {
+            continue
+        }
+
+        set destination [file join $tftp_root $name]
+        if { [file normalize $source] ne [file normalize $destination] } {
+            if { [catch {file copy -force $source $destination} message] } {
+                error "Could not copy $name to $tftp_root: $message"
+            }
+        }
+        puts "  $name"
+    }
+}
 
 proc validate_ipv4 {label value} {
     set octets [split $value "."]
@@ -42,11 +93,17 @@ proc download_env_override {server_ip board_ip address} {
 }
 
 if { [llength $argv] < 2 || [llength $argv] > 3 } {
-    error "Usage: xsdb load-jtag-image.tcl <hw-server-ip> <tftp-server-ip> \[board-ip\]"
+    error "Usage: ./load-jtag-image.tcl <hw-server-ip> <tftp-server-ip> \[board-ip\]"
 }
 
 set HW_IP [lindex $argv 0]
 set SERVER_IP [lindex $argv 1]
+set BUNDLE_DIR [file normalize [pwd]]
+set TFTP_ROOT "/srv/tftp"
+
+if { [info exists ::env(MNCOS_TFTP_ROOT)] && $::env(MNCOS_TFTP_ROOT) ne "" } {
+    set TFTP_ROOT [file normalize $::env(MNCOS_TFTP_ROOT)]
+}
 
 if { [llength $argv] > 2 } {
     set BOARD_IP [lindex $argv 2]
@@ -59,6 +116,11 @@ validate_ipv4 "TFTP server IP" $SERVER_IP
 if { $BOARD_IP ne "" } {
     validate_ipv4 "board IP" $BOARD_IP
 }
+
+foreach name {pmufw.elf fsbl.elf tfa.elf u-boot.elf system.dtb} {
+    require_bundle_file $BUNDLE_DIR $name
+}
+stage_tftp_files $BUNDLE_DIR $TFTP_ROOT
 
 puts "Connecting to the Xilinx hw_server"
 connect -url tcp:$HW_IP:3121

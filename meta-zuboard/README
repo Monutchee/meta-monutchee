@@ -27,7 +27,7 @@ Table of Contents
 =================
 
   I. Adding the meta-zuboard layer to your build
- II. JTAG provisioning image
+ II. Production flash image
 
 
 I. Adding the meta-zuboard layer to your build
@@ -35,32 +35,39 @@ I. Adding the meta-zuboard layer to your build
 
 Run 'bitbake-layers add-layer meta-zuboard'
 
-II. JTAG provisioning image
-===========================
+II. Production flash image
+==========================
 
-Build the RAM-resident provisioning image and the production WIC together:
+Build the generic production-flash image with the ZUBoard implementation and
+the production WIC together:
 
-  bitbake mncos-jtag-image
+  bitbake mncos-production-flash-image
 
 The complete bundle is exported to:
 
   build/export/jtag-tftpboot
 
-Use that directory as the TFTP server root. From the same directory, start the
-JTAG boot with XSDB. The hw_server and TFTP server addresses are required; the
-temporary static board address is optional:
+When load-jtag-image.tcl starts, it copies the files fetched by U-Boot to
+/srv/tftp before connecting to the board. The production bundle also copies
+target.wic.xz and its checksum. The ELF firmware files remain in the export
+directory because XSDB downloads them directly over JTAG. To use a different
+TFTP root, set MNCOS_TFTP_ROOT in the host environment.
 
-  xsdb load-jtag-image.tcl <hw-server-ip> <tftp-server-ip> [board-ip]
+Configure the TFTP server to expose /srv/tftp. Run XSDB from the export bundle
+directory so it can load the local ELF firmware. The hw_server and TFTP server
+addresses are required; the temporary static board address is optional:
+
+  ./load-jtag-image.tcl <hw-server-ip> <tftp-server-ip> [board-ip]
 
 For example:
 
-  xsdb load-jtag-image.tcl 127.0.0.1 192.168.1.10
+  ./load-jtag-image.tcl 127.0.0.1 192.168.1.10
 
 With no board-ip argument, U-Boot obtains the board address through DHCP. DHCP
 autoload is disabled, so it only configures networking; the loader-provided
 TFTP server address remains authoritative. A static board address is optional:
 
-  xsdb load-jtag-image.tcl 127.0.0.1 192.168.1.10 192.168.1.20
+  ./load-jtag-image.tcl 127.0.0.1 192.168.1.10 192.168.1.20
 
 The TCL script writes a one-shot marker before starting U-Boot. U-Boot consumes
 the marker and automatically runs "run tftpbootstep". Normal production boots
@@ -84,13 +91,8 @@ the flashing utility as well:
 
   mncos-flash-emmc --server 192.168.1.10
 
-The provisioning Linux has separate build-time network defaults in
-meta-mncos. They can be overridden in local.conf when that RAM image itself
-needs a different static address:
-
-  MNCOS_TFTP_SERVER_IP = "172.30.19.19"
-  MNCOS_TFTP_CLIENT_IP = "172.30.19.20"
-  MNCOS_TFTP_PREFIX_LENGTH = "24"
+The JTAG loader passes the TFTP server to Linux through the kernel command
+line. The flashing utility also accepts --server as an explicit override.
 
 The utility downloads target.wic.xz and target.wic.xz.sha256 over TFTP, checks
 the SHA-256 and XZ stream, verifies the target capacity, and requires an ERASE

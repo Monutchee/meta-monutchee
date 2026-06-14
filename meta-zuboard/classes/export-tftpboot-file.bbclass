@@ -55,7 +55,12 @@ do_copy_tftpboot() {
 
     # Optional JTAG loader. Network settings are runtime TCL arguments.
     if [ -n "${JTAG_LOADER_TCL}" ]; then
-        copy_or_warn "${JTAG_LOADER_TCL}" "${DEST_DIR}/load-jtag-image.tcl"
+        if [ -e "${JTAG_LOADER_TCL}" ]; then
+            install -m 0755 "${JTAG_LOADER_TCL}" "${DEST_DIR}/load-jtag-image.tcl" || retVal=1
+        else
+            echo "WARN: Missing ${JTAG_LOADER_TCL}" >&2
+            retVal=1
+        fi
     fi
 
     # Summary
