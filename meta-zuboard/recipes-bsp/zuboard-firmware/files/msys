@@ -21,6 +21,7 @@ FW_SRC="${MSYS_FW_SRC:-/opt/monutchee/msys/firmware}"
 FW_DST="${MSYS_FW_DST:-/lib/firmware}"
 FPGA_MGR="${MSYS_FPGA_MGR:-/sys/class/fpga_manager/fpga0}"
 RPROC_BASE="${MSYS_RPROC_BASE:-/sys/class/remoteproc}"
+STATE_DIR="${MSYS_STATE_DIR:-/run/msys}"
 
 err()  { printf '%s: error: %s\n' "$PROG" "$*" >&2; }
 die()  { err "$*"; exit 1; }
@@ -76,6 +77,54 @@ rproc_dir() {
 
 is_rproc() { case "$1" in r5c0|r5c1) return 0 ;; *) return 1 ;; esac; }
 
+wait_rproc_state() {
+    rp=$1
+    expected=$2
+    attempts=5
+
+    while [ "$attempts" -gt 0 ]; do
+        [ "$(cat "$rp/state" 2>/dev/null)" = "$expected" ] && return 0
+        attempts=$((attempts - 1))
+        sleep 1
+    done
+    return 1
+}
+
+stop_rproc() {
+    target=$1
+    rp=$2
+
+    printf 'stop\n' > "$rp/state" || die "failed to stop $target"
+    wait_rproc_state "$rp" offline || die "$target did not reach offline state"
+}
+
+# R5C0 needs one complete remoteproc start/stop cycle after each system boot.
+# A stop cannot be issued while remoteproc is offline, so perform the valid
+# load/start/stop sequence once and remember it in the volatile /run tree.
+normalize_r5c0() {
+    rp=$1
+    file=$2
+    marker="$STATE_DIR/r5c0-normalized"
+
+    [ -e "$marker" ] && return
+    [ "$(cat "$FPGA_MGR/state" 2>/dev/null)" = operating ] ||
+        die "FPGA must be loaded before loading r5c0"
+
+    if [ "$(cat "$rp/state" 2>/dev/null)" = running ]; then
+        info "r5c0 is running; stopping before reload"
+        stop_rproc r5c0 "$rp"
+    else
+        printf '%s\n' "$file" > "$rp/firmware" || die "failed to set firmware for r5c0"
+        info "normalizing r5c0 remoteproc state"
+        printf 'start\n' > "$rp/state" || die "failed to start r5c0 during normalization"
+        wait_rproc_state "$rp" running || die "r5c0 did not start during normalization"
+        stop_rproc r5c0 "$rp"
+    fi
+
+    mkdir -p "$STATE_DIR" || die "failed to create $STATE_DIR"
+    : > "$marker" || die "failed to record r5c0 normalization"
+}
+
 # Resolve a requested target into a concrete list. For 'all', only include
 # targets that are actually present for the given command (so a not-yet-released
 # r5c1 is silently skipped instead of erroring).
@@ -124,10 +173,13 @@ do_load() {
     else
         rp=$(rproc_dir "$1")
         [ -d "$rp" ] || die "remoteproc for $1 not found at $rp"
+        if [ "$1" = r5c0 ]; then
+            normalize_r5c0 "$rp" "$file"
+        fi
         # remoteproc only accepts a new firmware name while offline.
         if [ "$(cat "$rp/state" 2>/dev/null)" = running ]; then
             info "$1 is running; stopping before reload"
-            printf 'stop\n' > "$rp/state" || die "failed to stop $1"
+            stop_rproc "$1" "$rp"
         fi
         printf '%s\n' "$file" > "$rp/firmware" || die "failed to set firmware for $1"
         info "loaded $file on $1 (run '$PROG start $1' to execute)"
@@ -139,7 +191,12 @@ do_start() {
     is_rproc "$1" || die "'start' applies to r5c0/r5c1 only (the FPGA runs on load)"
     rp=$(rproc_dir "$1")
     [ -d "$rp" ] || die "remoteproc for $1 not found at $rp"
+    if [ "$(cat "$rp/state" 2>/dev/null)" = running ]; then
+        info "$1 is already running"
+        return
+    fi
     printf 'start\n' > "$rp/state" || die "failed to start $1"
+    wait_rproc_state "$rp" running || die "$1 did not reach running state"
     info "$1 started"
 }
 
@@ -148,7 +205,11 @@ do_stop() {
     is_rproc "$1" || die "'stop' applies to r5c0/r5c1 only"
     rp=$(rproc_dir "$1")
     [ -d "$rp" ] || die "remoteproc for $1 not found at $rp"
-    printf 'stop\n' > "$rp/state" || die "failed to stop $1"
+    if [ "$(cat "$rp/state" 2>/dev/null)" = offline ]; then
+        info "$1 is already stopped"
+        return
+    fi
+    stop_rproc "$1" "$rp"
     info "$1 stopped"
 }
 
