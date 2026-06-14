@@ -126,6 +126,18 @@ puts "Connecting to the Xilinx hw_server"
 connect -url tcp:$HW_IP:3121
 
 targets -set -nocase -filter {name =~ "*PSU*"}
+
+# A processor-only reset leaves clocks, DDR, GIC and peripheral state from the
+# previous Linux session intact. Reset the complete ZynqMP system first so a
+# repeated JTAG boot starts from the same state as a fresh board reset.
+puts "Resetting ZynqMP system"
+if { [catch {rst -system -stop} message] } {
+    error "Could not reset the ZynqMP system: $message"
+}
+after 1000
+
+# The reset can refresh the target contexts and closes the JTAG security gates.
+targets -set -nocase -filter {name =~ "*PSU*"}
 mask_write 0xFFCA0038 0x1C0 0x1C0
 
 after 500
@@ -136,7 +148,7 @@ dow ./pmufw.elf
 con
 
 targets -set -nocase -filter {name =~ "*A53*#0"}
-puts "Resetting A53 processor"
+puts "Resetting A53 processor before FSBL"
 rst -processor -clear-registers
 after 500
 

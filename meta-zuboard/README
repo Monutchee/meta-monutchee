@@ -57,6 +57,9 @@ Configure the TFTP server to expose /srv/tftp. Run XSDB from the export bundle
 directory so it can load the local ELF firmware. The hw_server and TFTP server
 addresses are required; the temporary static board address is optional:
 
+The loader performs a ZynqMP system reset before loading PMU firmware and FSBL,
+so repeated JTAG boots do not depend on state left by the previous Linux run.
+
   ./load-jtag-image.tcl <hw-server-ip> <tftp-server-ip> [board-ip]
 
 For example:
