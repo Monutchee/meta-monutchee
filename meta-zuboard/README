@@ -105,3 +105,18 @@ cannot select exactly one device.
 The board device tree must enable the eMMC controller and expose its user-area
 block device to Linux. The current zub1cg.dtsi explicitly enables only sdhci1
 for the SD card, so eMMC pinmux/controller support is still a board prerequisite.
+
+
+
+# Looad the fpga and the R5 cores
+
+## New method
+
+```
+msys install all && msys load all && msys start all
+```
+
+## Old and base method
+```
+msys install all && echo fpga.bit > /sys/class/fpga_manager/fpga0/firmware && echo r5c0.elf > /sys/class/remoteproc/remoteproc0/firmware && echo start > /sys/class/remoteproc/remoteproc0/state && echo r5c1.elf > /sys/class/remoteproc/remoteproc1/firmware && echo start > /sys/class/remoteproc/remoteproc1/state
+```

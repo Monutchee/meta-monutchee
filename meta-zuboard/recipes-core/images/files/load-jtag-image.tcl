@@ -9,6 +9,8 @@
 # If board-ip is omitted, U-Boot obtains it through DHCP before loading files.
 # Files fetched by U-Boot are copied to /srv/tftp before JTAG loading starts.
 # Set MNCOS_TFTP_ROOT in the host environment to use a different directory.
+# The loader pulses the board SRST signal through the JTAG cable before using
+# the legacy R5-safe load sequence, then automatically starts its TFTP boot.
 
 proc require_bundle_file {bundle_dir name} {
     set path [file join $bundle_dir $name]
@@ -122,21 +124,24 @@ foreach name {pmufw.elf fsbl.elf tfa.elf u-boot.elf system.dtb} {
 }
 stage_tftp_files $BUNDLE_DIR $TFTP_ROOT
 
+
+#------------------  Xilinx JTAG Flashing Procedure -------------------------------------------------------
+
 puts "Connecting to the Xilinx hw_server"
 connect -url tcp:$HW_IP:3121
 
+# Pulse the board reset signal instead of using the debugger's rst -system.
+# Reconnect afterward so the known-good loader starts with fresh target data.
 targets -set -nocase -filter {name =~ "*PSU*"}
-
-# A processor-only reset leaves clocks, DDR, GIC and peripheral state from the
-# previous Linux session intact. Reset the complete ZynqMP system first so a
-# repeated JTAG boot starts from the same state as a fresh board reset.
-puts "Resetting ZynqMP system"
-if { [catch {rst -system -stop} message] } {
-    error "Could not reset the ZynqMP system: $message"
+puts "Pulsing board SRST through the JTAG cable"
+if { [catch {rst -srst} message] } {
+    error "Could not pulse cable SRST: $message"
 }
-after 1000
+after 2000
+disconnect
+connect -url tcp:$HW_IP:3121
 
-# The reset can refresh the target contexts and closes the JTAG security gates.
+# Select the refreshed PSU target and open the JTAG security gates.
 targets -set -nocase -filter {name =~ "*PSU*"}
 mask_write 0xFFCA0038 0x1C0 0x1C0
 
@@ -148,14 +153,19 @@ dow ./pmufw.elf
 con
 
 targets -set -nocase -filter {name =~ "*A53*#0"}
-puts "Resetting A53 processor before FSBL"
-rst -processor -clear-registers
+puts "Resetting A53 processor group before FSBL"
+# Reset all A53 cores and their processor-group state. A core-only reset can
+# leave the other Linux cores or shared APU state active, causing EDITR/cache
+# timeouts on a repeated JTAG load. This does not reset the separate RPU group.
+rst -cores -clear-registers
 after 500
 
 puts "Downloading FSBL"
 dow ./fsbl.elf
 con
-after 500
+# Match the Xilinx ZynqMP JTAG boot flow and allow FSBL initialization to
+# complete before halting the A53 for the next-stage downloads.
+after 4000
 stop
 
 puts "Downloading TF-A"
@@ -167,15 +177,10 @@ stop
 dow -data ./system.dtb 0x100000
 after 500
 
-# Pass the selected network mode to U-Boot as a text environment block. When
-# BOARD_IP is empty, U-Boot runs DHCP with autoload disabled and then restores
-# the requested TFTP server address before loading files.
+# Pass the selected network mode to U-Boot as a text environment block.
+# U-Boot consumes these values before boot.scr reuses this DDR area.
 download_env_override $SERVER_IP $BOARD_IP 0x20000100
 mwr 0x20000004 0x49504f56
-
-# MNCOS_JTAG_MAGIC ("MNCP"). U-Boot consumes and clears this marker during
-# preboot, imports the optional addresses above, then runs tftpbootstep. This
-# memory is reused by boot.scr after the import is complete.
 mwr 0x20000000 0x4d4e4350
 
 puts "Downloading U-Boot"
