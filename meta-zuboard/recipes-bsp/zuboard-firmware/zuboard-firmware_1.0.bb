@@ -25,7 +25,7 @@ ZUBOARD_PS_TAG ?= "${ZUBOARD_RELEASE_TAG}"
 ZUBOARD_PL_TAG ?= "${ZUBOARD_RELEASE_TAG}"
 
 # Destination directory on the target rootfs.
-FIRMWARE_INSTALL_DIR ?= "/opt/monutchee/msys/firmware"
+FIRMWARE_INSTALL_DIR ?= "/opt/monutchee/zudemo/firmware"
 
 # -----------------------------------------------------------------------------
 # PS (Cortex-R5) firmware ELFs.
@@ -51,7 +51,7 @@ ZUBOARD_PL_BASEURL = "https://github.com/lesterlo/ZuBoardDemo_PL/releases/downlo
 # The release asset names do not encode the tag, so downloadfilename embeds the
 # tag to keep DL_DIR entries unique (avoids stale-cache checksum errors on bump).
 SRC_URI = "${ZUBOARD_PL_BASEURL}/${ZUBOARD_PL_TAG}/${ZUBOARD_PL_FILE};name=fpga;downloadfilename=zuboard-pl-${ZUBOARD_PL_TAG}-${ZUBOARD_PL_FILE} \
-           file://msys"
+           file://zud"
 
 # Expand one SRC_URI entry per PS ELF listed in ZUBOARD_PS_FILES.
 python () {
@@ -81,16 +81,16 @@ INHIBIT_PACKAGE_DEBUG_SPLIT = "1"
 INHIBIT_SYSROOT_STRIP = "1"
 INSANE_SKIP:${PN} += "arch ldflags textrel"
 
-# Firmware is board specific: only build for the msys machine, and make the
+# Firmware is board specific: only build for the zudemo machine, and make the
 # package machine-specific so a tag/binary change rebuilds cleanly.
-COMPATIBLE_MACHINE = "^msys$"
+COMPATIBLE_MACHINE = "^zudemo$"
 PACKAGE_ARCH = "${MACHINE_ARCH}"
 
 do_install() {
     install -d ${D}${FIRMWARE_INSTALL_DIR}
 
     # PS: one ELF per R5 core. Installed under canonical lower-case names
-    # (R5c0.elf -> r5c0.elf) so they match the 'msys' tool and sysfs usage.
+    # (R5c0.elf -> r5c0.elf) so they match the 'zud' tool and sysfs usage.
     for f in ${ZUBOARD_PS_FILES}; do
         dest=$(echo "$f" | tr '[:upper:]' '[:lower:]')
         install -m 0644 ${WORKDIR}/zuboard-ps-${ZUBOARD_PS_TAG}-$f \
@@ -101,9 +101,9 @@ do_install() {
     install -m 0644 ${WORKDIR}/zuboard-pl-${ZUBOARD_PL_TAG}-${ZUBOARD_PL_FILE} \
         ${D}${FIRMWARE_INSTALL_DIR}/${ZUBOARD_PL_FILE}
 
-    # Firmware management CLI -> /usr/bin/msys
+    # Firmware management CLI -> /usr/bin/zud
     install -d ${D}${bindir}
-    install -m 0755 ${WORKDIR}/msys ${D}${bindir}/msys
+    install -m 0755 ${WORKDIR}/zud ${D}${bindir}/zud
 }
 
-FILES:${PN} = "${FIRMWARE_INSTALL_DIR} ${bindir}/msys"
+FILES:${PN} = "${FIRMWARE_INSTALL_DIR} ${bindir}/zud"
