@@ -1,26 +1,26 @@
 #!/bin/sh
-# msys - FPGA / Cortex-R5 firmware management for the msys (ZuBoard) board.
+# zud - FPGA / Cortex-R5 firmware management for the zudemo (ZuBoard) board.
 #
 # Commands:
-#   msys install <fpga|r5c0|r5c1|all>   Copy firmware into the kernel firmware dir
-#   msys load    <fpga|r5c0|r5c1|all>   Hand firmware to fpga_manager / remoteproc
-#   msys start   <r5c0|r5c1|all>        Start a loaded R5 core
-#   msys stop    <r5c0|r5c1|all>        Stop a running R5 core
-#   msys status  [fpga|r5c0|r5c1|all]   Show current state
-#   msys help                           Show this help
+#   zud install <fpga|r5c0|r5c1|all>   Copy firmware into the kernel firmware dir
+#   zud load    <fpga|r5c0|r5c1|all>   Hand firmware to fpga_manager / remoteproc
+#   zud start   <r5c0|r5c1|all>        Start a loaded R5 core
+#   zud stop    <r5c0|r5c1|all>        Stop a running R5 core
+#   zud status  [fpga|r5c0|r5c1|all]   Show current state
+#   zud help                           Show this help
 #
 # The FPGA runs automatically once loaded; R5 cores need an explicit 'start'.
 # POSIX sh (runs under busybox ash and bash) - no bashisms.
 
 set -u
 
-PROG=msys
+PROG=zud
 
 # Paths (overridable via env, mainly for testing).
-FW_SRC="${MSYS_FW_SRC:-/opt/monutchee/msys/firmware}"
-FW_DST="${MSYS_FW_DST:-/lib/firmware}"
-FPGA_MGR="${MSYS_FPGA_MGR:-/sys/class/fpga_manager/fpga0}"
-RPROC_BASE="${MSYS_RPROC_BASE:-/sys/class/remoteproc}"
+FW_SRC="${ZUD_FW_SRC:-/opt/monutchee/zudemo/firmware}"
+FW_DST="${ZUD_FW_DST:-/lib/firmware}"
+FPGA_MGR="${ZUD_FPGA_MGR:-/sys/class/fpga_manager/fpga0}"
+RPROC_BASE="${ZUD_RPROC_BASE:-/sys/class/remoteproc}"
 
 err()  { printf '%s: error: %s\n' "$PROG" "$*" >&2; }
 die()  { err "$*"; exit 1; }

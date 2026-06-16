@@ -113,10 +113,10 @@ for the SD card, so eMMC pinmux/controller support is still a board prerequisite
 ## New method
 
 ```
-msys install all && msys load all && msys start all
+zud install all && zud load all && zud start all
 ```
 
 ## Old and base method
 ```
-msys install all && echo fpga.bit > /sys/class/fpga_manager/fpga0/firmware && echo r5c0.elf > /sys/class/remoteproc/remoteproc0/firmware && echo start > /sys/class/remoteproc/remoteproc0/state && echo r5c1.elf > /sys/class/remoteproc/remoteproc1/firmware && echo start > /sys/class/remoteproc/remoteproc1/state
+zud install all && echo fpga.bit > /sys/class/fpga_manager/fpga0/firmware && echo r5c0.elf > /sys/class/remoteproc/remoteproc0/firmware && echo start > /sys/class/remoteproc/remoteproc0/state && echo r5c1.elf > /sys/class/remoteproc/remoteproc1/firmware && echo start > /sys/class/remoteproc/remoteproc1/state
 ```
