@@ -9,7 +9,7 @@ do_copy_tftpboot[file-checksums] += "${JTAG_LOADER_TCL}:True"
 # Kept here in meta-zuboard so meta-mncos stays a generic, portable OS layer.
 # Scoped to the zudemo machine so it isn't force-installed if this image is ever
 # built for another processor system while meta-zuboard is layered in.
-IMAGE_INSTALL:append:zudemo = " zuboard-firmware"
+IMAGE_INSTALL:append:zudemo = " zuboard-firmware apu-rpu-ctl"
 
 # (Optional) Change destination directory on machine specific directory
 # TFTPBOOT_DEST_DIR = "${TOPDIR}/export/tftpboot/${MACHINE}"

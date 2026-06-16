@@ -1,6 +1,6 @@
 SUMMARY = "ZuBoard demo FPGA bitstream and Cortex-R5 firmware"
-DESCRIPTION = "Fetches the prebuilt FPGA (PL) bitstream and Cortex-R5 (PS) \
-firmware ELF(s) from the ZuBoardDemo GitHub releases and installs them into \
+DESCRIPTION = "Fetches or locally packages the prebuilt FPGA (PL) bitstream \
+and Cortex-R5 firmware ELF(s), then installs them into \
 ${FIRMWARE_INSTALL_DIR} on the target."
 LICENSE = "CLOSED"
 
@@ -23,6 +23,19 @@ LICENSE = "CLOSED"
 ZUBOARD_RELEASE_TAG ?= "v0.0.1"
 ZUBOARD_PS_TAG ?= "${ZUBOARD_RELEASE_TAG}"
 ZUBOARD_PL_TAG ?= "${ZUBOARD_RELEASE_TAG}"
+
+# Source switch: "cloud" (GitHub release assets, default) or "local" (live
+# build outputs from sibling checkouts).
+#
+# Flip in local.conf:
+#     ZUBOARD_FIRMWARE_SRC = "local"
+#
+# Cloud mode is the reproducible release path. Local mode is the fast iteration
+# path after rebuilding ZuBoardDemo_RPU / ZuBoardDemo_PL locally.
+ZUBOARD_FIRMWARE_SRC ?= "cloud"
+ZUBOARD_RPU_LOCAL_DIR ?= "${TOPDIR}/../../ZuBoardDemo_RPU"
+ZUBOARD_PL_LOCAL_DIR ?= "${TOPDIR}/../../ZuBoardDemo_PL"
+ZUBOARD_PL_LOCAL_FILE ?= "${ZUBOARD_PL_LOCAL_DIR}/vivado_gen/ZuBoardDemo_PL.runs/impl_1/MainBlock_wrapper.bit"
 
 # Destination directory on the target rootfs.
 FIRMWARE_INSTALL_DIR ?= "/opt/monutchee/zudemo/firmware"
@@ -48,18 +61,37 @@ ZUBOARD_PL_FILE ?= "fpga.bit"
 ZUBOARD_PS_BASEURL = "https://github.com/lesterlo/ZuBoardDemo_PS/releases/download"
 ZUBOARD_PL_BASEURL = "https://github.com/lesterlo/ZuBoardDemo_PL/releases/download"
 
-# The release asset names do not encode the tag, so downloadfilename embeds the
-# tag to keep DL_DIR entries unique (avoids stale-cache checksum errors on bump).
-SRC_URI = "${ZUBOARD_PL_BASEURL}/${ZUBOARD_PL_TAG}/${ZUBOARD_PL_FILE};name=fpga;downloadfilename=zuboard-pl-${ZUBOARD_PL_TAG}-${ZUBOARD_PL_FILE} \
-           file://zud"
+# zud is always local to this recipe. Firmware blobs are selected below based on
+# ZUBOARD_FIRMWARE_SRC.
+SRC_URI = "file://zud"
 
-# Expand one SRC_URI entry per PS ELF listed in ZUBOARD_PS_FILES.
+# In cloud mode, expand one SRC_URI entry per remote firmware asset.
+# In local mode, add the sibling build outputs to do_install's checksum inputs
+# so BitBake re-runs packaging when those artifacts change.
 python () {
-    tag = d.getVar('ZUBOARD_PS_TAG')
-    base = d.getVar('ZUBOARD_PS_BASEURL')
-    for f in (d.getVar('ZUBOARD_PS_FILES') or "").split():
-        name = f.rsplit('.', 1)[0].lower()
-        d.appendVar('SRC_URI', " %s/%s/%s;name=%s;downloadfilename=zuboard-ps-%s-%s" % (base, tag, f, name, tag, f))
+    src = (d.getVar('ZUBOARD_FIRMWARE_SRC') or "cloud").strip()
+    ps_files = (d.getVar('ZUBOARD_PS_FILES') or "").split()
+
+    if src == "cloud":
+        pl_tag = d.getVar('ZUBOARD_PL_TAG')
+        pl_base = d.getVar('ZUBOARD_PL_BASEURL')
+        pl_file = d.getVar('ZUBOARD_PL_FILE')
+        d.appendVar('SRC_URI', " %s/%s/%s;name=fpga;downloadfilename=zuboard-pl-%s-%s" % (pl_base, pl_tag, pl_file, pl_tag, pl_file))
+
+        ps_tag = d.getVar('ZUBOARD_PS_TAG')
+        ps_base = d.getVar('ZUBOARD_PS_BASEURL')
+        for f in ps_files:
+            name = f.rsplit('.', 1)[0].lower()
+            d.appendVar('SRC_URI', " %s/%s/%s;name=%s;downloadfilename=zuboard-ps-%s-%s" % (ps_base, ps_tag, f, name, ps_tag, f))
+    elif src == "local":
+        rpu_dir = d.getVar('ZUBOARD_RPU_LOCAL_DIR')
+        for f in ps_files:
+            core = f.rsplit('.', 1)[0]
+            d.appendVarFlag('do_install', 'file-checksums', ' %s/%s/build/%s:True' % (rpu_dir, core, f))
+
+        d.appendVarFlag('do_install', 'file-checksums', ' %s:True' % d.getVar('ZUBOARD_PL_LOCAL_FILE'))
+    else:
+        bb.fatal('Unsupported ZUBOARD_FIRMWARE_SRC="%s"; use "cloud" or "local".' % src)
 }
 
 # One checksum per remote file. Names: 'fpga' for the bitstream, and the ELF
@@ -86,20 +118,37 @@ INSANE_SKIP:${PN} += "arch ldflags textrel"
 COMPATIBLE_MACHINE = "^zudemo$"
 PACKAGE_ARCH = "${MACHINE_ARCH}"
 
+do_install[vardeps] += "ZUBOARD_FIRMWARE_SRC ZUBOARD_PS_FILES ZUBOARD_PS_TAG ZUBOARD_PL_TAG ZUBOARD_PL_FILE ZUBOARD_RPU_LOCAL_DIR ZUBOARD_PL_LOCAL_FILE"
+
 do_install() {
     install -d ${D}${FIRMWARE_INSTALL_DIR}
 
-    # PS: one ELF per R5 core. Installed under canonical lower-case names
-    # (R5c0.elf -> r5c0.elf) so they match the 'zud' tool and sysfs usage.
-    for f in ${ZUBOARD_PS_FILES}; do
-        dest=$(echo "$f" | tr '[:upper:]' '[:lower:]')
-        install -m 0644 ${WORKDIR}/zuboard-ps-${ZUBOARD_PS_TAG}-$f \
-            ${D}${FIRMWARE_INSTALL_DIR}/$dest
-    done
+    if [ "${ZUBOARD_FIRMWARE_SRC}" = "local" ]; then
+        # RPU: package live sibling build outputs, e.g.
+        # ../ZuBoardDemo_RPU/R5c0/build/R5c0.elf -> r5c0.elf.
+        for f in ${ZUBOARD_PS_FILES}; do
+            core=$(echo "$f" | sed 's/[.][eE][lL][fF]$//')
+            dest=$(echo "$f" | tr '[:upper:]' '[:lower:]')
+            install -m 0644 ${ZUBOARD_RPU_LOCAL_DIR}/$core/build/$f \
+                ${D}${FIRMWARE_INSTALL_DIR}/$dest
+        done
 
-    # PL: FPGA bitstream.
-    install -m 0644 ${WORKDIR}/zuboard-pl-${ZUBOARD_PL_TAG}-${ZUBOARD_PL_FILE} \
-        ${D}${FIRMWARE_INSTALL_DIR}/${ZUBOARD_PL_FILE}
+        # PL: package live Vivado bitstream output as the canonical target name.
+        install -m 0644 ${ZUBOARD_PL_LOCAL_FILE} \
+            ${D}${FIRMWARE_INSTALL_DIR}/${ZUBOARD_PL_FILE}
+    else
+        # PS: one ELF per R5 core. Installed under canonical lower-case names
+        # (R5c0.elf -> r5c0.elf) so they match the 'zud' tool and sysfs usage.
+        for f in ${ZUBOARD_PS_FILES}; do
+            dest=$(echo "$f" | tr '[:upper:]' '[:lower:]')
+            install -m 0644 ${WORKDIR}/zuboard-ps-${ZUBOARD_PS_TAG}-$f \
+                ${D}${FIRMWARE_INSTALL_DIR}/$dest
+        done
+
+        # PL: FPGA bitstream.
+        install -m 0644 ${WORKDIR}/zuboard-pl-${ZUBOARD_PL_TAG}-${ZUBOARD_PL_FILE} \
+            ${D}${FIRMWARE_INSTALL_DIR}/${ZUBOARD_PL_FILE}
+    fi
 
     # Firmware management CLI -> /usr/bin/zud
     install -d ${D}${bindir}

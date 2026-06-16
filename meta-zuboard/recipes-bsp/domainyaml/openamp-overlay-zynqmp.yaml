@@ -125,6 +125,7 @@ domains:
                 compatible: openamp,rpmsg-v1
                 remote:
                     - openamp_r5_0_cluster
+                    - openamp_r5_1_cluster
                 carveouts:
                      - rpu0vdev0vring0
                      - rpu0vdev0vring1
@@ -224,5 +225,4 @@ domains:
                      - rpu1vdev0vring0
                      - rpu1vdev0vring1
                      - rpu1vdev0buffer
-
 
