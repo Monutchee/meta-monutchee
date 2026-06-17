@@ -125,6 +125,8 @@ domains:
                 compatible: openamp,rpmsg-v1
                 remote:
                     - openamp_r5_0_cluster
+                    - openamp_r5_1_cluster
+                openamp-xlnx-native: [ false, false ]
                 carveouts:
                      - rpu0vdev0vring0
                      - rpu0vdev0vring1
@@ -134,6 +136,7 @@ domains:
                      - rpu1vdev0buffer
                 mbox:
                     - ipi7
+                    - ipi7
 
     openamp_r5_0_cluster:
         compatible:
@@ -142,7 +145,7 @@ domains:
             - cluster: cpus_r5_0
               cpumask: 0x1
               mode:
-              secure: true
+                secure: true
               cluster_cpu: psu_cortexr5_0
         os,type: freertos
         access:
@@ -187,7 +190,7 @@ domains:
             - cluster: cpus_r5_1
               cpumask: 0x2
               mode:
-              secure: true
+                secure: true
               cluster_cpu: psu_cortexr5_1
         os,type: freertos
         access:
@@ -224,5 +227,3 @@ domains:
                      - rpu1vdev0vring0
                      - rpu1vdev0vring1
                      - rpu1vdev0buffer
-
-
