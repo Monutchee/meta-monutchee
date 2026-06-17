@@ -1,0 +1,31 @@
+
+BBPATH = "${TOPDIR}"
+BBFILES ?= ""
+
+BBLAYERS ?= " \
+  ##OEROOT##/meta \
+  ##OEROOT##/meta-poky \
+  ##OEROOT##/meta-yocto-bsp \
+  \
+  ##OEROOT##/../meta-arm/meta-arm  \
+  ##OEROOT##/../meta-arm/meta-arm-toolchain \
+  ##OEROOT##/../meta-virtualization \
+  \
+  ##OEROOT##/../meta-xilinx/meta-xilinx-core \
+  ##OEROOT##/../meta-xilinx/meta-xilinx-standalone \
+  ##OEROOT##/../meta-xilinx/meta-xilinx-standalone-sdt \
+  ##OEROOT##/../meta-xilinx/meta-microblaze \
+  ##OEROOT##/../meta-xilinx/meta-xilinx-bsp \
+  \
+  ##OEROOT##/../meta-openamp \
+  \
+  ##OEROOT##/../meta-openembedded/meta-oe \
+  ##OEROOT##/../meta-openembedded/meta-python \
+  ##OEROOT##/../meta-openembedded/meta-networking \
+  ##OEROOT##/../meta-openembedded/meta-filesystems \
+  ##OEROOT##/../meta-openembedded/meta-webserver \
+  \
+  ##OEROOT##/../meta-mncos \
+  \
+  ##OEROOT##/../meta-zuboard \
+  "

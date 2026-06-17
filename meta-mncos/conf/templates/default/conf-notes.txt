@@ -1,0 +1,16 @@
+### Shell environment set up for MNCos build. ###
+
+# Please run gen-machineconf to parse the SDT output before building this yocto project
+# Ref: https://github.com/lesterlo/mncos-manifest/wiki/03.-Create-Yocto-machine-conf#gen-machine-conf-command
+
+You can now run 'bitbake <target>'
+
+Common targets are:
+    mncos-image-minimal
+
+You can also run generated qemu images with a command like 'runqemu qemux86-64'.
+
+Other commonly useful commands are:
+ - 'devtool' and 'recipetool' handle common recipe tasks
+ - 'bitbake-layers' handles common layer tasks
+ - 'oe-pkgdata-util' handles common target package tasks
