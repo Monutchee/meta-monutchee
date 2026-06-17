@@ -7,8 +7,8 @@ else
 fi
 
 
-# Xilinx Yocto Default
-export TEMPLATECONF=$ROOT/sources/meta-mncos/conf/templates/default
+# Monutchee Yocto template
+export TEMPLATECONF=$ROOT/sources/meta-monutchee/meta-mncos/conf/templates/default
 export PATH=$PATH:$ROOT/scripts
 
 # Load the xilinx gen-machine-conf

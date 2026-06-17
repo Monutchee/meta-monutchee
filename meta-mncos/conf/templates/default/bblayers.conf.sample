@@ -25,7 +25,7 @@ BBLAYERS ?= " \
   ##OEROOT##/../meta-openembedded/meta-filesystems \
   ##OEROOT##/../meta-openembedded/meta-webserver \
   \
-  ##OEROOT##/../meta-mncos \
+  ##OEROOT##/../meta-monutchee/meta-mncos \
   \
-  ##OEROOT##/../meta-zuboard \
+  ##OEROOT##/../meta-monutchee/meta-zuboard \
   "
