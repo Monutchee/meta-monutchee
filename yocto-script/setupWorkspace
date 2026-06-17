@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+# The workspace root is the directory containing this script.
+WORKSPACE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+
+RUNTIME_DIR="${WORKSPACE_ROOT}/runtime-generated"
+VIVADO_SDT_DIR="${RUNTIME_DIR}/vivado_SDT_out"
+BIN_FILE_DIR="${RUNTIME_DIR}/bin_file"
+
+main() {
+    if [[ ! -d "${WORKSPACE_ROOT}/.repo" ]]; then
+        printf 'Warning: %s does not appear to be a repo workspace root.\n' \
+            "${WORKSPACE_ROOT}" >&2
+    fi
+
+    mkdir -p -- \
+        "${VIVADO_SDT_DIR}" \
+        "${BIN_FILE_DIR}"
+
+    printf 'Workspace directories are ready:\n'
+    printf '  %s\n' "${VIVADO_SDT_DIR}"
+    printf '  %s\n' "${BIN_FILE_DIR}"
+}
+
+main "$@"
