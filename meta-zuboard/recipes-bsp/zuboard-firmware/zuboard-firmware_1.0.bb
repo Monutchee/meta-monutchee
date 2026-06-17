@@ -35,7 +35,7 @@ ZUBOARD_PL_TAG ?= "${ZUBOARD_RELEASE_TAG}"
 ZUBOARD_FIRMWARE_SRC ?= "cloud"
 ZUBOARD_RPU_LOCAL_DIR ?= "${TOPDIR}/../../ZuBoardDemo_RPU"
 ZUBOARD_PL_LOCAL_DIR ?= "${TOPDIR}/../../ZuBoardDemo_PL"
-ZUBOARD_PL_LOCAL_FILE ?= "${ZUBOARD_PL_LOCAL_DIR}/vivado_gen/ZuBoardDemo_PL.runs/impl_1/MainBlock_wrapper.bit"
+ZUBOARD_PL_LOCAL_FILE ?= "${TOPDIR}/../../runtime-generated/bin_file/fpga.bit"
 
 # Destination directory on the target rootfs.
 FIRMWARE_INSTALL_DIR ?= "/opt/monutchee/zudemo/firmware"
@@ -66,8 +66,10 @@ ZUBOARD_PL_BASEURL = "https://github.com/lesterlo/ZuBoardDemo_PL/releases/downlo
 SRC_URI = "file://zud"
 
 # In cloud mode, expand one SRC_URI entry per remote firmware asset.
-# In local mode, add the sibling build outputs to do_install's checksum inputs
-# so BitBake re-runs packaging when those artifacts change.
+# In local mode, package sibling build outputs directly. The local artifacts are
+# live build products, so avoid adding them to file-checksums; changing them
+# during a build can make task metadata non-deterministic. Instead, make
+# do_install nostamp so local packaging is refreshed whenever the recipe runs.
 python () {
     src = (d.getVar('ZUBOARD_FIRMWARE_SRC') or "cloud").strip()
     ps_files = (d.getVar('ZUBOARD_PS_FILES') or "").split()
@@ -84,12 +86,7 @@ python () {
             name = f.rsplit('.', 1)[0].lower()
             d.appendVar('SRC_URI', " %s/%s/%s;name=%s;downloadfilename=zuboard-ps-%s-%s" % (ps_base, ps_tag, f, name, ps_tag, f))
     elif src == "local":
-        rpu_dir = d.getVar('ZUBOARD_RPU_LOCAL_DIR')
-        for f in ps_files:
-            core = f.rsplit('.', 1)[0]
-            d.appendVarFlag('do_install', 'file-checksums', ' %s/%s/build/%s:True' % (rpu_dir, core, f))
-
-        d.appendVarFlag('do_install', 'file-checksums', ' %s:True' % d.getVar('ZUBOARD_PL_LOCAL_FILE'))
+        d.setVarFlag('do_install', 'nostamp', '1')
     else:
         bb.fatal('Unsupported ZUBOARD_FIRMWARE_SRC="%s"; use "cloud" or "local".' % src)
 }
