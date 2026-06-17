@@ -1,0 +1,122 @@
+This README file contains information on the contents of the meta-zuboard layer.
+
+Please see the corresponding sections below for details.
+
+Dependencies
+============
+
+  URI: <first dependency>
+  branch: <branch name>
+
+  URI: <second dependency>
+  branch: <branch name>
+
+  .
+  .
+  .
+
+Patches
+=======
+
+Please submit any patches against the meta-zuboard layer to the xxxx mailing list (xxxx@zzzz.org)
+and cc: the maintainer:
+
+Maintainer: Lester Lo <xxx.yyyyyy@zzzzz.com>
+
+Table of Contents
+=================
+
+  I. Adding the meta-zuboard layer to your build
+ II. Production flash image
+
+
+I. Adding the meta-zuboard layer to your build
+=================================================
+
+Run 'bitbake-layers add-layer meta-zuboard'
+
+II. Production flash image
+==========================
+
+Build the generic production-flash image with the ZUBoard implementation and
+the production WIC together:
+
+  bitbake mncos-production-flash-image
+
+The complete bundle is exported to:
+
+  build/export/jtag-tftpboot
+
+When load-jtag-image.tcl starts, it copies the files fetched by U-Boot to
+/srv/tftp before connecting to the board. The production bundle also copies
+target.wic.xz and its checksum. The ELF firmware files remain in the export
+directory because XSDB downloads them directly over JTAG. To use a different
+TFTP root, set MNCOS_TFTP_ROOT in the host environment.
+
+Configure the TFTP server to expose /srv/tftp. Run XSDB from the export bundle
+directory so it can load the local ELF firmware. The hw_server and TFTP server
+addresses are required; the temporary static board address is optional:
+
+The loader performs a ZynqMP system reset before loading PMU firmware and FSBL,
+so repeated JTAG boots do not depend on state left by the previous Linux run.
+
+  ./load-jtag-image.tcl <hw-server-ip> <tftp-server-ip> [board-ip]
+
+For example:
+
+  ./load-jtag-image.tcl 127.0.0.1 192.168.1.10
+
+With no board-ip argument, U-Boot obtains the board address through DHCP. DHCP
+autoload is disabled, so it only configures networking; the loader-provided
+TFTP server address remains authoritative. A static board address is optional:
+
+  ./load-jtag-image.tcl 127.0.0.1 192.168.1.10 192.168.1.20
+
+The TCL script writes a one-shot marker before starting U-Boot. U-Boot consumes
+the marker and automatically runs "run tftpbootstep". Normal production boots
+do not write the marker and keep their existing boot behavior.
+
+The TCL arguments configure U-Boot for that one JTAG boot without rebuilding
+or saving the environment.
+
+To JTAG/TFTP boot and test the full mncos-image-minimal rootfs instead, build
+that target and run the same loader from build/export/tftpboot. The directory
+determines which rootfs.cpio.gz.u-boot is downloaded; the U-Boot marker and
+runtime U-Boot IP override behavior are shared by both images.
+
+After the provisioning Linux boots, write the verified production WIC to the
+detected non-removable eMMC device with:
+
+  mncos-flash-emmc
+
+If the Linux-side TFTP server differs from the build-time default, pass it to
+the flashing utility as well:
+
+  mncos-flash-emmc --server 192.168.1.10
+
+The JTAG loader passes the TFTP server to Linux through the kernel command
+line. The flashing utility also accepts --server as an explicit override.
+
+The utility downloads target.wic.xz and target.wic.xz.sha256 over TFTP, checks
+the SHA-256 and XZ stream, verifies the target capacity, and requires an ERASE
+confirmation before writing. Use --target only when automatic eMMC detection
+cannot select exactly one device.
+
+The board device tree must enable the eMMC controller and expose its user-area
+block device to Linux. The current zub1cg.dtsi explicitly enables only sdhci1
+for the SD card, so eMMC pinmux/controller support is still a board prerequisite.
+
+
+
+# Looad the fpga and the R5 cores
+
+## New method
+
+```
+zud install all && zud load all && zud start all
+```
+
+## Old and base method
+```
+zud install all && echo fpga.bit > /sys/class/fpga_manager/fpga0/firmware && echo r5c0.elf > /sys/class/remoteproc/remoteproc0/firmware && echo start > /sys/class/remoteproc/remoteproc0/state && echo r5c1.elf > /sys/class/remoteproc/remoteproc1/firmware && echo start > /sys/class/remoteproc/remoteproc1/state
+```
