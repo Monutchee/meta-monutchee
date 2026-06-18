@@ -1,20 +1,95 @@
-if [ -n "$BASH_SOURCE" ]; then
-	export ROOT=$(readlink -f $(dirname "$BASH_SOURCE"))
-elif [ -n "$ZSH_NAME" ]; then
-	export ROOT=$(readlink -f $(dirname "$0"))
+_monutchee_setupsdk_usage() {
+    cat <<'EOF'
+Usage:
+  source ./setupSDK [--product PRODUCT] [BUILD_DIR]
+
+Products:
+  zudemo       Use meta-zuboard/conf/templates/default and build-zudemo
+  kr260demo    Use meta-kr260demo/conf/templates/default and build-kr260demo
+
+Examples:
+  source ./setupSDK --product zudemo
+  source ./setupSDK --product kr260demo
+  source ./setupSDK --product kr260demo build-kr260demo
+EOF
+}
+
+if [ -n "${BASH_SOURCE:-}" ]; then
+    _monutchee_setupsdk_file="${BASH_SOURCE[0]}"
+elif [ -n "${ZSH_NAME:-}" ]; then
+    _monutchee_setupsdk_file="$0"
 else
-	export ROOT=$(readlink -f ${PWD})
+    _monutchee_setupsdk_file="${PWD}/setupSDK"
 fi
 
+ROOT="$(readlink -f "$(dirname "${_monutchee_setupsdk_file}")")"
 
-# Monutchee Yocto template
-export TEMPLATECONF=$ROOT/sources/meta-monutchee/meta-mncos/conf/templates/default
-export PATH=$PATH:$ROOT/scripts
+_monutchee_product="${MONUTCHEE_PRODUCT:-zudemo}"
+_monutchee_build_dir=""
 
-# Load the xilinx gen-machine-conf
-if [ -d $ROOT/sources/meta-xilinx/meta-xilinx-core/gen-machine-conf ]; then
-    export PATH=$PATH:$ROOT/sources/meta-xilinx/meta-xilinx-core/gen-machine-conf
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --product)
+            if [ "$#" -lt 2 ]; then
+                printf 'Error: --product requires a product name.\n' >&2
+                return 2 2>/dev/null || exit 2
+            fi
+            _monutchee_product="$2"
+            shift 2
+            ;;
+
+        --product=*)
+            _monutchee_product="${1#*=}"
+            shift
+            ;;
+
+        -h|--help)
+            _monutchee_setupsdk_usage
+            return 0 2>/dev/null || exit 0
+            ;;
+
+        *)
+            if [ -n "${_monutchee_build_dir}" ]; then
+                printf 'Error: setupSDK accepts at most one build directory.\n' >&2
+                return 2 2>/dev/null || exit 2
+            fi
+            _monutchee_build_dir="$1"
+            shift
+            ;;
+    esac
+done
+
+case "${_monutchee_product}" in
+    zudemo|zuboard)
+        _monutchee_product="zudemo"
+        _monutchee_template_layer="meta-zuboard"
+        _monutchee_default_build_dir="build-zudemo"
+        ;;
+
+    kr260demo|kr260)
+        _monutchee_product="kr260demo"
+        _monutchee_template_layer="meta-kr260demo"
+        _monutchee_default_build_dir="build-kr260demo"
+        ;;
+
+    *)
+        printf 'Error: unsupported product: %s\n' "${_monutchee_product}" >&2
+        return 2 2>/dev/null || exit 2
+        ;;
+esac
+
+if [ -z "${_monutchee_build_dir}" ]; then
+    _monutchee_build_dir="${_monutchee_default_build_dir}"
 fi
 
+# Monutchee Yocto template (per-product; lives in the board/product layer)
+export MONUTCHEE_PRODUCT="${_monutchee_product}"
+export TEMPLATECONF="${ROOT}/sources/meta-monutchee/${_monutchee_template_layer}/conf/templates/default"
+export PATH="${PATH}:${ROOT}/scripts"
 
-source $ROOT/sources/poky/oe-init-build-env "$@"
+# Load the Xilinx gen-machine-conf helper.
+if [ -d "${ROOT}/sources/meta-xilinx/meta-xilinx-core/gen-machine-conf" ]; then
+    export PATH="${PATH}:${ROOT}/sources/meta-xilinx/meta-xilinx-core/gen-machine-conf"
+fi
+
+source "${ROOT}/sources/poky/oe-init-build-env" "${_monutchee_build_dir}"

@@ -6,22 +6,15 @@ MACHINE ??= "qemuarm64"
 DISTRO ?= "mncos"
 
 
-# Bibake settings
-# For slow Disk IO computer, you should reduce the bb number of threads
-BB_NUMBER_THREADS = "${@max(1, oe.utils.cpu_count() - 2)}"
-PARALLEL_MAKE = "-j ${@max(1, oe.utils.cpu_count() - 2)} -l ${@max(1, oe.utils.cpu_count() - 1)}"
-BB_FETCH_RETRY = "10"
+# BitBake build-performance defaults (BB_NUMBER_THREADS, PARALLEL_MAKE,
+# BB_FETCH_RETRY) come from meta-mncos (conf/distro/mncos.conf) and auto-scale to
+# this host. Override here if your disk IO is slow, e.g.:
+#   BB_NUMBER_THREADS = "4"
 
-# Accept the license
-LICENSE_FLAGS_ACCEPTED = " \
-    xilinx \
-    "
-    
-# Xilinx gen-machineconf recommand settings
-XILINX_WITH_ESW = "sdt"
-SKIP_META_VIRT_SANITY_CHECK = "1"
-SKIP_META_SECURITY_SANITY_CHECK = "1"
-SKIP_META_TPM_SANITY_CHECK = "1"
+# Xilinx-common build settings (LICENSE_FLAGS_ACCEPTED, XILINX_WITH_ESW,
+# SKIP_META_*_SANITY_CHECK) now come from meta-fpga-util/conf/xilinx-build.inc,
+# applied automatically because meta-fpga-util is in bblayers. Uncomment/override
+# here only if a specific build needs to differ.
 
 #
 # This file is your local configuration file and is where all local user settings
@@ -78,7 +71,7 @@ SKIP_META_TPM_SANITY_CHECK = "1"
 #
 # The default is a downloads directory under TOPDIR which is the build directory.
 #
-#DL_DIR = "${WORKDIR}/downloads"
+DL_DIR ?= "${TOPDIR}/../yocto-cache/downloads"
 
 #
 # Where to place shared-state files
@@ -94,7 +87,7 @@ SKIP_META_TPM_SANITY_CHECK = "1"
 #
 # The default is a sstate-cache directory under TOPDIR.
 #
-#SSTATE_DIR ?= "${TOPDIR}/sstate-cache"
+SSTATE_DIR ?= "${TOPDIR}/../yocto-cache/sstate-cache"
 
 #
 # Where to place the build output
@@ -311,4 +304,3 @@ PACKAGECONFIG:append:pn-qemu-system-native = " sdl"
 # track the version of this file when it was generated. This can safely be ignored if
 # this doesn't mean anything to you.
 CONF_VERSION = "2"
-

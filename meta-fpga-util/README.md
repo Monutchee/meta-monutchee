@@ -6,6 +6,8 @@ future `meta-kr260demo`.
 This layer provides:
 
 - `fwctl`, which installs `/usr/bin/fwctl` and `/etc/default/fwctl`.
+- `apu-rpu-ctl`, the Linux RPMsg char-device client used by demo images to
+  communicate with the RPU control firmware.
 - `fpga-firmware-package.bbclass`, a reusable class for packaging prebuilt PL
   bitstreams and Cortex-R firmware ELFs from either GitHub release assets or
   local workspace outputs.
@@ -46,5 +48,5 @@ inherit fpga-firmware-package
 Then add the board firmware package and `fwctl` to the image for that machine:
 
 ```bitbake
-IMAGE_INSTALL:append:board-machine = " board-firmware fwctl"
+IMAGE_INSTALL:append:board-machine = " board-firmware fwctl apu-rpu-ctl"
 ```
