@@ -1,26 +1,36 @@
 #!/bin/sh
-# zud - FPGA / Cortex-R5 firmware management for the zudemo (ZuBoard) board.
+# fwctl - FPGA / Cortex-R5 firmware management for ZynqMP demos.
 #
 # Commands:
-#   zud install <fpga|r5c0|r5c1|all>   Copy firmware into the kernel firmware dir
-#   zud load    <fpga|r5c0|r5c1|all>   Hand firmware to fpga_manager / remoteproc
-#   zud start   <r5c0|r5c1|all>        Start a loaded R5 core
-#   zud stop    <r5c0|r5c1|all>        Stop a running R5 core
-#   zud status  [fpga|r5c0|r5c1|all]   Show current state
-#   zud help                           Show this help
+#   fwctl install <fpga|r5c0|r5c1|all>   Copy firmware into the kernel firmware dir
+#   fwctl load    <fpga|r5c0|r5c1|all>   Hand firmware to fpga_manager / remoteproc
+#   fwctl start   <r5c0|r5c1|all>        Start a loaded R5 core
+#   fwctl stop    <r5c0|r5c1|all>        Stop a running R5 core
+#   fwctl status  [fpga|r5c0|r5c1|all]   Show current state
+#   fwctl help                           Show this help
 #
 # The FPGA runs automatically once loaded; R5 cores need an explicit 'start'.
 # POSIX sh (runs under busybox ash and bash) - no bashisms.
 
 set -u
 
-PROG=zud
+PROG=${0##*/}
+
+if [ -r /etc/default/fwctl ]; then
+    . /etc/default/fwctl
+elif [ -r /etc/default/fwCtl ]; then
+    . /etc/default/fwCtl
+fi
 
 # Paths (overridable via env, mainly for testing).
-FW_SRC="${ZUD_FW_SRC:-/opt/monutchee/zudemo/firmware}"
-FW_DST="${ZUD_FW_DST:-/lib/firmware}"
-FPGA_MGR="${ZUD_FPGA_MGR:-/sys/class/fpga_manager/fpga0}"
-RPROC_BASE="${ZUD_RPROC_BASE:-/sys/class/remoteproc}"
+FW_SRC="${FWCTL_FW_SRC:-${ZUD_FW_SRC:-/opt/monutchee/firmware}}"
+FW_DST="${FWCTL_FW_DST:-${ZUD_FW_DST:-/lib/firmware}}"
+FPGA_MGR="${FWCTL_FPGA_MGR:-${ZUD_FPGA_MGR:-/sys/class/fpga_manager/fpga0}}"
+RPROC_BASE="${FWCTL_RPROC_BASE:-${ZUD_RPROC_BASE:-/sys/class/remoteproc}}"
+
+FPGA_FILE="${FWCTL_FPGA_FILE:-fpga.bit}"
+R5C0_FILE="${FWCTL_R5C0_FILE:-r5c0.elf}"
+R5C1_FILE="${FWCTL_R5C1_FILE:-r5c1.elf}"
 
 err()  { printf '%s: error: %s\n' "$PROG" "$*" >&2; }
 die()  { err "$*"; exit 1; }
@@ -39,9 +49,9 @@ Commands:
   help                           Show this help
 
 Targets:
-  fpga   -> fpga.bit   (programmed via $FPGA_MGR, runs immediately)
-  r5c0   -> r5c0.elf   ($RPROC_BASE/remoteproc0)
-  r5c1   -> r5c1.elf   ($RPROC_BASE/remoteproc1)
+  fpga   -> $FPGA_FILE   (programmed via $FPGA_MGR, runs immediately)
+  r5c0   -> $R5C0_FILE   ($RPROC_BASE/remoteproc0)
+  r5c1   -> $R5C1_FILE   ($RPROC_BASE/remoteproc1)
 
 Typical flow:
   $PROG install all
@@ -58,9 +68,9 @@ require_root() {
 # Firmware file name for a target (also validates the target name).
 fw_file() {
     case "$1" in
-        fpga) echo fpga.bit ;;
-        r5c0) echo r5c0.elf ;;
-        r5c1) echo r5c1.elf ;;
+        fpga) echo "$FPGA_FILE" ;;
+        r5c0) echo "$R5C0_FILE" ;;
+        r5c1) echo "$R5C1_FILE" ;;
         *)    return 1 ;;
     esac
 }
