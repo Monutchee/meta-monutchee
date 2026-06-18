@@ -1,5 +1,5 @@
-SUMMARY = "ZuBoard APU to RPU RPMsg control utility"
-DESCRIPTION = "Builds apu-rpu-ctl, a Linux RPMsg char-device client for the ZuBoard R5 control firmware."
+SUMMARY = "APU to RPU RPMsg control utility"
+DESCRIPTION = "Builds apu-rpu-ctl, a Linux RPMsg char-device client for demo RPU control firmware."
 HOMEPAGE = "https://github.com/lesterlo/ZuBoardDemo_APU"
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=bea232fc293d2909c632f6cdc3edc644"
