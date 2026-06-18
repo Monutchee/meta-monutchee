@@ -1,27 +1,39 @@
 # meta-mncos
 
-This layer contains vendor-neutral MNCOS distribution, application and image
-definitions. Machine layers provide hardware-specific boot and flashing logic.
+This layer contains vendor-neutral MNCOS distribution policy, shared OS
+services, and reusable package definitions. Machine/product layers own concrete
+image recipes and hardware-specific boot or flashing logic.
 
-## Production Flash Image
+## Product Images
 
-`mncos-production-flash-image` is the common RAM-resident base image. It
-provides the bootable userspace contract but does not assume JTAG, UUU, eMMC,
-TFTP, WIC, or any particular SoC vendor.
+`meta-mncos` intentionally does not provide a buildable image target. A product
+layer should create its own target, such as `zudemo-image` or a future
+`kr260demo-image`, and install the shared MNCOS package set from this
+layer.
 
-Machine layers implement the concrete behavior through:
+## Reusable Package Set
+
+`recipes-core/images/include/mncos-image-common.inc` defines the common MNCOS
+image scaffolding and base userspace package set. A product image `require`s
+it and then customises the set with standard overrides:
 
 ```bitbake
-MNCOS_PRODUCTION_FLASH_EXTRA_INSTALL = "product-production-flasher"
-MNCOS_PRODUCTION_FLASH_IMAGE_FSTYPES = "cpio.gz product-wrapper"
+require recipes-core/images/include/mncos-image-common.inc
+
+IMAGE_INSTALL:append = " board-firmware fwctl"   # add product-specific packages
+IMAGE_INSTALL:remove = " htop"                   # trim packages from the base set
 ```
 
-For example, `meta-zuboard` adds the ZynqMP JTAG/TFTP export and guarded eMMC
-writer. An i.MX machine layer can append the same image with the packages and
-formats required by NXP UUU.
+`:remove` is applied last and overrides `:append`, so a product can
+deterministically drop a base package. Keeping the shared set in the
+machine-specific image recipe (rather than an `allarch` packagegroup) also
+avoids the dynamic-package-rename QA error.
 
-Both the main and production-flash images identify themselves on the serial
-login banner and in `/etc/mncos-image-info`. On a running target, use:
+## Image Identity
+
+Product image recipes can inherit `mncos-image-identity` to identify themselves
+on the serial login banner and in `/etc/mncos-image-info`. On a running target,
+use:
 
 ```sh
 cat /etc/mncos-image-info

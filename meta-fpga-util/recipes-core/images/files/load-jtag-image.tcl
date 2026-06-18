@@ -1,6 +1,6 @@
 #!/usr/bin/env xsdb
 # Boot an MNCOS image through JTAG and automatically start its TFTP load.
-# Run this script from build/export/tftpboot to test mncos-image-minimal, or
+# Run this script from build/export/tftpboot to test xilinx fpga target image, or
 # from build/export/jtag-tftpboot to boot a production-flash image.
 #
 # Usage:
