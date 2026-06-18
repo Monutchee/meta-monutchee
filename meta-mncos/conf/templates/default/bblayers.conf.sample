@@ -26,6 +26,7 @@ BBLAYERS ?= " \
   ##OEROOT##/../meta-openembedded/meta-webserver \
   \
   ##OEROOT##/../meta-monutchee/meta-mncos \
+  ##OEROOT##/../meta-monutchee/meta-fpga-util \
   \
   ##OEROOT##/../meta-monutchee/meta-zuboard \
   "
