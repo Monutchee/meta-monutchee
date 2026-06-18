@@ -1,122 +1,126 @@
-This README file contains information on the contents of the meta-zuboard layer.
+meta-zuboard
+============
 
-Please see the corresponding sections below for details.
+This layer is the ZuBoard implementation of the MNCOS Xilinx ZynqMP demo. It is
+intentionally thin so it can act as the template for a future board layer such
+as `meta-kr260demo`.
+
+Common FPGA demo mechanics live in `meta-fpga-util`:
+
+- `/usr/bin/fwctl` firmware staging/loading utility
+- generic PL/RPU firmware packaging class
+- ZynqMP JTAG/TFTP export class and loader script
+
+`meta-zuboard` keeps the board-specific pieces:
+
+- ZuBoard firmware asset names, release URLs, checksums and local workspace
+  paths in `recipes-bsp/zuboard-firmware/zuboard-firmware_1.0.bb`
+- ZuBoard DTS/domain YAML fragments
+- U-Boot environment and config for the `zudemo` machine
+- production flashing utility and eMMC policy
+- image appends that install the ZuBoard firmware package, `fwctl`, and
+  `apu-rpu-ctl` only for `zudemo`
 
 Dependencies
 ============
 
-  URI: <first dependency>
-  branch: <branch name>
+Add the layers in this order:
 
-  URI: <second dependency>
-  branch: <branch name>
+```sh
+bitbake-layers add-layer meta-mncos
+bitbake-layers add-layer meta-fpga-util
+bitbake-layers add-layer meta-zuboard
+```
 
-  .
-  .
-  .
+`meta-zuboard` depends on `meta-fpga-util`, `meta-xilinx-core`, and
+`meta-xilinx-standalone`.
 
-Patches
-=======
+Template For Another ZynqMP Demo Board
+======================================
 
-Please submit any patches against the meta-zuboard layer to the xxxx mailing list (xxxx@zzzz.org)
-and cc: the maintainer:
+To create `meta-kr260demo`, copy the shape of this layer but keep shared logic
+in `meta-fpga-util`.
 
-Maintainer: Lester Lo <xxx.yyyyyy@zzzzz.com>
+Start with these board-specific edits:
 
-Table of Contents
-=================
+1. Rename the layer directory and collection from `meta-zuboard` to
+   `meta-kr260demo`.
+2. Keep `LAYERDEPENDS_<collection>` pointing at `fpga-util`, `xilinx`, and
+   `xilinx-standalone`.
+3. Create a firmware recipe such as `kr260demo-firmware_1.0.bb` that sets
+   `FPGA_FIRMWARE_*` variables and inherits `fpga-firmware-package`.
+4. Update the image append to install `kr260demo-firmware fwctl` for the KR260
+   machine override.
+5. Replace the machine config, DTS/domain YAML, U-Boot environment, and any
+   production flashing policy with KR260 values.
 
-  I. Adding the meta-zuboard layer to your build
- II. Production flash image
+Firmware Control
+================
 
+The old `zud` helper is now the shared `fwctl` command from `meta-fpga-util`.
+The ZuBoard image installs `/etc/default/fwctl` with:
 
-I. Adding the meta-zuboard layer to your build
-=================================================
+```sh
+FWCTL_FW_SRC="/opt/monutchee/zudemo/firmware"
+FWCTL_FW_DST="/lib/firmware"
+```
 
-Run 'bitbake-layers add-layer meta-zuboard'
+Typical target-side flow:
 
-II. Production flash image
-==========================
+```sh
+fwctl install all
+fwctl load all
+fwctl start all
+```
 
-Build the generic production-flash image with the ZUBoard implementation and
+For compatibility during transition, `fwctl` still honors the old `ZUD_*`
+environment variables if the new `FWCTL_*` variables are not set.
+
+Production Flash Image
+======================
+
+Build the generic production-flash image with the ZuBoard implementation and
 the production WIC together:
 
-  bitbake mncos-production-flash-image
+```sh
+bitbake mncos-production-flash-image
+```
 
 The complete bundle is exported to:
 
-  build/export/jtag-tftpboot
+```text
+build/export/jtag-tftpboot
+```
 
-When load-jtag-image.tcl starts, it copies the files fetched by U-Boot to
-/srv/tftp before connecting to the board. The production bundle also copies
-target.wic.xz and its checksum. The ELF firmware files remain in the export
+When `load-jtag-image.tcl` starts, it copies the files fetched by U-Boot to
+`/srv/tftp` before connecting to the board. The production bundle also copies
+`target.wic.xz` and its checksum. The ELF firmware files remain in the export
 directory because XSDB downloads them directly over JTAG. To use a different
-TFTP root, set MNCOS_TFTP_ROOT in the host environment.
+TFTP root, set `MNCOS_TFTP_ROOT` in the host environment.
 
-Configure the TFTP server to expose /srv/tftp. Run XSDB from the export bundle
-directory so it can load the local ELF firmware. The hw_server and TFTP server
-addresses are required; the temporary static board address is optional:
+Run XSDB from the export bundle directory:
 
-The loader performs a ZynqMP system reset before loading PMU firmware and FSBL,
-so repeated JTAG boots do not depend on state left by the previous Linux run.
+```sh
+./load-jtag-image.tcl <hw-server-ip> <tftp-server-ip> [board-ip]
+```
 
-  ./load-jtag-image.tcl <hw-server-ip> <tftp-server-ip> [board-ip]
+With no board IP argument, U-Boot obtains the board address through DHCP. A
+static board address is optional:
 
-For example:
-
-  ./load-jtag-image.tcl 127.0.0.1 192.168.1.10
-
-With no board-ip argument, U-Boot obtains the board address through DHCP. DHCP
-autoload is disabled, so it only configures networking; the loader-provided
-TFTP server address remains authoritative. A static board address is optional:
-
-  ./load-jtag-image.tcl 127.0.0.1 192.168.1.10 192.168.1.20
-
-The TCL script writes a one-shot marker before starting U-Boot. U-Boot consumes
-the marker and automatically runs "run tftpbootstep". Normal production boots
-do not write the marker and keep their existing boot behavior.
-
-The TCL arguments configure U-Boot for that one JTAG boot without rebuilding
-or saving the environment.
-
-To JTAG/TFTP boot and test the full mncos-image-minimal rootfs instead, build
-that target and run the same loader from build/export/tftpboot. The directory
-determines which rootfs.cpio.gz.u-boot is downloaded; the U-Boot marker and
-runtime U-Boot IP override behavior are shared by both images.
+```sh
+./load-jtag-image.tcl 127.0.0.1 192.168.1.10 192.168.1.20
+```
 
 After the provisioning Linux boots, write the verified production WIC to the
 detected non-removable eMMC device with:
 
-  mncos-flash-emmc
+```sh
+mncos-flash-emmc
+```
 
 If the Linux-side TFTP server differs from the build-time default, pass it to
-the flashing utility as well:
+the flashing utility:
 
-  mncos-flash-emmc --server 192.168.1.10
-
-The JTAG loader passes the TFTP server to Linux through the kernel command
-line. The flashing utility also accepts --server as an explicit override.
-
-The utility downloads target.wic.xz and target.wic.xz.sha256 over TFTP, checks
-the SHA-256 and XZ stream, verifies the target capacity, and requires an ERASE
-confirmation before writing. Use --target only when automatic eMMC detection
-cannot select exactly one device.
-
-The board device tree must enable the eMMC controller and expose its user-area
-block device to Linux. The current zub1cg.dtsi explicitly enables only sdhci1
-for the SD card, so eMMC pinmux/controller support is still a board prerequisite.
-
-
-
-# Looad the fpga and the R5 cores
-
-## New method
-
-```
-zud install all && zud load all && zud start all
-```
-
-## Old and base method
-```
-zud install all && echo fpga.bit > /sys/class/fpga_manager/fpga0/firmware && echo r5c0.elf > /sys/class/remoteproc/remoteproc0/firmware && echo start > /sys/class/remoteproc/remoteproc0/state && echo r5c1.elf > /sys/class/remoteproc/remoteproc1/firmware && echo start > /sys/class/remoteproc/remoteproc1/state
+```sh
+mncos-flash-emmc --server 192.168.1.10
 ```

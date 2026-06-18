@@ -10,7 +10,7 @@ do_image_wic[noexec] = "1"
 
 IMAGE_CLASSES:append = " export-tftpboot-file"
 TFTPBOOT_DEST_DIR = "${TOPDIR}/export/jtag-tftpboot"
-JTAG_LOADER_TCL = "${ZUBOARD_LAYERDIR}/recipes-core/images/files/load-jtag-image.tcl"
+JTAG_LOADER_TCL = "${FPGA_UTIL_LAYERDIR}/recipes-core/images/files/load-jtag-image.tcl"
 
 # Building the flashing target also builds and exports the production WIC that
 # the RAM-resident ZUBoard implementation writes to eMMC.
