@@ -24,7 +24,14 @@ fi
 
 ROOT="$(readlink -f "$(dirname "${_monutchee_setupsdk_file}")")"
 
-_monutchee_product="${MONUTCHEE_PRODUCT:-zudemo}"
+# Resolve the product with no required argument:
+#   MONUTCHEE_PRODUCT env  >  per-workspace marker (.mncos-product)  >  --product
+# setupWorkspace writes the marker once, so a bare `source ./setupSDK` selects
+# the right product in every new console.
+_monutchee_product="${MONUTCHEE_PRODUCT:-}"
+if [ -z "${_monutchee_product}" ] && [ -r "${ROOT}/.mncos-product" ]; then
+    _monutchee_product="$(tr -d '[:space:]' < "${ROOT}/.mncos-product" 2>/dev/null)"
+fi
 _monutchee_build_dir=""
 
 while [ "$#" -gt 0 ]; do
@@ -70,6 +77,13 @@ case "${_monutchee_product}" in
         _monutchee_product="kr260demo"
         _monutchee_template_layer="meta-kr260demo"
         _monutchee_default_build_dir="build-kr260demo"
+        ;;
+
+    "")
+        printf 'Error: no product selected.\n' >&2
+        printf '  Pass --product <name>, export MONUTCHEE_PRODUCT, or create %s\n' \
+            "${ROOT}/.mncos-product" >&2
+        return 2 2>/dev/null || exit 2
         ;;
 
     *)
