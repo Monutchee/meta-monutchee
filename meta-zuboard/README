@@ -18,8 +18,8 @@ Common FPGA demo mechanics live in `meta-fpga-util`:
 - ZuBoard DTS/domain YAML fragments
 - U-Boot environment and config for the `zudemo` machine
 - production flashing utility and eMMC policy
-- image appends that install the ZuBoard firmware package, `fwctl`, and
-  `apu-rpu-ctl` only for `zudemo`
+- product image recipes that install the shared MNCOS package group, ZuBoard
+  firmware package, `fwctl`, and `apu-rpu-ctl` for `zudemo`
 
 Dependencies
 ============
@@ -33,7 +33,8 @@ bitbake-layers add-layer meta-zuboard
 ```
 
 `meta-zuboard` depends on `meta-fpga-util`, `meta-xilinx-core`, and
-`meta-xilinx-standalone`.
+`meta-xilinx-standalone`. It also depends on `meta-mncos` for the MNCOS distro,
+image identity class, and shared package group.
 
 Template For Another ZynqMP Demo Board
 ======================================
@@ -46,11 +47,14 @@ Start with these board-specific edits:
 1. Rename the layer directory and collection from `meta-zuboard` to
    `meta-kr260demo`.
 2. Keep `LAYERDEPENDS_<collection>` pointing at `fpga-util`, `xilinx`, and
-   `xilinx-standalone`.
+   `xilinx-standalone`, plus `mncos`.
 3. Create a firmware recipe such as `kr260demo-firmware_1.0.bb` that sets
    `FPGA_FIRMWARE_*` variables and inherits `fpga-firmware-package`.
-4. Update the image append to install `kr260demo-firmware fwctl` for the KR260
-   machine override.
+4. Create product image targets such as `kr260demo-image-minimal` and
+   `kr260demo-production-flash-image`; `require
+   recipes-core/images/include/mncos-image-common.inc` for the shared MNCOS
+   base set, then add `kr260demo-firmware fwctl` (and trim with
+   `IMAGE_INSTALL:remove` if needed) in the main image.
 5. Replace the machine config, DTS/domain YAML, U-Boot environment, and any
    production flashing policy with KR260 values.
 
@@ -76,14 +80,19 @@ fwctl start all
 For compatibility during transition, `fwctl` still honors the old `ZUD_*`
 environment variables if the new `FWCTL_*` variables are not set.
 
-Production Flash Image
-======================
+Image Targets
+=============
 
-Build the generic production-flash image with the ZuBoard implementation and
-the production WIC together:
+Build the main ZuBoard image:
 
 ```sh
-bitbake mncos-production-flash-image
+bitbake zudemo-image
+```
+
+Build the ZuBoard production-flash image and the production WIC together:
+
+```sh
+bitbake zudemo-production-flash-image
 ```
 
 The complete bundle is exported to:

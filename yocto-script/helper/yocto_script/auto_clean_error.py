@@ -21,7 +21,7 @@ def run_bitbake():
     while True:
         # Run bitbake command
         print("\nRunning bitbake...")
-        process = subprocess.Popen(["bitbake", "mncos-image-minimal"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        process = subprocess.Popen(["bitbake", "zudemo-image"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         error_packages = set()
         
         output_lines = []
@@ -71,4 +71,3 @@ def clean_package(package):
 
 if __name__ == "__main__":
     run_bitbake()
-
