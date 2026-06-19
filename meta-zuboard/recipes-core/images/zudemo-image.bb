@@ -13,7 +13,7 @@ MNCOS_IMAGE_LABEL = "MNCOS ZUBOARD MAIN SYSTEM IMAGE"
 #   :remove (if needed) trims packages from the base set, e.g.:
 #       IMAGE_INSTALL:remove = " htop"
 IMAGE_INSTALL:append = " \
-    zuboard-firmware \
+    zynqmp-firmware \
     fwctl \
     apu-rpu-ctl \
 "

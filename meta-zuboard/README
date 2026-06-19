@@ -15,12 +15,13 @@ Common FPGA demo mechanics live in `meta-fpga-util`:
 `meta-zuboard` keeps the board-specific pieces:
 
 - ZuBoard firmware asset names, release URLs, checksums and local workspace
-  paths in `recipes-bsp/zuboard-firmware/zuboard-firmware_1.0.bb`
+  paths in `recipes-bsp/zynqmp-firmware/zynqmp-firmware_1.0.bbappend` (the
+  firmware recipe itself is the shared `zynqmp-firmware` in `meta-fpga-util`)
 - ZuBoard DTS/domain YAML fragments
 - U-Boot environment and config for the `zudemo` machine
 - production flashing utility and eMMC policy
-- product image recipes that install the shared MNCOS package group, ZuBoard
-  firmware package, `fwctl`, and `apu-rpu-ctl` for `zudemo`
+- product image recipes that install the shared MNCOS package group, the
+  `zynqmp-firmware` package, `fwctl`, and `apu-rpu-ctl` for `zudemo`
 
 Dependencies
 ============
@@ -49,12 +50,14 @@ Start with these board-specific edits:
    `meta-kr260demo`.
 2. Keep `LAYERDEPENDS_<collection>` pointing at `fpga-util`, `xilinx`, and
    `xilinx-standalone`, plus `mncos`.
-3. Create a firmware recipe such as `kr260demo-firmware_1.0.bb` that sets
-   `FPGA_FIRMWARE_*` variables and inherits `fpga-firmware-package`.
+3. Add a `recipes-bsp/zynqmp-firmware/zynqmp-firmware_1.0.bbappend` that sets the
+   board `FPGA_FIRMWARE_*` assets/checksums and a `COMPATIBLE_MACHINE` for the
+   board machine. The firmware recipe itself is the shared `zynqmp-firmware` in
+   `meta-fpga-util`.
 4. Create product image targets such as `kr260demo-image-minimal` and
    `kr260demo-production-flash-image`; `require
    recipes-core/images/include/mncos-image-common.inc` for the shared MNCOS
-   base set, then add `kr260demo-firmware fwctl` (and trim with
+   base set, then add `zynqmp-firmware fwctl` (and trim with
    `IMAGE_INSTALL:remove` if needed) in the main image.
 5. Replace the machine config, DTS/domain YAML, U-Boot environment, and any
    production flashing policy with KR260 values.
