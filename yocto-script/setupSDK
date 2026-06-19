@@ -4,13 +4,13 @@ Usage:
   source ./setupSDK [--product PRODUCT] [BUILD_DIR]
 
 Products:
-  zudemo       Use meta-zuboard/conf/templates/default and build-zudemo
-  kr260demo    Use meta-kr260demo/conf/templates/default and build-kr260demo
+  zudemo       Use meta-zuboard/conf/templates/default and build
+  kr260demo    Use meta-kr260demo/conf/templates/default and build
 
 Examples:
   source ./setupSDK --product zudemo
   source ./setupSDK --product kr260demo
-  source ./setupSDK --product kr260demo build-kr260demo
+  source ./setupSDK --product kr260demo build
 EOF
 }
 
@@ -70,13 +70,13 @@ case "${_monutchee_product}" in
     zudemo|zuboard)
         _monutchee_product="zudemo"
         _monutchee_template_layer="meta-zuboard"
-        _monutchee_default_build_dir="build-zudemo"
+        _monutchee_default_build_dir="build"
         ;;
 
     kr260demo|kr260)
         _monutchee_product="kr260demo"
         _monutchee_template_layer="meta-kr260demo"
-        _monutchee_default_build_dir="build-kr260demo"
+        _monutchee_default_build_dir="build"
         ;;
 
     "")
