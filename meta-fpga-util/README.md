@@ -1,7 +1,7 @@
 # meta-fpga-util
 
-Common FPGA demo utilities shared by board layers such as `meta-zuboard` and a
-future `meta-kr260demo`.
+Common FPGA demo utilities shared by ZynqMP board layers such as `meta-zuboard`
+and `meta-kr260demo`.
 
 This layer provides:
 
@@ -11,6 +11,9 @@ This layer provides:
 - `fpga-firmware-package.bbclass`, a reusable class for packaging prebuilt PL
   bitstreams and Cortex-R firmware ELFs from either GitHub release assets or
   local workspace outputs.
+- `zynqmp-firmware`, the shared firmware recipe that every ZynqMP board builds.
+  It carries only board-neutral defaults; each board layer supplies its own
+  asset URLs, checksums and local paths through a `zynqmp-firmware_%.bbappend`.
 - `export-tftpboot-file.bbclass` and `load-jtag-image.tcl`, the ZynqMP
   JTAG/TFTP boot bundle exporter used by MNCOS images.
 
@@ -18,35 +21,39 @@ Board layers should depend on this layer and keep only board-specific data:
 machine configuration, DTS/domain YAML, U-Boot environment, firmware asset
 URLs/checksums, and any board flasher implementation.
 
-## Board Firmware Recipe Pattern
+## Board Firmware Pattern
 
-A board layer only needs a thin recipe:
+The firmware recipe itself
+(`recipes-bsp/zynqmp-firmware/zynqmp-firmware_1.0.bb`) lives here and is shared
+by all boards. A board layer only adds a thin `.bbappend` that supplies its own
+assets and opts the board in via `COMPATIBLE_MACHINE`:
 
 ```bitbake
-SUMMARY = "Board demo FPGA bitstream and Cortex-R firmware"
-LICENSE = "CLOSED"
-
+# meta-<board>/recipes-bsp/zynqmp-firmware/zynqmp-firmware_1.0.bbappend
 FPGA_FIRMWARE_RELEASE_TAG = "v0.0.1"
-FPGA_FIRMWARE_PS_FILES = "R5c0.elf R5c1.elf"
-FPGA_FIRMWARE_PL_FILE = "fpga.bit"
 FPGA_FIRMWARE_PS_BASEURL = "https://github.com/example/BoardDemo_PS/releases/download"
 FPGA_FIRMWARE_PL_BASEURL = "https://github.com/example/BoardDemo_PL/releases/download"
-FPGA_FIRMWARE_RPU_LOCAL_DIR = "${TOPDIR}/../../BoardDemo_RPU"
-FPGA_FIRMWARE_PL_LOCAL_FILE = "${TOPDIR}/../../runtime-generated/bin_file/fpga.bit"
 FPGA_FIRMWARE_PS_DOWNLOAD_PREFIX = "board-ps"
 FPGA_FIRMWARE_PL_DOWNLOAD_PREFIX = "board-pl"
+FPGA_FIRMWARE_RPU_LOCAL_DIR = "${TOPDIR}/../../BoardDemo_RPU"
+FPGA_FIRMWARE_PL_LOCAL_FILE = "${TOPDIR}/../../runtime-generated/bin_file/fpga.bit"
 
 SRC_URI[fpga.sha256sum] = "..."
 SRC_URI[r5c0.sha256sum] = "..."
 SRC_URI[r5c1.sha256sum] = "..."
 
-COMPATIBLE_MACHINE = "^board-machine$"
+# Override the dual-R5 default only if the board ships different ELFs.
+# FPGA_FIRMWARE_PS_FILES = "R5c0.elf R5c1.elf"
 
-inherit fpga-firmware-package
+COMPATIBLE_MACHINE = "^board-machine$"
 ```
 
-Then add the board firmware package and `fwctl` to the image for that machine:
+Then add the shared firmware package and `fwctl` to the image for that machine:
 
 ```bitbake
-IMAGE_INSTALL:append:board-machine = " board-firmware fwctl apu-rpu-ctl"
+IMAGE_INSTALL:append = " zynqmp-firmware fwctl apu-rpu-ctl"
 ```
+
+Each product build is expected to include `meta-fpga-util` plus exactly one
+board layer. Until a board `.bbappend` sets `COMPATIBLE_MACHINE`, the shared
+recipe is compatible with no machine and never builds on its own.
