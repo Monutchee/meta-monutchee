@@ -64,3 +64,13 @@ For boards strapped to boot from QSPI or another non-JTAG source, set
 ZynqMP multiboot and boot-mode registers before reset, matching the Kria JTAG
 boot flow. Leave the variable at its default `0` for boards such as ZuBoard that
 can use the normal cable SRST pulse.
+
+If one `hw_server` exposes multiple boards, pass an XSDB target filter to the
+loader, or set `MNCOS_HW_TARGET_FILTER`. The filter is combined with each
+normal target selection, so the PSU, PMU, and A53 all come from the same board.
+Choose a filter property from `targets -target-properties`; for example, when
+the scan-chain index is unique:
+
+```sh
+MNCOS_HW_TARGET_FILTER='jtag_device_index == 1' ./load-jtag-image.tcl <hw-server-ip> <tftp-server-ip>
+```

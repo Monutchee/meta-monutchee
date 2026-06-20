@@ -4,9 +4,12 @@
 # from build/export/jtag-tftpboot to boot a production-flash image.
 #
 # Usage:
-#   ./load-jtag-image.tcl <hw-server-ip> <tftp-server-ip> [board-ip]
+#   ./load-jtag-image.tcl <hw-server-ip> <tftp-server-ip> [board-ip] [target-filter]
 #
 # If board-ip is omitted, U-Boot obtains it through DHCP before loading files.
+# If multiple boards are attached to one hw_server, pass target-filter or set
+# MNCOS_HW_TARGET_FILTER to an XSDB targets -filter expression that identifies
+# one board, for example: jtag_device_index == 1
 # Files fetched by U-Boot are copied to /srv/tftp before JTAG loading starts.
 # Set MNCOS_TFTP_ROOT in the host environment to use a different directory.
 # Set MNCOS_FORCE_JTAG_BOOT=1 to override the exported board default for boards
@@ -62,16 +65,46 @@ proc stage_tftp_files {bundle_dir tftp_root} {
     }
 }
 
-proc validate_ipv4 {label value} {
+proc is_ipv4 {value} {
     set octets [split $value "."]
     if { [llength $octets] != 4 } {
-        error "$label is not an IPv4 address: $value"
+        return 0
     }
 
     foreach octet $octets {
         if { ![string is integer -strict $octet] || $octet < 0 || $octet > 255 } {
-            error "$label is not an IPv4 address: $value"
+            return 0
         }
+    }
+
+    return 1
+}
+
+proc validate_ipv4 {label value} {
+    if { ![is_ipv4 $value] } {
+        error "$label is not an IPv4 address: $value"
+    }
+}
+
+proc looks_like_ipv4 {value} {
+    expr {[regexp {^[0-9.]+$} $value] && [string first "." $value] >= 0}
+}
+
+proc build_target_filter {name_pattern} {
+    global TARGET_FILTER
+
+    set name_filter [format {name =~ "%s"} $name_pattern]
+    if { [string trim $TARGET_FILTER] eq "" } {
+        return $name_filter
+    }
+
+    return "($TARGET_FILTER) && ($name_filter)"
+}
+
+proc select_target {name_pattern} {
+    set filter [build_target_filter $name_pattern]
+    if { [catch {targets -set -nocase -filter $filter} message] } {
+        error "Could not select target matching {$filter}: $message"
     }
 }
 
@@ -99,7 +132,7 @@ proc parse_bool {label value} {
 
 proc switch_to_jtag_boot_mode { } {
     puts "Switching ZynqMP boot mode to JTAG before system reset"
-    targets -set -nocase -filter {name =~ "*PSU*"}
+    select_target "*PSU*"
     # Update multiboot to zero and force JTAG boot mode for this reset.
     mwr 0xffca0010 0x0
     mwr 0xff5e0200 0x0100
@@ -107,7 +140,7 @@ proc switch_to_jtag_boot_mode { } {
 }
 
 proc pulse_board_srst { } {
-    targets -set -nocase -filter {name =~ "*PSU*"}
+    select_target "*PSU*"
     puts "Pulsing board SRST through the JTAG cable"
     if { [catch {rst -srst} message] } {
         error "Could not pulse cable SRST: $message"
@@ -135,8 +168,8 @@ proc download_env_override {server_ip board_ip address} {
     file delete -force $path
 }
 
-if { [llength $argv] < 2 || [llength $argv] > 3 } {
-    error "Usage: ./load-jtag-image.tcl <hw-server-ip> <tftp-server-ip> \[board-ip\]"
+if { [llength $argv] < 2 || [llength $argv] > 4 } {
+    error "Usage: ./load-jtag-image.tcl <hw-server-ip> <tftp-server-ip> \[board-ip\] \[target-filter\]"
 }
 
 set HW_IP [lindex $argv 0]
@@ -144,6 +177,7 @@ set SERVER_IP [lindex $argv 1]
 set BUNDLE_DIR [file normalize [pwd]]
 set TFTP_ROOT "/srv/tftp"
 set FORCE_JTAG_BOOT "@JTAG_LOADER_FORCE_JTAG_BOOT@"
+set TARGET_FILTER ""
 
 if { [string match "@*" $FORCE_JTAG_BOOT] && [string match "*@" $FORCE_JTAG_BOOT] } {
     set FORCE_JTAG_BOOT "0"
@@ -157,10 +191,23 @@ if { [info exists ::env(MNCOS_FORCE_JTAG_BOOT)] && [string trim $::env(MNCOS_FOR
 }
 set FORCE_JTAG_BOOT [parse_bool "MNCOS_FORCE_JTAG_BOOT" $FORCE_JTAG_BOOT]
 
-if { [llength $argv] > 2 } {
+if { [info exists ::env(MNCOS_HW_TARGET_FILTER)] && [string trim $::env(MNCOS_HW_TARGET_FILTER)] ne "" } {
+    set TARGET_FILTER $::env(MNCOS_HW_TARGET_FILTER)
+}
+
+set BOARD_IP ""
+if { [llength $argv] == 3 } {
+    set third_arg [lindex $argv 2]
+    if { [is_ipv4 $third_arg] } {
+        set BOARD_IP $third_arg
+    } elseif { [looks_like_ipv4 $third_arg] } {
+        validate_ipv4 "board IP" $third_arg
+    } else {
+        set TARGET_FILTER $third_arg
+    }
+} elseif { [llength $argv] == 4 } {
     set BOARD_IP [lindex $argv 2]
-} else {
-    set BOARD_IP ""
+    set TARGET_FILTER [lindex $argv 3]
 }
 
 validate_ipv4 "hw_server IP" $HW_IP
@@ -179,6 +226,10 @@ stage_tftp_files $BUNDLE_DIR $TFTP_ROOT
 
 puts "Connecting to the Xilinx hw_server"
 connect -url tcp:$HW_IP:3121
+
+if { $TARGET_FILTER ne "" } {
+    puts "Using hw_server target filter: $TARGET_FILTER"
+}
 
 # Always begin from a board-level SRST. Some boards also need the boot mode
 # forced below before the normal JTAG download sequence can run.
@@ -201,17 +252,17 @@ disconnect
 connect -url tcp:$HW_IP:3121
 
 # Select the refreshed PSU target and open the JTAG security gates.
-targets -set -nocase -filter {name =~ "*PSU*"}
+select_target "*PSU*"
 mask_write 0xFFCA0038 0x1C0 0x1C0
 
 after 500
 puts "Downloading PMU firmware"
-targets -set -nocase -filter {name =~ "*MicroBlaze PMU*"}
+select_target "*MicroBlaze PMU*"
 catch {stop}
 dow ./pmufw.elf
 con
 
-targets -set -nocase -filter {name =~ "*A53*#0"}
+select_target "*A53*#0"
 puts "Resetting A53 processor group before FSBL"
 # Reset all A53 cores and their processor-group state. A core-only reset can
 # leave the other Linux cores or shared APU state active, causing EDITR/cache
@@ -249,6 +300,9 @@ after 500
 puts "Starting automatic MNCOS TFTP boot"
 puts "  hw_server:  $HW_IP"
 puts "  TFTP server: $SERVER_IP"
+if { $TARGET_FILTER ne "" } {
+    puts "  target:      $TARGET_FILTER"
+}
 if { $BOARD_IP eq "" } {
     puts "  board:       DHCP"
 } else {
