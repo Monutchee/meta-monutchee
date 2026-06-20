@@ -9,8 +9,10 @@
 # If board-ip is omitted, U-Boot obtains it through DHCP before loading files.
 # Files fetched by U-Boot are copied to /srv/tftp before JTAG loading starts.
 # Set MNCOS_TFTP_ROOT in the host environment to use a different directory.
-# The loader pulses the board SRST signal through the JTAG cable before using
-# the legacy R5-safe load sequence, then automatically starts its TFTP boot.
+# Set MNCOS_FORCE_JTAG_BOOT=1 to override the exported board default for boards
+# strapped to a non-JTAG boot mode.
+# The loader resets the board before using the legacy R5-safe load sequence,
+# then automatically starts its TFTP boot.
 
 proc require_bundle_file {bundle_dir name} {
     set path [file join $bundle_dir $name]
@@ -73,6 +75,45 @@ proc validate_ipv4 {label value} {
     }
 }
 
+proc parse_bool {label value} {
+    set normalized [string tolower [string trim $value]]
+    switch -exact -- $normalized {
+        1 -
+        true -
+        yes -
+        on {
+            return 1
+        }
+        0 -
+        false -
+        no -
+        off -
+        "" {
+            return 0
+        }
+        default {
+            error "$label must be one of 0/1, true/false, yes/no, or on/off: $value"
+        }
+    }
+}
+
+proc switch_to_jtag_boot_mode { } {
+    puts "Switching ZynqMP boot mode to JTAG before system reset"
+    targets -set -nocase -filter {name =~ "*PSU*"}
+    # Update multiboot to zero and force JTAG boot mode for this reset.
+    mwr 0xffca0010 0x0
+    mwr 0xff5e0200 0x0100
+    rst -system
+}
+
+proc pulse_board_srst { } {
+    targets -set -nocase -filter {name =~ "*PSU*"}
+    puts "Pulsing board SRST through the JTAG cable"
+    if { [catch {rst -srst} message] } {
+        error "Could not pulse cable SRST: $message"
+    }
+}
+
 proc download_env_override {server_ip board_ip address} {
     set path [file join [pwd] ".mncos-jtag-env-[pid].txt"]
     set channel [open $path "wb"]
@@ -102,10 +143,19 @@ set HW_IP [lindex $argv 0]
 set SERVER_IP [lindex $argv 1]
 set BUNDLE_DIR [file normalize [pwd]]
 set TFTP_ROOT "/srv/tftp"
+set FORCE_JTAG_BOOT "@JTAG_LOADER_FORCE_JTAG_BOOT@"
+
+if { [string match "@*" $FORCE_JTAG_BOOT] && [string match "*@" $FORCE_JTAG_BOOT] } {
+    set FORCE_JTAG_BOOT "0"
+}
 
 if { [info exists ::env(MNCOS_TFTP_ROOT)] && $::env(MNCOS_TFTP_ROOT) ne "" } {
     set TFTP_ROOT [file normalize $::env(MNCOS_TFTP_ROOT)]
 }
+if { [info exists ::env(MNCOS_FORCE_JTAG_BOOT)] && [string trim $::env(MNCOS_FORCE_JTAG_BOOT)] ne "" } {
+    set FORCE_JTAG_BOOT $::env(MNCOS_FORCE_JTAG_BOOT)
+}
+set FORCE_JTAG_BOOT [parse_bool "MNCOS_FORCE_JTAG_BOOT" $FORCE_JTAG_BOOT]
 
 if { [llength $argv] > 2 } {
     set BOARD_IP [lindex $argv 2]
@@ -130,14 +180,23 @@ stage_tftp_files $BUNDLE_DIR $TFTP_ROOT
 puts "Connecting to the Xilinx hw_server"
 connect -url tcp:$HW_IP:3121
 
-# Pulse the board reset signal instead of using the debugger's rst -system.
-# Reconnect afterward so the known-good loader starts with fresh target data.
-targets -set -nocase -filter {name =~ "*PSU*"}
-puts "Pulsing board SRST through the JTAG cable"
-if { [catch {rst -srst} message] } {
-    error "Could not pulse cable SRST: $message"
+# Always begin from a board-level SRST. Some boards also need the boot mode
+# forced below before the normal JTAG download sequence can run.
+if { [catch {pulse_board_srst} message] } {
+    error $message
 }
 after 2000
+
+if { $FORCE_JTAG_BOOT } {
+    disconnect
+    connect -url tcp:$HW_IP:3121
+    if { [catch {switch_to_jtag_boot_mode} message] } {
+        error "Could not switch to JTAG boot mode: $message"
+    }
+    after 2000
+}
+
+# Reconnect so the known-good loader starts with fresh target data.
 disconnect
 connect -url tcp:$HW_IP:3121
 
