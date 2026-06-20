@@ -21,6 +21,7 @@ IMAGE_INSTALL:append = " \
 # Board-specific dev flow: TFTP/JTAG boot export (provided by meta-fpga-util).
 IMAGE_CLASSES:append = " export-tftpboot-file"
 JTAG_LOADER_TCL = "${FPGA_UTIL_LAYERDIR}/recipes-core/images/files/load-jtag-image.tcl"
+JTAG_LOADER_FORCE_JTAG_BOOT = "1"
 do_copy_tftpboot[file-checksums] += "${JTAG_LOADER_TCL}:True"
 
 # (Optional) Change destination directory on machine specific directory
