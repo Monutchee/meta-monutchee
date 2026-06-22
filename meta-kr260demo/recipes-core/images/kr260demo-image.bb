@@ -3,7 +3,7 @@ LICENSE = "MIT"
 
 require recipes-core/images/include/mncos-image-common.inc
 
-COMPATIBLE_MACHINE = "^zudemo$"
+COMPATIBLE_MACHINE = "^kr260demo$"
 
 MNCOS_IMAGE_ROLE = "main"
 MNCOS_IMAGE_LABEL = "MNCOS ZUBOARD MAIN SYSTEM IMAGE"
@@ -18,9 +18,13 @@ IMAGE_INSTALL:append = " \
     apu-rpu-ctl \
 "
 
+# This product image does not need the generated machine's VCU codec stack.
+IMAGE_FEATURES:remove = "hwcodecs"
+
 # Board-specific dev flow: TFTP/JTAG boot export (provided by meta-fpga-util).
 IMAGE_CLASSES:append = " export-tftpboot-file"
 JTAG_LOADER_TCL = "${FPGA_UTIL_LAYERDIR}/recipes-core/images/files/load-jtag-image.tcl"
+JTAG_LOADER_FORCE_JTAG_BOOT = "1"
 do_copy_tftpboot[file-checksums] += "${JTAG_LOADER_TCL}:True"
 
 # (Optional) Change destination directory on machine specific directory
