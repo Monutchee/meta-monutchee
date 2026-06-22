@@ -57,3 +57,10 @@ IMAGE_INSTALL:append = " zynqmp-firmware fwctl apu-rpu-ctl"
 Each product build is expected to include `meta-fpga-util` plus exactly one
 board layer. Until a board `.bbappend` sets `COMPATIBLE_MACHINE`, the shared
 recipe is compatible with no machine and never builds on its own.
+
+For boards strapped to boot from QSPI or another non-JTAG source, set
+`JTAG_LOADER_FORCE_JTAG_BOOT = "1"` in the image recipe that inherits
+`export-tftpboot-file`. The exported `load-jtag-image.tcl` then writes the
+ZynqMP multiboot and boot-mode registers before reset, matching the Kria JTAG
+boot flow. Leave the variable at its default `0` for boards such as ZuBoard that
+can use the normal cable SRST pulse.

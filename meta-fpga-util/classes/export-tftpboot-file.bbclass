@@ -1,5 +1,6 @@
 TFTPBOOT_DEST_DIR ?= "${TOPDIR}/export/tftpboot"
 JTAG_LOADER_TCL ?= ""
+JTAG_LOADER_FORCE_JTAG_BOOT ?= "0"
 
 # Copy the ZynqMP boot bundle used by the JTAG/TFTP test flow.
 do_copy_tftpboot() {
@@ -38,7 +39,12 @@ do_copy_tftpboot() {
     # Optional JTAG loader. Network settings are runtime TCL arguments.
     if [ -n "${JTAG_LOADER_TCL}" ]; then
         if [ -e "${JTAG_LOADER_TCL}" ]; then
-            install -m 0755 "${JTAG_LOADER_TCL}" "${DEST_DIR}/load-jtag-image.tcl" || retVal=1
+            if sed -e 's|@JTAG_LOADER_FORCE_JTAG_BOOT@|${JTAG_LOADER_FORCE_JTAG_BOOT}|g' \
+                "${JTAG_LOADER_TCL}" > "${DEST_DIR}/load-jtag-image.tcl"; then
+                chmod 0755 "${DEST_DIR}/load-jtag-image.tcl" || retVal=1
+            else
+                retVal=1
+            fi
         else
             echo "WARN: Missing ${JTAG_LOADER_TCL}" >&2
             retVal=1

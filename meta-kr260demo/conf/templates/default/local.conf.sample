@@ -2,13 +2,15 @@
 # kr260demo config
 # Basic setting
 
-# For the machine, change it to the output name from gen-machineconf 
-MACHINE ??= "qemuarm64"
+# This product uses the source-layer kr260demo machine, which inherits the
+# official meta-kria k26-smk-kr-sdt hardware BSP.
+MACHINE ??= "kr260demo"
 DISTRO ?= "mncos"
 
 #APU_RPU_CTL_SRC = "local"
 #FPGA_FIRMWARE_SRC = "local"
 #APU_RPU_CTL_GIT_BRANCH = "main"
+#APU_RPU_CTL_LOCAL_DIR = "${TOPDIR}/../../KR260Demo_APU"
 
 # BitBake build-performance defaults (BB_NUMBER_THREADS, PARALLEL_MAKE,
 # BB_FETCH_RETRY) come from meta-mncos (conf/distro/mncos.conf) and auto-scale to
