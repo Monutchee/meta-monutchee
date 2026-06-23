@@ -4,7 +4,7 @@
 
 # This product uses the source-layer kr260demo machine, which inherits the
 # official meta-kria k26-smk-kr-sdt hardware BSP.
-MACHINE ??= "kr260demo"
+MACHINE ??= "qemuarm64"
 DISTRO ?= "mncos"
 
 #APU_RPU_CTL_SRC = "local"
