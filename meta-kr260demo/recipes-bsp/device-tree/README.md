@@ -4,6 +4,7 @@ Please use the Xilinx SDT workflow.
 
 
 ```bash
+rm -rf ../../runtime-generated/vivado_SDT_out/ && \
 echo 'set_dt_param \
    -xsa ../../runtime-generated/bin_file/KR260Demo_PL.xsa\
    -board_dts zynqmp-smk-k26-reva \
