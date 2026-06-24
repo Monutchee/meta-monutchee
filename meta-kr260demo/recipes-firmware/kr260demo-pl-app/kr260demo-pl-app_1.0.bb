@@ -28,12 +28,15 @@ KR260DEMO_DFX_AUTOLOAD ?= "0"
 
 # Inputs taken straight from the workspace / gen-machineconf output.
 # TOPDIR is <project>/yocto-build/build.
-#  - KR260Demo_PL.bit : PL bitstream, named on the Vivado side, in runtime-generated/bin_file
+#  - KR260Demo_PL.bit : PL bitstream exported with the SDT handoff, so the packaged
+#                       firmware stays in sync with the generated PL overlay.
 #  - pl.dtsi          : the lopper-generated /plugin/ overlay (targets &fpga_full) that
 #                       gen-machineconf emits under build/conf/dts/kr260demo/pl-overlay-full/
 #                       -- already overlay-form, so NO /plugin/ wrap is needed here.
 #  - R5c{0,1}.elf     : R5 firmware ELFs
-FILESEXTRAPATHS:prepend := "${TOPDIR}/../../runtime-generated/bin_file:${TOPDIR}/conf/dts/kr260demo/pl-overlay-full:${TOPDIR}/../../KR260Demo_RPU/R5c0/build:${TOPDIR}/../../KR260Demo_RPU/R5c1/build:"
+# Keep the overlay path before the raw SDT output path: both contain a pl.dtsi,
+# but the dfx_user_dts class needs the /plugin/ overlay form from build/conf.
+FILESEXTRAPATHS:prepend := "${TOPDIR}/conf/dts/kr260demo/pl-overlay-full:${TOPDIR}/../../runtime-generated/vivado_SDT_out:${TOPDIR}/../../KR260Demo_RPU/R5c0/build:${TOPDIR}/../../KR260Demo_RPU/R5c1/build:"
 
 SRC_URI = " \
     file://KR260Demo_PL.bit \
