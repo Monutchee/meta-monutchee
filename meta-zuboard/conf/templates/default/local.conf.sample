@@ -9,6 +9,7 @@ DISTRO ?= "mncos"
 APU_RPU_CTL_SRC = "local"
 FPGA_FIRMWARE_SRC = "local"
 APU_RPU_CTL_GIT_BRANCH = "main"
+KR260DEMO_DFX_AUTOLOAD = "1"
 
 # BitBake build-performance defaults (BB_NUMBER_THREADS, PARALLEL_MAKE,
 # BB_FETCH_RETRY) come from meta-mncos (conf/distro/mncos.conf) and auto-scale to

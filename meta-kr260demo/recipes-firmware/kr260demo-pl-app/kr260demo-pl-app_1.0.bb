@@ -22,6 +22,10 @@ PACKAGE_ARCH = "${MACHINE_ARCH}"
 # xmutil uses, NOT the .bin/.dtbo basenames, which are ${PN}-derived and internal.)
 FW_INSTALL_DIR = "kr260demo"
 
+# Kill switch for boot-time PL loading by dfx-mgr-fw-load.service. The PL app is
+# still packaged either way; this controls only /etc/dfx-mgrd/default_firmware.
+KR260DEMO_DFX_AUTOLOAD ?= "0"
+
 # Inputs taken straight from the workspace / gen-machineconf output.
 # TOPDIR is <project>/yocto-build/build.
 #  - KR260Demo_PL.bit : PL bitstream, named on the Vivado side, in runtime-generated/bin_file
@@ -46,17 +50,25 @@ do_install:append() {
     # Auto-generate the dfx-mgr manifest: plain full bitstream, no XRT, no DFX slots.
     printf '{\n    "shell_type": "PL_FLAT",\n    "num_pl_slots": 0,\n    "num_aie_slots": 0\n}\n' > ${FW_PATH}/shell.json
 
+    if [ "${KR260DEMO_DFX_AUTOLOAD}" = "1" ]; then
+        # Let dfx-mgr-fw-load.service load this PL design automatically at boot.
+        install -d ${D}${sysconfdir}/dfx-mgrd
+        printf '%s\n' "${FW_INSTALL_DIR}" > ${D}${sysconfdir}/dfx-mgrd/default_firmware
+    fi
+
     # Cortex-R5 firmware into /lib/firmware for manual remoteproc loading:
     #   echo R5c0.elf > /sys/class/remoteproc/remoteproc0/firmware ; echo start > .../state
     install -Dm 0644 ${WORKDIR}/R5c0.elf ${D}${nonarch_base_libdir}/firmware/R5c0.elf
     install -Dm 0644 ${WORKDIR}/R5c1.elf ${D}${nonarch_base_libdir}/firmware/R5c1.elf
 }
 
-do_install[vardeps] += "FW_INSTALL_DIR"
+do_install[vardeps] += "FW_INSTALL_DIR KR260DEMO_DFX_AUTOLOAD"
 
 # The class's FILES:${PN} already claims /lib/firmware/xilinx/${FW_INSTALL_DIR};
-# add the two R5 ELFs we drop directly in /lib/firmware.
+# add the optional dfx-mgr boot marker and the two R5 ELFs we drop directly in
+# /lib/firmware.
 FILES:${PN} += " \
+    ${sysconfdir}/dfx-mgrd/default_firmware \
     ${nonarch_base_libdir}/firmware/R5c0.elf \
     ${nonarch_base_libdir}/firmware/R5c1.elf \
 "

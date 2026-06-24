@@ -23,6 +23,7 @@ IMAGE_INSTALL:append = " \
     apu-rpu-ctl \
     dfx-mgr \
     kr260demo-pl-app \
+    lmsensors-config-kria-fancontrol \
 "
 
 # This product image does not need the generated machine's VCU codec stack.
