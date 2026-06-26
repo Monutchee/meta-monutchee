@@ -1,9 +1,12 @@
 # Fix the lopper openamp assist so it generates a correct split-mode dual-R5
 # xlnx,zynqmp-r5fss for the Linux host DT. The stock assist (SRCREV 9159040)
 # botches the second R5 core in split mode (truncated `ranges`, atcm1/btcm1
-# reg-names, and dropped mboxes/carveouts on the 2nd rpmsg channel), which makes
-# the kernel zynqmp_r5_remoteproc probe fail with "failed to get tcm resource"
-# / err -22. See the patch header for the three specific fixes.
+# reg-names, dropped mboxes/carveouts on the 2nd rpmsg channel, and vdev1*
+# carveout names the kernel never matches), which makes the kernel
+# zynqmp_r5_remoteproc probe fail with "failed to get tcm resource" / err -22,
+# or the 2nd R5's rpmsg channel never appear (vrings fall back to CMA ->
+# rpmsg_create_ept -RPMSG_ERR_NO_BUFF). See the patch header for the four
+# specific fixes.
 #
 # NOTE: lopper-native is consumed by esw-conf-native (which gen-machineconf runs),
 # so after adding this, rebuild both for the fix to reach gen-machineconf:
