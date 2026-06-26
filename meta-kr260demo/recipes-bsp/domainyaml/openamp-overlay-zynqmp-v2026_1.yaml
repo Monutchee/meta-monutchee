@@ -1,0 +1,54 @@
+# KR260Demo OpenAMP domain file (gen-machineconf --domain-file), DUAL R5 split mode.
+# Generates correct xlnx,zynqmp-r5fss for BOTH cores -- REQUIRES the lopper fix in
+# meta-kr260demo/recipes-kernel/lopper (stock lopper botches the 2nd core).
+# No host `access:` list (keeps the PL overlay clean). Carveout map matches the
+# reference kr260demo-openamp.dtsi.
+reserved-memory:
+  ranges: true
+  "#size-cells": 2
+  "#address-cells": 2
+  rproc0@9800000:   {label: rproc0,      start: 0x9800000, size: 0x60000, no-map: 1}
+  vdev0vring0@9860000: {label: vdev0vring0, start: 0x9860000, size: 0x4000,  no-map: 1}
+  vdev0vring1@9864000: {label: vdev0vring1, start: 0x9864000, size: 0x4000,  no-map: 1}
+  vdev0buffer@9868000: {label: vdev0buffer, start: 0x9868000, size: 0x40000, no-map: 1}
+  rproc1@9e00000:   {label: rproc1,      start: 0x9e00000, size: 0x60000, no-map: 1}
+  vdev1vring0@9e60000: {label: vdev1vring0, start: 0x9e60000, size: 0x4000,  no-map: 1}
+  vdev1vring1@9e64000: {label: vdev1vring1, start: 0x9e64000, size: 0x4000,  no-map: 1}
+  vdev1buffer@9e68000: {label: vdev1buffer, start: 0x9e68000, size: 0x40000, no-map: 1}
+
+domains:
+  APU_Linux:
+    compatible: openamp,domain-v1
+    cpus: [{cluster: cpus_a53, cpumask: 0xf, mode: {secure: true, el: 0x3}}]
+    os,type: linux
+    reserved-memory: [vdev0buffer@9868000, vdev0vring1@9864000, vdev0vring0@9860000, rproc0@9800000, vdev1buffer@9e68000, vdev1vring1@9e64000, vdev1vring0@9e60000, rproc1@9e00000]
+    domain-to-domain:
+      compatible: openamp,domain-to-domain-v1
+      remoteproc-relation:
+        compatible: openamp,remoteproc-v2
+        relation0: {remote: R5_0_FREERTOS, elfload: [psu_r5_0_atcm_global@ffe00000, psu_r5_0_btcm_global@ffe20000, rproc0@9800000]}
+        relation1: {remote: R5_1_FREERTOS, elfload: [psu_r5_1_atcm_global@ffe90000, psu_r5_1_btcm_global@ffeb0000, rproc1@9e00000]}
+      rpmsg-relation:
+        compatible: openamp,rpmsg-v1
+        relation0: {remote: R5_0_FREERTOS, carveouts: [vdev0vring0@9860000, vdev0vring1@9864000, vdev0buffer@9868000], mbox: ipi_7_to_ipi_1}
+        relation1: {remote: R5_1_FREERTOS, carveouts: [vdev1vring0@9e60000, vdev1vring1@9e64000, vdev1buffer@9e68000], mbox: ipi_7_to_ipi_2}
+  R5_0_FREERTOS:
+    compatible: openamp,domain-v1
+    cpus: [{cluster: cpus_r5_0, cpumask: 0x1, mode: {secure: true}, cluster_cpu: psu_cortexr5_0}]
+    os,type: freertos
+    reserved-memory: [vdev0buffer@9868000, vdev0vring1@9864000, vdev0vring0@9860000, rproc0@9800000]
+    domain-to-domain:
+      compatible: openamp,domain-to-domain-v1
+      rpmsg-relation:
+        compatible: openamp,rpmsg-v1
+        relation0: {host: APU_Linux, mbox: ipi_1_to_ipi_7, carveouts: [vdev0vring0@9860000, vdev0vring1@9864000, vdev0buffer@9868000]}
+  R5_1_FREERTOS:
+    compatible: openamp,domain-v1
+    cpus: [{cluster: cpus_r5_1, cpumask: 0x2, mode: {secure: true}, cluster_cpu: psu_cortexr5_1}]
+    os,type: freertos
+    reserved-memory: [vdev1buffer@9e68000, vdev1vring1@9e64000, vdev1vring0@9e60000, rproc1@9e00000]
+    domain-to-domain:
+      compatible: openamp,domain-to-domain-v1
+      rpmsg-relation:
+        compatible: openamp,rpmsg-v1
+        relation0: {host: APU_Linux, mbox: ipi_2_to_ipi_7, carveouts: [vdev1vring0@9e60000, vdev1vring1@9e64000, vdev1buffer@9e68000]}

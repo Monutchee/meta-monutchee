@@ -29,6 +29,31 @@ IMAGE_INSTALL:append = " \
 # This product image does not need the generated machine's VCU codec stack.
 IMAGE_FEATURES:remove = "hwcodecs"
 
+# --- kria-qspi workaround (meta-kria v2026.1) --------------------------------
+# meta-kria v2026.1 narrowed kria-qspi's COMPATIBLE_MACHINE to *-multidomain
+# machines only (commit 0e181e1 "kria-qspi: restrict compatible machines to
+# multidomain"), but the shared SOM include k26-smk.inc still does an
+# unconditional `EXTRA_IMAGEDEPENDS += "kria-qspi"`. On our single-domain
+# kr260demo that forces a dependency on a recipe that refuses to build for the
+# machine, giving: ERROR: Nothing PROVIDES 'kria-qspi' (not in COMPATIBLE_MACHINE).
+# Per AMD's Kria Yocto docs the single-domain boot artifact is boot.bin
+# (xilinx-bootbin); kria-qspi is the multidomain QSPI A/B/recovery image. So we
+# drop the unbuildable dep here.
+#
+# Guards -- the removal fires only when BOTH conditions hold:
+#  1. Release: the COMPATIBLE_MACHINE restriction was introduced in meta-kria
+#     v2026.1. On earlier releases kria-qspi IS buildable for single-domain
+#     machines, so dropping it there would be wrong. XILINX_RELEASE_VERSION (set
+#     by meta-xilinx-core/conf/layer.conf) tracks the checked-out xlnx-rel-vYYYY.N
+#     tag. Add releases to KRIA_QSPI_WORKAROUND_RELEASES if a later one still
+#     ships the unconditional dep -- or drop the value once k26-smk.inc is fixed
+#     upstream so we stop masking a then-real dependency.
+#  2. Machine: only non-multidomain machines hit the mismatch. On a
+#     *-multidomain machine kria-qspi IS compatible, so 'multidomain' in
+#     MACHINEOVERRIDES makes the removal expand to empty and the QSPI image builds.
+KRIA_QSPI_WORKAROUND_RELEASES = "v2026.1"
+EXTRA_IMAGEDEPENDS:remove = "${@'kria-qspi' if (d.getVar('XILINX_RELEASE_VERSION') in (d.getVar('KRIA_QSPI_WORKAROUND_RELEASES') or '').split() and 'multidomain' not in (d.getVar('MACHINEOVERRIDES') or '')) else ''}"
+
 # Board-specific dev flow: TFTP/JTAG boot export (provided by meta-fpga-util).
 IMAGE_CLASSES:append = " export-tftpboot-file"
 JTAG_LOADER_TCL = "${FPGA_UTIL_LAYERDIR}/recipes-core/images/files/load-jtag-image.tcl"
