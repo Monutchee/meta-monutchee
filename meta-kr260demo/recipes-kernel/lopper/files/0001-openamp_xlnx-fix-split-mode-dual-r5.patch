@@ -1,0 +1,64 @@
+From: kr260demo <lester.lo@monutchee.com>
+Subject: [PATCH] openamp_xlnx: fix split-mode dual-R5 r5fss generation
+
+Three single-channel/single-core assumptions broke the 2nd R5 core in
+split mode: (1) cluster ranges extension was computed on a local dict and
+never written back; (2) reg-names were keyed on absolute TCM address, so
+core1 was mislabeled atcm1/btcm1 instead of atcm0/btcm0; (3) the linux
+rpmsg path hardcoded vdev0buffer, so the 2nd channel lost mboxes+carveouts.
+Upstream-Status: Inappropriate [needs proper upstream fix]
+---
+--- a/lopper/assists/openamp_xlnx.py
++++ b/lopper/assists/openamp_xlnx.py
+@@ -255,15 +255,17 @@
+         the Linux remoteproc driver.
+     """
+     print(" -> xlnx_rpmsg_update_tree_linux", node)
+-    vdev0buf_node = [n for n in rpmsg_carveouts if "vdev0buf" in n.name]
++    # Match the buffer carveout generically (per-channel). Hardcoding "vdev0"
++    # breaks any channel whose carveouts are named vdev1*/vdevN* (2nd R5 core).
++    vdev0buf_node = [n for n in rpmsg_carveouts if "buffer" in n.name]
+     if len(vdev0buf_node) == 1:
+         vdev0buf_node[0] + LopperProp(name="compatible", value="shared-dma-pool")
+     else:
+-        print("ERROR: missing or multiple vdev0buf nodes for linux rpmsg case")
++        print("ERROR: missing or multiple vdev buffer nodes for linux rpmsg case")
+         return False
+ 
+-    # vdev0buf should be first after the ELF load prop already in memory-region
+-    vdev0buf = [ index for index, rc in enumerate(rpmsg_carveouts) if "vdev0buffer" in rc.name ]
++    # vdev buffer should be first after the ELF load prop already in memory-region
++    vdev0buf = [ index for index, rc in enumerate(rpmsg_carveouts) if "buffer" in rc.name ]
+     if len(vdev0buf) != 1:
+         print("ERROR: xlnx_rpmsg_update_tree_linux: expected 1 vdev0buffer node. got ", vdev0buf)
+         return False
+@@ -896,7 +898,9 @@
+ 
+         # only in split case, let range value be extended by both cores
+         if cpu_config == CPU_CONFIG.RPU_SPLIT:
+-            cluster_node_props["ranges"].extend(cluster_ranges_val)
++            existing_ranges = cluster_node.propval("ranges")
++            cluster_node.delete("ranges")
++            cluster_node + LopperProp(name="ranges", value=existing_ranges + cluster_ranges_val)
+ 
+     except KeyError:
+         cluster_node = LopperNode(-1, cluster_node_path)
+@@ -1036,9 +1040,17 @@
+ 
+     r5_core_reg_names_mappings = { "ffe00000" : "atcm0", "ffe20000" : "btcm0",
+                                 "ffe90000" : "atcm1", "ffeb0000" : "btcm1" }
++    # In split mode each core owns its TCM as atcm0/btcm0 (per-core view), so map by
++    # TCM type rather than absolute address (which would mislabel core 1 atcm1/btcm1).
++    r5_split_core_reg_names_mappings = { "atcm" : "atcm0", "btcm" : "btcm0" }
+     r52_core_reg_names_mappings = { "atcm" : "atcm0", "btcm" : "btcm0", "ctcm": "ctcm0" }
+ 
+-    core_reg_names_mappings = r52_core_reg_names_mappings if get_platform(tree, 0) in [ SOC_TYPE.VERSAL2, SOC_TYPE.VERSAL_NET ] else r5_core_reg_names_mappings
++    if get_platform(tree, 0) in [ SOC_TYPE.VERSAL2, SOC_TYPE.VERSAL_NET ]:
++        core_reg_names_mappings = r52_core_reg_names_mappings
++    elif cpu_config == CPU_CONFIG.RPU_SPLIT:
++        core_reg_names_mappings = r5_split_core_reg_names_mappings
++    else:
++        core_reg_names_mappings = r5_core_reg_names_mappings
+ 
+     # loop through TCM nodes
+     for n in [ n for n in channel_elfload_nodes if n.propval("xlnx,ip-name") != [''] ]:

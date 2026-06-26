@@ -1,0 +1,16 @@
+[Unit]
+Description=Load KR260Demo Cortex-R5 firmware (R5c0/R5c1) via dfx-mgr
+# dfx-mgrd must be up; load the PL first so the PL<->PS AXI bridge is brought up
+# before the R5 cores start. dfx-mgr-fw-load.service is the PL autoloader and is
+# only present/effective when KR260DEMO_DFX_AUTOLOAD=1 (default_firmware=kr260demo).
+After=dfx-mgr.service dfx-mgr-fw-load.service
+Wants=dfx-mgr.service
+ConditionPathExists=/usr/bin/dfx-mgr-client
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/kr260demo-rpu-load
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,27 @@
+#!/bin/sh
+#
+# Load the KR260Demo Cortex-R5 firmware via dfx-mgr (>= 2026.1).
+#
+# dfx-mgr's own default_firmware autoload only takes ONE name, so it cannot bring
+# up PL + both R5 cores by itself. This oneshot does the per-core loads. It is
+# ordered After=dfx-mgr-fw-load.service so the PL (and thus the PL<->PS AXI bridge)
+# is already up before the R5s -- which may touch PL AXI -- are started.
+#
+# Each name maps to a slot dir, which maps 1:1 to a remoteproc index:
+#   R5c0 -> /lib/firmware/xilinx/${RPU_FW_BASE}/rpu/0 -> remoteproc0 (R5 core 0)
+#   R5c1 -> /lib/firmware/xilinx/${RPU_FW_BASE}/rpu/1 -> remoteproc1 (R5 core 1)
+
+set -u
+
+RPU_FW="R5c0 R5c1"
+rc=0
+
+for fw in ${RPU_FW}; do
+	echo "kr260demo-rpu-load: loading ${fw}"
+	if ! dfx-mgr-client -loadByName "${fw}"; then
+		echo "kr260demo-rpu-load: FAILED to load ${fw}" >&2
+		rc=1
+	fi
+done
+
+exit ${rc}
