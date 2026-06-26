@@ -1,20 +1,41 @@
 From: kr260demo <lester.lo@monutchee.com>
 Subject: [PATCH] openamp_xlnx: fix split-mode dual-R5 r5fss generation
 
-Three single-channel/single-core assumptions broke the 2nd R5 core in
+Four single-channel/single-core assumptions broke the 2nd R5 core in
 split mode: (1) cluster ranges extension was computed on a local dict and
 never written back; (2) reg-names were keyed on absolute TCM address, so
 core1 was mislabeled atcm1/btcm1 instead of atcm0/btcm0; (3) the linux
-rpmsg path hardcoded vdev0buffer, so the 2nd channel lost mboxes+carveouts.
+rpmsg path hardcoded vdev0buffer, so the 2nd channel lost mboxes+carveouts;
+(4) RPMsg carveouts kept their domain-file vdev1* names, but the Linux
+remoteproc core looks up each remote's vring/buffer carveouts by the
+per-core vdev index (vdev0vring0/vdev0vring1/vdev0buffer, since each core
+has a single vdev at index 0). The 2nd core's vdev1* names never matched,
+so the kernel silently allocated its vrings from CMA while the firmware
+read the dedicated carveout address -> rpmsg_create_ept returns
+-RPMSG_ERR_NO_BUFF and no rpmsg channel appears for the 2nd R5.
 Upstream-Status: Inappropriate [needs proper upstream fix]
 ---
 --- a/lopper/assists/openamp_xlnx.py
 +++ b/lopper/assists/openamp_xlnx.py
-@@ -255,15 +255,17 @@
+@@ -255,15 +255,31 @@
          the Linux remoteproc driver.
      """
      print(" -> xlnx_rpmsg_update_tree_linux", node)
 -    vdev0buf_node = [n for n in rpmsg_carveouts if "vdev0buf" in n.name]
++    # The Linux remoteproc core looks up each remote's vring/buffer carveouts
++    # by the PER-CORE vdev index -- "vdev0vring0", "vdev0vring1", "vdev0buffer"
++    # -- because every R5 core owns a single vdev at index 0. Domain files name
++    # the 2nd core's carveouts vdev1* (globally unique), so without this the
++    # kernel cannot match them, silently allocates the vrings from CMA, and the
++    # remote's rpmsg buffers land at a different address than the firmware reads
++    # (rpmsg_create_ept -> -RPMSG_ERR_NO_BUFF; no rpmsg channel for the 2nd R5).
++    # Normalize every RPMsg carveout name to vdev0*; the @unit-address keeps the
++    # reserved-memory nodes unique across cores.
++    for rc in rpmsg_carveouts:
++        normalized = re.sub(r"vdev\d+", "vdev0", rc.name)
++        if normalized != rc.name:
++            rc.name = normalized
++
 +    # Match the buffer carveout generically (per-channel). Hardcoding "vdev0"
 +    # breaks any channel whose carveouts are named vdev1*/vdevN* (2nd R5 core).
 +    vdev0buf_node = [n for n in rpmsg_carveouts if "buffer" in n.name]
@@ -32,7 +53,7 @@ Upstream-Status: Inappropriate [needs proper upstream fix]
      if len(vdev0buf) != 1:
          print("ERROR: xlnx_rpmsg_update_tree_linux: expected 1 vdev0buffer node. got ", vdev0buf)
          return False
-@@ -896,7 +898,9 @@
+@@ -896,7 +912,9 @@
  
          # only in split case, let range value be extended by both cores
          if cpu_config == CPU_CONFIG.RPU_SPLIT:
@@ -43,7 +64,7 @@ Upstream-Status: Inappropriate [needs proper upstream fix]
  
      except KeyError:
          cluster_node = LopperNode(-1, cluster_node_path)
-@@ -1036,9 +1040,17 @@
+@@ -1036,9 +1054,17 @@
  
      r5_core_reg_names_mappings = { "ffe00000" : "atcm0", "ffe20000" : "btcm0",
                                  "ffe90000" : "atcm1", "ffeb0000" : "btcm1" }
