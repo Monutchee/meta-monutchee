@@ -1,139 +1,15 @@
-meta-zuboard
-============
+meta-kr260demo
 
-This layer is the ZuBoard implementation of the MNCOS Xilinx ZynqMP demo. It is
-intentionally thin so it can act as the template for a future board layer such
-as `meta-kr260demo`.
+KR260Demo product layer.
 
-Common FPGA demo mechanics live in `meta-fpga-util`:
+Shared Xilinx mechanics live in:
 
-- `/usr/bin/fwctl` firmware staging/loading utility
-- `apu-rpu-ctl` Linux RPMsg char-device client
-- generic PL/RPU firmware packaging class
-- ZynqMP JTAG/TFTP export class and loader script
+- `meta-xilinx-addon` for dfx-mgr firmware packaging, U-Boot JTAG/TFTP
+  environment support, JTAG export, and APU/RPU utilities.
+- `meta-zynqmp-addon` for ZynqMP OpenAMP, kernel, lopper, and domain YAML
+  support.
+- `meta-kria-addon` for Kria-only image dependencies and fancontrol overrides.
 
-`meta-zuboard` keeps the board-specific pieces:
-
-- ZuBoard firmware asset names, release URLs, checksums and local workspace
-  paths in `recipes-bsp/zynqmp-firmware/zynqmp-firmware_1.0.bbappend` (the
-  firmware recipe itself is the shared `zynqmp-firmware` in `meta-fpga-util`)
-- ZuBoard DTS/domain YAML fragments
-- U-Boot environment and config for the `zudemo` machine
-- production flashing utility and eMMC policy
-- product image recipes that install the shared MNCOS package group, the
-  `zynqmp-firmware` package, `fwctl`, and `apu-rpu-ctl` for `zudemo`
-
-Dependencies
-============
-
-Add the layers in this order:
-
-```sh
-bitbake-layers add-layer meta-mncos
-bitbake-layers add-layer meta-fpga-util
-bitbake-layers add-layer meta-zuboard
-```
-
-`meta-zuboard` depends on `meta-fpga-util`, `meta-xilinx-core`, and
-`meta-xilinx-standalone`. It also depends on `meta-mncos` for the MNCOS distro,
-image identity class, and shared package group.
-
-Template For Another ZynqMP Demo Board
-======================================
-
-To create `meta-kr260demo`, copy the shape of this layer but keep shared logic
-in `meta-fpga-util`.
-
-Start with these board-specific edits:
-
-1. Rename the layer directory and collection from `meta-zuboard` to
-   `meta-kr260demo`.
-2. Keep `LAYERDEPENDS_<collection>` pointing at `fpga-util`, `xilinx`, and
-   `xilinx-standalone`, plus `mncos`.
-3. Add a `recipes-bsp/zynqmp-firmware/zynqmp-firmware_1.0.bbappend` that sets the
-   board `FPGA_FIRMWARE_*` assets/checksums and a `COMPATIBLE_MACHINE` for the
-   board machine. The firmware recipe itself is the shared `zynqmp-firmware` in
-   `meta-fpga-util`.
-4. Create product image targets such as `kr260demo-image-minimal` and
-   `kr260demo-production-flash-image`; `require
-   recipes-core/images/include/mncos-image-common.inc` for the shared MNCOS
-   base set, then add `zynqmp-firmware fwctl` (and trim with
-   `IMAGE_INSTALL:remove` if needed) in the main image.
-5. Replace the machine config, DTS/domain YAML, U-Boot environment, and any
-   production flashing policy with KR260 values.
-
-Firmware Control
-================
-
-The old `zud` helper is now the shared `fwctl` command from `meta-fpga-util`.
-The ZuBoard image installs `/etc/default/fwctl` with:
-
-```sh
-FWCTL_FW_SRC="/opt/monutchee/zudemo/firmware"
-FWCTL_FW_DST="/lib/firmware"
-```
-
-Typical target-side flow:
-
-```sh
-fwctl install all
-fwctl load all
-fwctl start all
-```
-
-For compatibility during transition, `fwctl` still honors the old `ZUD_*`
-environment variables if the new `FWCTL_*` variables are not set.
-
-Image Targets
-=============
-
-Build the main ZuBoard image:
-
-```sh
-bitbake zudemo-image
-```
-
-Build the ZuBoard production-flash image and the production WIC together:
-
-```sh
-bitbake zudemo-production-flash-image
-```
-
-The complete bundle is exported to:
-
-```text
-build/export/jtag-tftpboot
-```
-
-When `load-jtag-image.tcl` starts, it copies the files fetched by U-Boot to
-`/srv/tftp` before connecting to the board. The production bundle also copies
-`target.wic.xz` and its checksum. The ELF firmware files remain in the export
-directory because XSDB downloads them directly over JTAG. To use a different
-TFTP root, set `MNCOS_TFTP_ROOT` in the host environment.
-
-Run XSDB from the export bundle directory:
-
-```sh
-./load-jtag-image.tcl <hw-server-ip> <tftp-server-ip> [board-ip]
-```
-
-With no board IP argument, U-Boot obtains the board address through DHCP. A
-static board address is optional:
-
-```sh
-./load-jtag-image.tcl 127.0.0.1 192.168.1.10 192.168.1.20
-```
-
-After the provisioning Linux boots, write the verified production WIC to the
-detected non-removable eMMC device with:
-
-```sh
-mncos-flash-emmc
-```
-
-If the Linux-side TFTP server differs from the build-time default, pass it to
-the flashing utility:
-
-```sh
-mncos-flash-emmc --server 192.168.1.10
-```
+This layer keeps the KR260 product pieces: image recipes, product flasher,
+device-tree notes, and the thin `kr260demo-dfx-firmware` recipe that supplies
+KR260 PL/RPU inputs to `xilinx-dfx-firmware.bbclass`.
