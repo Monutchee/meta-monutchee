@@ -20,4 +20,8 @@ FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 # can't fail do_patch against a differently-versioned lopper source. Extend the
 # value list here if a later release ships the same unfixed assist.
 LOPPER_R5_FIX_RELEASES = "v2026.1"
-SRC_URI += "${@bb.utils.contains_any('XILINX_RELEASE_VERSION', d.getVar('LOPPER_R5_FIX_RELEASES'), 'file://0001-openamp_xlnx-fix-split-mode-dual-r5.patch', '', d)}"
+# Use :append (applied at data finalization) rather than += so this survives the
+# unconditional `SRC_URI = "..."` hard assignment in the meta-xilinx-core
+# virtualization-layer lopper bbappend. With +=, that hard assignment (applied
+# after this bbappend) wipes out the patch entry and the fix silently vanishes.
+SRC_URI:append = " ${@bb.utils.contains_any('XILINX_RELEASE_VERSION', d.getVar('LOPPER_R5_FIX_RELEASES'), 'file://0001-openamp_xlnx-fix-split-mode-dual-r5.patch', '', d)}"
