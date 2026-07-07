@@ -1,36 +1,6 @@
 Please use the Xilinx SDT workflow.
 
-## SDT gen
 
-
-```bash
-rm -rf ../../runtime-generated/vivado_SDT_out/ && \
-echo 'set_dt_param \
-   -xsa ../../runtime-generated/bin_file/KR260Demo_PL.xsa\
-   -board_dts zynqmp-smk-k26-reva \
-   -dir ../../runtime-generated/vivado_SDT_out/ ; \
-   generate_sdt ; exit' | sdtgen
-```
-
-## gen-machine-conf
-
-When there are multiple OpenAMP domain files under `yocto-build/sources/meta-monutchee/meta-zynqmp-addon/recipes-bsp/domainyaml/openamp-overlay-zynqmp-{VERSION}.yaml`
-
-Please use the openamp-verlay-zynqmp-**.yaml version that make the meta-xilinx release version.
-
-```bash
-#Assume your are in yocto-build/build
-
-gen-machineconf \
-  --template ../sources/meta-kria/conf/machineyaml/k26-smk-kr-sdt.yaml \
-  parse-sdt \
-  --hw-description ../../runtime-generated/vivado_SDT_out/ \
-  -c conf -D \
-  --machine-name kr260demo \
-  --add-config CONFIG_YOCTO_BBMC_CORTEXR5_0_FREERTOS=y \
-  --add-config CONFIG_YOCTO_BBMC_CORTEXR5_1_FREERTOS=y \
-  --domain-file ../sources/meta-monutchee/meta-zynqmp-addon/recipes-bsp/domainyaml/openamp-overlay-zynqmp-v2026_1.yaml
-```
 
 > Use the v2026.1 layered flow (`--domain-file` is repeatable; gen-machineconf
 > deep-merges domains of the same name), NOT the legacy `openamp-overlay-zynqmp.yaml`:
