@@ -144,6 +144,9 @@ set SERVER_IP [lindex $argv 1]
 set BUNDLE_DIR [file normalize [pwd]]
 set TFTP_ROOT "/srv/tftp"
 set FORCE_JTAG_BOOT "@JTAG_LOADER_FORCE_JTAG_BOOT@"
+set MNCOS_JTAG_MAGIC_ADDR 0x1ff00000
+set MNCOS_JTAG_ENV_MAGIC_ADDR 0x1ff00004
+set MNCOS_JTAG_ENV_ADDR 0x1ff00100
 
 if { [string match "@*" $FORCE_JTAG_BOOT] && [string match "*@" $FORCE_JTAG_BOOT] } {
     set FORCE_JTAG_BOOT "0"
@@ -238,9 +241,9 @@ after 500
 
 # Pass the selected network mode to U-Boot as a text environment block.
 # U-Boot consumes these values before boot.scr reuses this DDR area.
-download_env_override $SERVER_IP $BOARD_IP 0x20000100
-mwr 0x20000004 0x49504f56
-mwr 0x20000000 0x4d4e4350
+download_env_override $SERVER_IP $BOARD_IP $MNCOS_JTAG_ENV_ADDR
+mwr $MNCOS_JTAG_ENV_MAGIC_ADDR 0x49504f56
+mwr $MNCOS_JTAG_MAGIC_ADDR 0x4d4e4350
 
 puts "Downloading U-Boot"
 dow ./u-boot.elf
