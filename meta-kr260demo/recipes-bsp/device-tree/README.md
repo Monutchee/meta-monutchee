@@ -14,7 +14,7 @@ echo 'set_dt_param \
 
 ## gen-machine-conf
 
-When have multiple openamp domain file under `yocto-build/sources/meta-monutchee/meta-kr260demo/recipes-bsp/domainyaml/openamp-overlay-zynqmp-{VERSION}.yaml`
+When there are multiple OpenAMP domain files under `yocto-build/sources/meta-monutchee/meta-zynqmp-addon/recipes-bsp/domainyaml/openamp-overlay-zynqmp-{VERSION}.yaml`
 
 Please use the openamp-verlay-zynqmp-**.yaml version that make the meta-xilinx release version.
 
@@ -29,7 +29,7 @@ gen-machineconf \
   --machine-name kr260demo \
   --add-config CONFIG_YOCTO_BBMC_CORTEXR5_0_FREERTOS=y \
   --add-config CONFIG_YOCTO_BBMC_CORTEXR5_1_FREERTOS=y \
-  --domain-file ../sources/meta-monutchee/meta-kr260demo/recipes-bsp/domainyaml/openamp-overlay-zynqmp-v2026_1.yaml
+  --domain-file ../sources/meta-monutchee/meta-zynqmp-addon/recipes-bsp/domainyaml/openamp-overlay-zynqmp-v2026_1.yaml
 ```
 
 > Use the v2026.1 layered flow (`--domain-file` is repeatable; gen-machineconf
