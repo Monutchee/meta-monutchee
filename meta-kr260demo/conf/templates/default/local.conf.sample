@@ -7,14 +7,13 @@
 MACHINE ??= "qemuarm64"
 DISTRO ?= "mncos"
 
-#APU_RPU_CTL_SRC = "local"
-#FPGA_FIRMWARE_SRC = "local"
-#APU_RPU_CTL_GIT_BRANCH = "main"
-#APU_RPU_CTL_LOCAL_DIR = "${TOPDIR}/../../KR260Demo_APU"
+APU_RPU_CTL_SRC = "local"
+APU_RPU_CTL_GIT_BRANCH = "main"
+APU_RPU_CTL_LOCAL_DIR = "${TOPDIR}/../../KR260Demo_APU"
 
-# Enable dfx-mgr-fw-load.service to load the kr260demo PL app at boot.
+# Enable dfx-mgr-fw-load.service to load the PL app at boot.
 # Set this to "1" when board functions such as fan PWM depend on the PL design.
-#KR260DEMO_DFX_AUTOLOAD = "1"
+XILINX_DFX_AUTOLOAD = "1"
 
 # BitBake build-performance defaults (BB_NUMBER_THREADS, PARALLEL_MAKE,
 # BB_FETCH_RETRY) come from meta-mncos (conf/distro/mncos.conf) and auto-scale to
@@ -22,8 +21,8 @@ DISTRO ?= "mncos"
 #   BB_NUMBER_THREADS = "4"
 
 # Xilinx-common build settings (LICENSE_FLAGS_ACCEPTED, XILINX_WITH_ESW,
-# SKIP_META_*_SANITY_CHECK) now come from meta-fpga-util/conf/xilinx-build.inc,
-# applied automatically because meta-fpga-util is in bblayers. Uncomment/override
+# SKIP_META_*_SANITY_CHECK) now come from meta-xilinx-addon/conf/xilinx-build.inc,
+# applied automatically because meta-xilinx-addon is in bblayers. Uncomment/override
 # here only if a specific build needs to differ.
 
 #
