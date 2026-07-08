@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Monutchee <engineering@monutchee.com>
+Date: Tue, 7 Jul 2026 23:15:00 -0400
+Subject: [PATCH] boot.cmd.kria: use PARTUUID root for USB boot
+
+The starter-kit Kria QEMU model exposes the WIC root disk as USB mass storage.
+The default boot script passes root=LABEL=root, but the kernel's early root
+mount path does not resolve LABEL= and disables rootwait as an invalid root.
+
+When U-Boot loaded the boot script from USB, append a kernel-native root=
+argument after the default command line. The later root= wins, while other
+kernel arguments from KERNEL_COMMAND_APPEND remain intact.
+
+Signed-off-by: Monutchee <engineering@monutchee.com>
+---
+ boot.cmd.kria | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/boot.cmd.kria b/boot.cmd.kria
+index 51b7a88..3a91c6f 100644
+--- a/boot.cmd.kria
++++ b/boot.cmd.kria
+@@ -14,6 +14,14 @@ zynqmp pmufw node close
+ 
+ # Starter Kit default boot args
+ setenv bootargs 'earlycon console=ttyPS1,115200 init_fatal_sh=1 @@KERNEL_COMMAND_APPEND@@';
++if test "${devtype}" = "usb"; then
++        part uuid ${devtype} ${devnum}:@@PARTNUM@@ root_uuid;
++        if test -n "${root_uuid}"; then
++                setenv bootargs "${bootargs} root=PARTUUID=${root_uuid} ro rootwait";
++        else
++                setenv bootargs "${bootargs} root=/dev/sda@@PARTNUM@@ ro rootwait";
++        fi
++fi
+ 
+ for boot_target in ${boot_targets};
+ do
+-- 
+2.43.0
