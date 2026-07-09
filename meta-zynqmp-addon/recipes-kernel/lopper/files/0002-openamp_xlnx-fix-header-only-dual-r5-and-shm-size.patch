@@ -1,0 +1,40 @@
+From: kr260demo <lester.lo@monutchee.com>
+Subject: [PATCH] openamp_xlnx: fix header-only generation for 2nd R5 core and SHARED_MEM_SIZE
+
+Two bugs in xlnx_openamp_gen_outputs_only() (the --openamp_header_only /
+amd_platform_info.h path used for RPU firmware channel config):
+
+(1) The vdev buffer carveout was matched by the hardcoded name
+    "vdev0buffer". Domain files name the 2nd core's carveouts vdev1*
+    (globally unique), so for --openamp_remote=psu_cortexr5_1 the list
+    comprehension is empty and the [0] index raises IndexError. The
+    exception is raised OUTSIDE the function's try block, so lopper
+    swallows it as a generic "[WARNING]: <class 'IndexError'>" and exits 0
+    without writing the header -- a silent failure. Match by "buffer"
+    substring instead (same approach as fix (3) of 0001 in the linux path).
+
+(2) SHARED_MEM_SIZE was taken from the buffer carveout's reg[1], which is
+    the low word of its ADDRESS, not its size (reg[3]) -- compare
+    xlnx_libmetal_gen_output_file() just above, which correctly uses
+    reg[3] for sizes and reg[1] for bases. The consumer (platform_info.c)
+    maps SHARED_MEM_PA..+SHARED_MEM_SIZE and carves the rpmsg shpool from
+    SHARED_BUF_OFFSET..SHARED_MEM_SIZE, so the generated value (e.g.
+    0x9868000 -- the buffer's PA) would map ~150MB of DDR the core does
+    not own and size the shpool absurdly. Correct value is the size of the
+    whole shared region: sum(vring sizes) + buffer size (= vring total
+    0x8000 + 0x40000 = 0x48000 for this board's domain YAML).
+
+Applies on top of 0001-openamp_xlnx-fix-split-mode-dual-r5.patch.
+Upstream-Status: Inappropriate [needs proper upstream fix]
+---
+--- a/lopper/assists/openamp_xlnx.py
++++ b/lopper/assists/openamp_xlnx.py
+@@ -571,7 +571,7 @@
+     vrings = [n for n in memory_region_nodes if 'vring' in n.name]
+     vring_total_sz = hex(sum([n.propval("reg")[3] for n in vrings]))
+     shm_pa = hex(min([n.propval("reg")[1] for n in vrings]))
+-    shbuf_sz = hex([n.propval("reg")[1] for n in memory_region_nodes if 'vdev0buffer' in n.name][0])
++    shbuf_sz = hex(sum([n.propval("reg")[3] for n in vrings]) + [n.propval("reg")[3] for n in memory_region_nodes if 'buffer' in n.name][0])
+
+     remote_ipi = host_ipi.parent
+
