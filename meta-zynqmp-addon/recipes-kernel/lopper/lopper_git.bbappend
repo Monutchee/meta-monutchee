@@ -24,4 +24,4 @@ LOPPER_R5_FIX_RELEASES = "v2026.1"
 # unconditional `SRC_URI = "..."` hard assignment in the meta-xilinx-core
 # virtualization-layer lopper bbappend. With +=, that hard assignment (applied
 # after this bbappend) wipes out the patch entry and the fix silently vanishes.
-SRC_URI:append = " ${@bb.utils.contains_any('XILINX_RELEASE_VERSION', d.getVar('LOPPER_R5_FIX_RELEASES'), 'file://0001-openamp_xlnx-fix-split-mode-dual-r5.patch', '', d)}"
+SRC_URI:append = " ${@bb.utils.contains_any('XILINX_RELEASE_VERSION', d.getVar('LOPPER_R5_FIX_RELEASES'), 'file://0001-openamp_xlnx-fix-split-mode-dual-r5.patch file://0002-openamp_xlnx-fix-header-only-dual-r5-and-shm-size.patch', '', d)}"
