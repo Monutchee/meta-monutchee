@@ -2,8 +2,6 @@
 
 
 
-Please clone https://github.com/lesterlo/mncux-zynq-manifest
-
 # Introdction
 
 
