@@ -15,8 +15,8 @@ XILINX_DFX_RPU_ELFS = "0:R5c0.elf 1:R5c1.elf"
 # outputs from the developer workspace.
 ZUDEMO_DFX_SRC ?= "cloud"
 ZUDEMO_DFX_RELEASE_TAG ?= "v0.0.1"
-ZUDEMO_DFX_PS_BASEURL ?= "https://github.com/lesterlo/ZuBoardDemo_PS/releases/download"
-ZUDEMO_DFX_PL_BASEURL ?= "https://github.com/lesterlo/ZuBoardDemo_PL/releases/download"
+ZUDEMO_DFX_PS_BASEURL ?= "https://github.com/Monutchee/ZuBoardDemo_PS/releases/download"
+ZUDEMO_DFX_PL_BASEURL ?= "https://github.com/Monutchee/ZuBoardDemo_PL/releases/download"
 
 ZUDEMO_DFX_SRC_URI_cloud = " \
     ${ZUDEMO_DFX_PL_BASEURL}/${ZUDEMO_DFX_RELEASE_TAG}/fpga.bit;name=fpga;subdir=${BPN} \
