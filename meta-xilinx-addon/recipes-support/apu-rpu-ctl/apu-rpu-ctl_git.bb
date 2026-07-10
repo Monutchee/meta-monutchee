@@ -12,8 +12,11 @@ APU_RPU_CTL_SRC ?= "cloud"
 APU_RPU_CTL_GIT_BRANCH ?= "main"
 APU_RPU_CTL_LOCAL_DIR ?= "${TOPDIR}/../../ZuBoardDemo_APU"
 
-APU_RPU_CTL_REPO_cloud = "git://github.com/lesterlo/ZuBoardDemo_APU.git;protocol=https;branch=${APU_RPU_CTL_GIT_BRANCH};name=apu-rpu-ctl;destsuffix=git"
-APU_RPU_CTL_REPO_local = "git://${APU_RPU_CTL_LOCAL_DIR};protocol=file;branch=${APU_RPU_CTL_GIT_BRANCH};name=apu-rpu-ctl;destsuffix=git"
+# gitsm:// (not git://): the APU repos carry the rpmsg transport library as
+# a git submodule (Monutchee/OpenAMP-helper-APU); git:// would silently skip it
+# and the CMake add_subdirectory(libs/openamp-helper) step would fail.
+APU_RPU_CTL_REPO_cloud = "gitsm://github.com/lesterlo/ZuBoardDemo_APU.git;protocol=https;branch=${APU_RPU_CTL_GIT_BRANCH};name=apu-rpu-ctl;destsuffix=git"
+APU_RPU_CTL_REPO_local = "gitsm://${APU_RPU_CTL_LOCAL_DIR};protocol=file;branch=${APU_RPU_CTL_GIT_BRANCH};name=apu-rpu-ctl;destsuffix=git"
 
 SRC_URI = "${@d.getVar('APU_RPU_CTL_REPO_' + (d.getVar('APU_RPU_CTL_SRC') or 'cloud'))}"
 SRCREV_apu-rpu-ctl ?= "${AUTOREV}"
