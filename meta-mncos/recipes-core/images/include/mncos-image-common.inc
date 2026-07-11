@@ -63,13 +63,32 @@ do_copy_wic_image() {
 do_copy_wic_image[nostamp] = "1"
 addtask copy_wic_image after do_image_complete before do_build
 
-# Copy the populated SDK installer into export/sdk.
-do_copy_sdk() {
+# Copy a freshly populated SDK installer into export/sdk.  Use SDKDEPLOYDIR
+# here because SDK_DEPLOY is populated by the sstate machinery only after the
+# do_populate_sdk task function and its post-functions have completed.
+copy_sdk_to_export() {
     DEST_DIR="${TOPDIR}/export/sdk"
     mkdir -p ${DEST_DIR}
-    cp ${SDK_DEPLOY}/*.sh ${DEST_DIR}/ || true
+    for SDK_INSTALLER in ${SDKDEPLOYDIR}/*.sh; do
+        [ -f "${SDK_INSTALLER}" ] || continue
+        cp "${SDK_INSTALLER}" "${DEST_DIR}/"
+    done
 }
 
-# Ensures the task always runs.
-do_copy_sdk[nostamp] = "1"
-addtask copy_sdk after do_populate_sdk
+# Run the export as part of do_populate_sdk so it also happens when callers
+# explicitly select `bitbake <image> -c populate_sdk`.
+do_populate_sdk[postfuncs] += "copy_sdk_to_export"
+PSEUDO_IGNORE_PATHS .= ",${TOPDIR}/export/sdk"
+
+# If populate_sdk is restored from sstate, the installer is restored directly
+# into SDK_DEPLOY rather than being created in SDKDEPLOYDIR.
+copy_restored_sdk_to_export() {
+    DEST_DIR="${TOPDIR}/export/sdk"
+    mkdir -p ${DEST_DIR}
+    for SDK_INSTALLER in ${SDK_DEPLOY}/*.sh; do
+        [ -f "${SDK_INSTALLER}" ] || continue
+        cp "${SDK_INSTALLER}" "${DEST_DIR}/"
+    done
+}
+
+do_populate_sdk_setscene[postfuncs] += "copy_restored_sdk_to_export"
