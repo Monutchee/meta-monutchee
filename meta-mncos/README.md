@@ -39,6 +39,18 @@ use:
 cat /etc/mncos-image-info
 ```
 
+## SDK export
+
+For generate the sdk
+```bash
+bitbake kr260demo-image -c populate_sdk
+```
+
+For just copy the sdk if the copy in `build/export/sdk` is missing
+```bash
+bitbake kr260demo-image -c copy_sdk
+```
+
 ## Reference
 
 - https://github.com/meta-homeassistant
