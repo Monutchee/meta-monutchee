@@ -13,7 +13,7 @@ XILINX_DFX_RPU_ELFS = "0:R5c0.elf 1:R5c1.elf"
 
 # Source switch: "cloud" uses release assets, "local" packages sibling build
 # outputs from the developer workspace.
-ZUDEMO_DFX_SRC ?= "cloud"
+ZUDEMO_DFX_SRC ?= "local"
 ZUDEMO_DFX_RELEASE_TAG ?= "v0.0.1"
 ZUDEMO_DFX_PS_BASEURL ?= "https://github.com/Monutchee/ZuBoardDemo_PS/releases/download"
 ZUDEMO_DFX_PL_BASEURL ?= "https://github.com/Monutchee/ZuBoardDemo_PL/releases/download"
@@ -25,13 +25,14 @@ ZUDEMO_DFX_SRC_URI_cloud = " \
 "
 
 ZUDEMO_DFX_SRC_URI_local = " \
-    file://fpga.bit \
+    file://ZuBoardDemo_PL.bit \
+    file://pl.dtso \
     file://R5c0.elf \
     file://R5c1.elf \
 "
 
 # Live workspace outputs used when ZUDEMO_DFX_SRC = "local".
-FILESEXTRAPATHS:prepend := "${TOPDIR}/../../runtime-generated/bin_file:${TOPDIR}/../../ZuBoardDemo_RPU/R5c0/build:${TOPDIR}/../../ZuBoardDemo_RPU/R5c1/build:"
+FILESEXTRAPATHS:prepend := "${TOPDIR}/conf/dts/zudemo/pl-overlay-full:${TOPDIR}/../../runtime-generated/vivado_SDT_out:${TOPDIR}/../../ZuBoardDemo_RPU/R5c0/build:${TOPDIR}/../../ZuBoardDemo_RPU/R5c1/build:"
 FW_DIR = "${BPN}"
 
 SRC_URI = "${@d.getVar('ZUDEMO_DFX_SRC_URI_' + (d.getVar('ZUDEMO_DFX_SRC') or 'cloud'))}"
