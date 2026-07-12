@@ -17,7 +17,7 @@ XILINX_DFX_RPU_LOAD_NAMES ?= "R5c0 R5c1"
 XILINX_DFX_RPU_ELFS = "0:R5c0.elf 1:R5c1.elf"
 
 # Inputs taken straight from the workspace / gen-machineconf output.
-FILESEXTRAPATHS:prepend := "${TOPDIR}/conf/dts/kr260demo/pl-overlay-full:${TOPDIR}/../../runtime-generated/vivado_SDT_out:${TOPDIR}/../../KR260Demo_RPU/R5c0/build:${TOPDIR}/../../KR260Demo_RPU/R5c1/build:"
+FILESEXTRAPATHS:prepend := "${TOPDIR}/conf/dts/kr260demo/pl-overlay-full:${TOPDIR}/../../runtime-generated/vivado_SDT_out:"
 
 SRC_URI = " \
     file://KR260Demo_PL.bit \
