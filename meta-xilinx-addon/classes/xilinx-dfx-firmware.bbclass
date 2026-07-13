@@ -9,6 +9,10 @@ XILINX_DFX_RPU_LOAD_NAMES ?= "R5c0 R5c1"
 XILINX_DFX_RPU_ELFS ?= ""
 XILINX_DFX_SERVICE_AFTER ?= "dfx-mgr.service dfx-mgr-fw-load.service"
 XILINX_DFX_SHELL_TYPE ?= "PL_FLAT"
+XILINX_DFX_ARTIFACT_DIR ?= "${TOPDIR}/../../runtime-generated/bin_file"
+
+# Shared CI/runtime artifact location for locally generated RPU firmware.
+FILESEXTRAPATHS:prepend := "${XILINX_DFX_ARTIFACT_DIR}:"
 
 FW_INSTALL_DIR = "${XILINX_DFX_APP_NAME}"
 COMPATIBLE_MACHINE = ".*"
