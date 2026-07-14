@@ -20,6 +20,7 @@ IMAGE_INSTALL:append = " \
     dfx-mgr \
     kr260demo-dfx-firmware \
     lmsensors-config-kria-fancontrol \
+    webengine \
 "
 
 # This product image does not need the generated machine's VCU codec stack.
