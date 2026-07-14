@@ -6,11 +6,16 @@ Usage:
 Products:
   zudemo       Use meta-zuboard/conf/templates/default and build
   kr260demo    Use meta-kr260demo/conf/templates/default and build
+  msap1        Use meta-msap1/conf/templates/default and build
+
+Other products use meta-<product>/conf/templates/default when that directory
+exists and the product name contains only lowercase letters, digits, and
+single hyphen separators.
 
 Examples:
   source ./setupSDK --product zudemo
   source ./setupSDK --product kr260demo
-  source ./setupSDK --product kr260demo build
+  source ./setupSDK --product msap1 build
 EOF
 }
 
@@ -24,10 +29,9 @@ fi
 
 ROOT="$(readlink -f "$(dirname "${_monutchee_setupsdk_file}")")"
 
-# Resolve the product with no required argument:
-#   MONUTCHEE_PRODUCT env  >  per-workspace marker (.mncos-product)  >  --product
-# setupWorkspace writes the marker once, so a bare `source ./setupSDK` selects
-# the right product in every new console.
+# Resolve the product from MONUTCHEE_PRODUCT or the per-workspace marker.
+# An explicit --product argument overrides both. monutchee-manifest writes the
+# marker once, so a bare `source ./setupSDK` selects the right product later.
 _monutchee_product="${MONUTCHEE_PRODUCT:-}"
 if [ -z "${_monutchee_product}" ] && [ -r "${ROOT}/.mncos-product" ]; then
     _monutchee_product="$(tr -d '[:space:]' < "${ROOT}/.mncos-product" 2>/dev/null)"
@@ -87,8 +91,20 @@ case "${_monutchee_product}" in
         ;;
 
     *)
-        printf 'Error: unsupported product: %s\n' "${_monutchee_product}" >&2
-        return 2 2>/dev/null || exit 2
+        case "${_monutchee_product}" in
+            *[!a-z0-9-]*|-*|*--*|*-)
+                printf 'Error: invalid product identifier: %s\n' \
+                    "${_monutchee_product}" >&2
+                return 2 2>/dev/null || exit 2
+                ;;
+        esac
+        _monutchee_template_layer="meta-${_monutchee_product}"
+        _monutchee_default_build_dir="build"
+        if [ ! -d "${ROOT}/sources/meta-monutchee/${_monutchee_template_layer}/conf/templates/default" ]; then
+            printf 'Error: unsupported product or missing build template: %s\n' \
+                "${_monutchee_product}" >&2
+            return 2 2>/dev/null || exit 2
+        fi
         ;;
 esac
 

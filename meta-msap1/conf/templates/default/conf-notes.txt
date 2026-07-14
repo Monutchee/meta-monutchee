@@ -1,0 +1,14 @@
+### Shell environment set up for the MNCOS MSAP1 build. ###
+
+The source tree initially uses qemuarm64 so Xilinx gen-machineconf can
+bootstrap its native tools. Before building the hardware image, run the
+Monutchee PL, machine-conf, and RPU stages to install the generated
+`msap1` machine configuration.
+
+Common targets:
+    msap1-image
+    msap1-production-flash-image
+
+Useful commands:
+    bitbake-layers show-layers
+    bitbake-layers show-recipes 'msap1-*'
