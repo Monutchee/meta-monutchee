@@ -16,6 +16,7 @@ IMAGE_INSTALL:append = " \
     apu-rpu-ctl \
     dfx-mgr \
     zudemo-dfx-firmware \
+    webengine \
 "
 
 # Board-specific dev flow: TFTP/JTAG boot export.

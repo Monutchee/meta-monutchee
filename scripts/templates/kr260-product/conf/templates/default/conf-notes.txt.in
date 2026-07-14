@@ -1,0 +1,14 @@
+### Shell environment set up for the MNCOS @@PROJECT_PREFIX@@ build. ###
+
+The source tree initially uses qemuarm64 so Xilinx gen-machineconf can
+bootstrap its native tools. Before building the hardware image, run the
+Monutchee PL, machine-conf, and RPU stages to install the generated
+`@@PRODUCT@@` machine configuration.
+
+Common targets:
+    @@PRODUCT@@-image
+    @@PRODUCT@@-production-flash-image
+
+Useful commands:
+    bitbake-layers show-layers
+    bitbake-layers show-recipes '@@PRODUCT@@-*'

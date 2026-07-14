@@ -44,7 +44,6 @@ MNCOS_APP_INSTALL = " \
     wireguard-tools \
     nginx \
     worker-user \
-    webengine \
     openssh \
     htop \
     tar \
