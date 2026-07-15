@@ -3,7 +3,8 @@
 MACHINE ??= "qemuarm64"
 DISTRO ?= "mncos"
 
-MSAP1_APU_APP_SRC = "local"
+# Build directly from the MSAP1_APU working tree, including uncommitted edits.
+MSAP1_APU_APP_SRC = "local_inst"
 MSAP1_APU_APP_GIT_BRANCH = "feat/add_adc_spi"
 MSAP1_APU_APP_LOCAL_DIR = "${TOPDIR}/../../MSAP1_APU"
 
