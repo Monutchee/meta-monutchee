@@ -3,9 +3,9 @@
 MACHINE ??= "qemuarm64"
 DISTRO ?= "mncos"
 
-APU_RPU_CTL_SRC = "local"
-APU_RPU_CTL_GIT_BRANCH = "main"
-APU_RPU_CTL_LOCAL_DIR = "${TOPDIR}/../../MSAP1_APU"
+MSAP1_APU_APP_SRC = "local"
+MSAP1_APU_APP_GIT_BRANCH = "feat/add_adc_spi"
+MSAP1_APU_APP_LOCAL_DIR = "${TOPDIR}/../../MSAP1_APU"
 
 # Load the PL application and both R5 firmwares at boot.
 XILINX_DFX_AUTOLOAD = "1"
