@@ -40,5 +40,9 @@ R5 OpenAMP applications, and the standard KR260 board description
 The default image target is `msap1-image`. The optional production
 flashing target is `msap1-production-flash-image`.
 
+`msap1-image` includes `msap1-apu-app`, the Linux RPMsg application used to
+visualize AD7771 data supplied by the R5 core 0 firmware. The default template
+builds it from the adjacent `MSAP1_APU` Git checkout.
+
 The generator does not create component repositories, XSA files, RPU firmware,
 or generated machine configuration.
