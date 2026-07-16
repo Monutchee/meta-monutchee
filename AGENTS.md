@@ -1,0 +1,57 @@
+# meta-monutchee repository guidance
+
+## Purpose and routing
+
+- This repository contains shared Monutchee distribution/Xilinx layers and
+  product layers. Read `README.md` before changing layer structure.
+- MSAP1-specific image, firmware, recipe, and template policy belongs under
+  `meta-msap1/`; read `meta-msap1/README.md` before changing that product.
+- Keep reusable ZynqMP, Kria, and distribution behavior in the appropriate
+  shared layer. Do not move an MSAP1-only workaround into a shared layer.
+- Workspace creation and repository synchronization belong to
+  `monutchee-manifest`; generated MSAP1 machine configuration belongs in the
+  build directory, not this layer.
+
+## MSAP1 integration contract
+
+- `msap1-image` installs `msap1-apu-app`, the MSAP1 DFX firmware, and the
+  supporting KR260 packages.
+- The hardware workflow consumes a bitstream-inclusive `MSAP1_PL.xsa` and both
+  R5 firmware applications. Keep PL, RPU, APU, and layer revisions traceable in
+  target-test records.
+- `MSAP1_APU_APP_SRC` supports `cloud`, `local`, and `local_inst`:
+  `local_inst` builds the adjacent APU working tree directly, including
+  uncommitted edits; `local` fetches its committed Git state; `cloud` fetches
+  the selected remote branch.
+- Keep `EXTERNALSRC_BUILD` outside the APU source tree so Yocto testing does not
+  contaminate that repository with generated CMake files.
+- Do not hard-code temporary feature branches into recipes. Branch and local
+  source selection belong in build configuration/templates.
+
+## Build and verification
+
+Initialize from the `yocto-build` workspace root:
+
+```sh
+source ./setupSDK --product msap1
+bitbake-layers show-layers
+bitbake msap1-apu-app
+bitbake msap1-image
+```
+
+- For fast APU iteration, select `MSAP1_APU_APP_SRC = "local_inst"`, confirm
+  `MSAP1_APU_APP_LOCAL_DIR`, then rebuild `msap1-apu-app` without requiring an
+  APU commit.
+- For source-mode changes, inspect `bitbake -e msap1-apu-app` and verify
+  `SRC_URI`, `S`, `EXTERNALSRC`, and `EXTERNALSRC_BUILD` resolve as intended.
+- Recipe changes must pass at least the affected recipe build. Image, firmware,
+  package-list, machine, or boot-policy changes require `msap1-image`.
+- Do not edit files under `build/tmp`, `build/sstate-cache`, downloads, or other
+  generated build output to fix a recipe.
+
+## Maintaining this file
+
+- Update this `AGENTS.md` in the same change when durable layer ownership,
+  source modes, build, or verification conventions change.
+- Keep branch-specific and transient build failures in issue/test documentation
+  rather than here.

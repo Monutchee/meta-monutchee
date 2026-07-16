@@ -9,7 +9,7 @@ MNCOS_IMAGE_ROLE = "main"
 MNCOS_IMAGE_LABEL = "MNCOS MSAP1 MAIN SYSTEM IMAGE"
 
 IMAGE_INSTALL:append = " \
-    apu-rpu-ctl \
+    msap1-apu-app \
     dfx-mgr \
     msap1-dfx-firmware \
     lmsensors-config-kria-fancontrol \
