@@ -79,3 +79,11 @@ MSAP1_WEB_LOCAL_DIR = "${TOPDIR}/../../MSAP1_WEB"
 The recipe fetches dependencies from the layer's `npm-shrinkwrap.json` before
 the network-disabled compile task. Update the lockfile in `MSAP1_WEB` and its
 identical copy under `recipes-httpd/msap1-web/files/` together.
+
+The product web backend enables nginx on HTTP port 80 and HTTPS port 443. On
+first boot, `msap1-web-tls-setup` creates a per-device self-signed development
+certificate in `/var/lib/monutchee/tls`. Replace `msap1-web.crt` and
+`msap1-web.key` there with a CA-issued certificate and restart
+`msap1-web-backend` for production. The setup helper preserves an existing
+certificate/key pair and fails rather than overwriting incomplete provisioned
+TLS material.
