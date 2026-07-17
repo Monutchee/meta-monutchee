@@ -1,15 +1,15 @@
 [Unit]
 Description=MSAP1 FPGA AD7771 acquisition
 Wants=dfx-mgr-fw-load.service
-After=dfx-mgr-fw-load.service
+After=dfx-mgr-fw-load.service systemd-tmpfiles-setup.service
 
 [Service]
 Type=simple
+Group=msap1-data
+UMask=0007
 ExecStart=/usr/bin/msap1-fpga-acquisition
 Restart=on-failure
 RestartSec=2
-RuntimeDirectory=msap1
-RuntimeDirectoryMode=0755
 
 [Install]
 WantedBy=multi-user.target
