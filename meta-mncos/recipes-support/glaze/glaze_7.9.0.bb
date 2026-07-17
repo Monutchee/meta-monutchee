@@ -4,7 +4,7 @@ LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=ea4d29875d83fbbf50485c846dbbbed8"
 
 SRC_URI = "git://github.com/stephenberry/glaze;protocol=https;branch=main"
-SRCREV = "ae87b187e2264ad452777bca68e35595406e9dca"
+SRCREV = "f33758ad0c912471f2580fb7b3bf3a2b103214b9"
 
 S = "${WORKDIR}/git"
 

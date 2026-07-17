@@ -57,7 +57,7 @@ WEBENGINE_GIT_BRANCH ?= "feature/new_glaze_install_method"
 
 ## Notes
 
-- Glaze is packaged separately by `recipes-support/glaze/glaze_7.7.1.bb`. The
+- Glaze is packaged separately by `recipes-support/glaze/glaze_7.9.0.bb`. The
   upstream webengine CMake project uses `find_package(glaze CONFIG REQUIRED)`,
   so all source downloads happen in Yocto's fetch phase.
 - `DEPENDS = boost glaze openssl`; `RDEPENDS = worker-user nginx openssl-bin`.
