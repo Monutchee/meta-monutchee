@@ -14,11 +14,18 @@
 
 ## MSAP1 integration contract
 
-- `msap1-image` installs `msap1-apu-app`, the MSAP1 DFX firmware, and the
-  supporting KR260 packages.
+- `msap1-image` installs the AD7771 IIO kernel module, `msap1-apu-app`, its
+  acquisition daemon service, the MSAP1 DFX firmware, and supporting packages.
 - The hardware workflow consumes a bitstream-inclusive `MSAP1_PL.xsa` and both
   R5 firmware applications. Keep PL, RPU, APU, and layer revisions traceable in
   target-test records.
+- Linux owns AD7771 AXI DMA through IIO/DMAengine. The product-specific
+  `gen-machineconf` YAML merges `msap1-ad7771-iio.dtsi` into `pl.dtso`; keep the
+  IIO consumer atomic with the matching FPGA overlay and do not append DTS text
+  in the firmware recipe.
+- AD7771 SPI and capture-register overlay nodes must remain unavailable to
+  Linux because R5 core 0 owns them. DMA buffers come from Linux DMA/CMA; do not
+  add a fixed ADC reserved-memory region.
 - `MSAP1_APU_APP_SRC` supports `cloud`, `local`, and `local_inst`:
   `local_inst` builds the adjacent APU working tree directly, including
   uncommitted edits; `local` fetches its committed Git state; `cloud` fetches
@@ -49,6 +56,8 @@ bitbake msap1-image
   `SRC_URI`, `S`, `EXTERNALSRC`, and `EXTERNALSRC_BUILD` resolve as intended.
 - Recipe changes must pass at least the affected recipe build. Image, firmware,
   package-list, machine, or boot-policy changes require `msap1-image`.
+- Changes to the machine YAML or PL input DTSI must also run `make_mconf.sh` and
+  inspect the generated `build/conf/dts/msap1/pl-overlay-full/pl.dtso`.
 - Do not edit files under `build/tmp`, `build/sstate-cache`, downloads, or other
   generated build output to fix a recipe.
 
