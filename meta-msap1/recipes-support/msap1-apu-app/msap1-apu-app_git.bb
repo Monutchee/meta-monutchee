@@ -12,8 +12,8 @@ MSAP1_APU_APP_SRC ?= "cloud"
 MSAP1_APU_APP_GIT_BRANCH ?= "main"
 MSAP1_APU_APP_LOCAL_DIR ?= "${TOPDIR}/../../MSAP1_APU"
 
-MSAP1_APU_APP_REPO_cloud = "git://github.com/Monutchee/MSAP1_APU.git;protocol=https;branch=${MSAP1_APU_APP_GIT_BRANCH};name=msap1-apu-app;destsuffix=git"
-MSAP1_APU_APP_REPO_local = "git://${MSAP1_APU_APP_LOCAL_DIR};protocol=file;branch=${MSAP1_APU_APP_GIT_BRANCH};name=msap1-apu-app;destsuffix=git"
+MSAP1_APU_APP_REPO_cloud = "gitsm://github.com/Monutchee/MSAP1_APU.git;protocol=https;branch=${MSAP1_APU_APP_GIT_BRANCH};name=msap1-apu-app;destsuffix=git"
+MSAP1_APU_APP_REPO_local = "gitsm://${MSAP1_APU_APP_LOCAL_DIR};protocol=file;branch=${MSAP1_APU_APP_GIT_BRANCH};name=msap1-apu-app;destsuffix=git"
 MSAP1_APU_APP_REPO_local_inst = ""
 
 SRC_URI = "${@d.getVar('MSAP1_APU_APP_REPO_' + (d.getVar('MSAP1_APU_APP_SRC') or 'cloud'))}"

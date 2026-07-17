@@ -42,7 +42,9 @@ flashing target is `msap1-production-flash-image`.
 
 `msap1-image` includes `msap1-apu-app`, the Linux RPMsg application used to
 visualize AD7771 data supplied by the R5 core 0 firmware. The default template
-builds it from the adjacent `MSAP1_APU` Git checkout.
+builds it from the adjacent `MSAP1_APU` Git checkout. Initialize that
+repository's submodules before using `MSAP1_APU_APP_SRC = "local_inst"`;
+the committed `local` and `cloud` modes fetch them automatically.
 
 The generator does not create component repositories, XSA files, RPU firmware,
 or generated machine configuration.

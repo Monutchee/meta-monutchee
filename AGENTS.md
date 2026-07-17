@@ -23,6 +23,9 @@
   `local_inst` builds the adjacent APU working tree directly, including
   uncommitted edits; `local` fetches its committed Git state; `cloud` fetches
   the selected remote branch.
+- The APU application carries `libs/openamp-helper` as a Git submodule. Keep
+  the `cloud` and committed-`local` source modes on BitBake's `gitsm://`
+  fetcher; initialize the submodule in the working tree used by `local_inst`.
 - Keep `EXTERNALSRC_BUILD` outside the APU source tree so Yocto testing does not
   contaminate that repository with generated CMake files.
 - Do not hard-code temporary feature branches into recipes. Branch and local
