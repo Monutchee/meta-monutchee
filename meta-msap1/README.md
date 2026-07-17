@@ -61,3 +61,21 @@ them automatically.
 
 The generator does not create component repositories, XSA files, RPU firmware,
 or generated machine configuration.
+
+## Web interface source selection
+
+`msap1-web` builds the React/Vite frontend into `/usr/share/msap1-web`; Node.js
+and `node_modules` are build-time-only and are not installed on the target.
+Select its source in `local.conf` using the same modes as the APU application:
+
+```bitbake
+MSAP1_WEB_SRC = "cloud"      # selected GitHub branch
+MSAP1_WEB_SRC = "local"      # committed local checkout
+MSAP1_WEB_SRC = "local_inst" # live checkout, including uncommitted edits
+MSAP1_WEB_GIT_BRANCH = "main"
+MSAP1_WEB_LOCAL_DIR = "${TOPDIR}/../../MSAP1_WEB"
+```
+
+The recipe fetches dependencies from the layer's `npm-shrinkwrap.json` before
+the network-disabled compile task. Update the lockfile in `MSAP1_WEB` and its
+identical copy under `recipes-httpd/msap1-web/files/` together.
