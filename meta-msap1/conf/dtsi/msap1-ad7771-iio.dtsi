@@ -1,0 +1,26 @@
+/* MSAP1 Linux AD7771 acquisition ownership. */
+&axi_dma_0 {
+	clocks = <&zynqmp_clk 0x47>,
+		 <&zynqmp_clk 0x47>,
+		 <&zynqmp_clk 0x47>;
+	clock-names = "m_axi_s2mm_aclk", "s_axi_lite_aclk", "m_axi_sg_aclk";
+};
+
+/* SPI configuration and capture control remain exclusively R5 core 0 owned. */
+&AdcSubSystem_0_Ad7771Capture_Wrapper_0 {
+	status = "disabled";
+};
+
+&AdcSubSystem_0_axi_quad_spi_0 {
+	status = "disabled";
+};
+
+/* Lopper extracts /amba_pl into the runtime overlay and renames it to &amba. */
+&amba_pl {
+	msap1_ad7771_iio: adc-acquisition {
+		compatible = "monutchee,msap1-ad7771-iio";
+		dmas = <&axi_dma_0 1>;
+		dma-names = "rx";
+		status = "okay";
+	};
+};
