@@ -8,6 +8,11 @@ MSAP1_APU_APP_SRC = "local_inst"
 MSAP1_APU_APP_GIT_BRANCH = "feat/add_adc_spi"
 MSAP1_APU_APP_LOCAL_DIR = "${TOPDIR}/../../MSAP1_APU"
 
+# Build the React/Vite UI from the live checkout, including uncommitted edits.
+MSAP1_WEB_SRC = "local_inst"
+MSAP1_WEB_GIT_BRANCH = "main"
+MSAP1_WEB_LOCAL_DIR = "${TOPDIR}/../../MSAP1_WEB"
+
 # Load the PL application and both R5 firmwares at boot.
 XILINX_DFX_AUTOLOAD = "1"
 
