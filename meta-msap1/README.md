@@ -40,9 +40,24 @@ R5 OpenAMP applications, and the standard KR260 board description
 The default image target is `msap1-image`. The optional production
 flashing target is `msap1-production-flash-image`.
 
-`msap1-image` includes `msap1-apu-app`, the Linux RPMsg application used to
-visualize AD7771 data supplied by the R5 core 0 firmware. The default template
-builds it from the adjacent `MSAP1_APU` Git checkout.
+`msap1-image` includes the `msap1_ad7771_iio` kernel module and
+`msap1-apu-app`. The package enables `msap1-fpga-acquisition.service`, which
+owns IIO/DMAengine and publishes the full-rate stream through shared memory.
+R5 core 0 still owns AD7771 SPI, reset/synchronization, capture control, and
+health; RPMsg carries control and health only.
+
+`conf/machineyaml/msap1-sdt.yaml` inherits the KR260 machine template and sets
+`CONFIG_SUBSYSTEM_PL_INPUT_DTSI` to
+`conf/dtsi/msap1-ad7771-iio.dtsi`. `gen-machineconf` therefore merges the IIO
+consumer, SG clock metadata, and Linux ownership overrides into the generated
+`pl.dtso`; the DFX firmware recipe consumes that generated overlay unchanged.
+DMA descriptors and sample buffers use Linux DMA/CMA allocation, with no fixed
+ADC reserved-memory carveout.
+
+The default template builds the APU application from the adjacent `MSAP1_APU`
+checkout. Initialize that repository's submodules before using
+`MSAP1_APU_APP_SRC = "local_inst"`; committed `local` and `cloud` modes fetch
+them automatically.
 
 The generator does not create component repositories, XSA files, RPU firmware,
 or generated machine configuration.
