@@ -10,9 +10,11 @@ MNCOS_IMAGE_LABEL = "MNCOS MSAP1 MAIN SYSTEM IMAGE"
 
 IMAGE_INSTALL:append = " \
     msap1-apu-app \
+    msap1-ad7771-iio \
     dfx-mgr \
     msap1-dfx-firmware \
     lmsensors-config-kria-fancontrol \
+    devmem2 \
 "
 
 IMAGE_FEATURES:remove = "hwcodecs"
