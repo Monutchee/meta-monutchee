@@ -1,0 +1,51 @@
+#!/bin/sh
+
+set -eu
+
+tls_dir="${MSAP1_WEB_TLS_DIR:-/var/lib/monutchee/tls}"
+certificate="${tls_dir}/msap1-web.crt"
+private_key="${tls_dir}/msap1-web.key"
+
+if [ -f "${certificate}" ] && [ -f "${private_key}" ]; then
+	if [ ! -r "${certificate}" ] || [ ! -r "${private_key}" ]; then
+		echo "MSAP1 TLS certificate or private key is not readable" >&2
+		exit 1
+	fi
+	exit 0
+fi
+
+if [ -e "${certificate}" ] || [ -e "${private_key}" ]; then
+	echo "MSAP1 TLS material is incomplete; provide both ${certificate} and ${private_key}" >&2
+	exit 1
+fi
+
+temporary_certificate="${certificate}.tmp.$$"
+temporary_key="${private_key}.tmp.$$"
+openssl_log="${tls_dir}/.openssl-tls-setup.$$"
+
+cleanup()
+{
+	rm -f "${temporary_certificate}" "${temporary_key}" "${openssl_log}"
+}
+trap cleanup 0 1 2 15
+
+umask 077
+if ! openssl req -x509 -nodes -days 3650 -sha256 \
+		-newkey rsa:2048 \
+		-keyout "${temporary_key}" \
+		-out "${temporary_certificate}" \
+		-subj "/CN=msap1.local" \
+		-addext "subjectAltName=DNS:msap1,DNS:msap1.local,IP:127.0.0.1" \
+		2>"${openssl_log}"; then
+	cat "${openssl_log}" >&2
+	exit 1
+fi
+rm -f "${openssl_log}"
+
+chmod 0600 "${temporary_key}"
+chmod 0644 "${temporary_certificate}"
+mv "${temporary_key}" "${private_key}"
+mv "${temporary_certificate}" "${certificate}"
+echo "Generated development TLS certificate at ${certificate}"
+
+trap - 0 1 2 15

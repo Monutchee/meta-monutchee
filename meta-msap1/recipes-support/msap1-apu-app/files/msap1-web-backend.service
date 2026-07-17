@@ -19,11 +19,14 @@ NoNewPrivileges=true
 
 Environment=MSAP1_WEB_SOCKET=/run/monutchee/web-backend.sock
 Environment=MSAP1_WEB_HTTP_PORT=80
+Environment=MSAP1_WEB_HTTPS_PORT=443
+Environment=MSAP1_WEB_TLS_DIR=/var/lib/monutchee/tls
 Environment=MSAP1_NGINX_CONFIG=/etc/monutchee/msap1/nginx.conf
 Environment=MSAP1_NGINX_LISTEN_FILE=/run/monutchee/nginx/listen.conf
 Environment=MSAP1_NGINX_PIDFILE=/run/monutchee/nginx/nginx.pid
 Environment=MSAP1_NGINX_TEMP_ROOT=/run/monutchee/nginx
 
+ExecStartPre=/usr/libexec/msap1-web-tls-setup
 ExecStartPre=/bin/rm -f /run/monutchee/web-backend.sock /run/monutchee/nginx/nginx.pid
 ExecStart=/usr/bin/msap1-web-backend
 Restart=on-failure
