@@ -1,5 +1,5 @@
 /* MSAP1 Linux AD7771 acquisition ownership. */
-&axi_dma_0 {
+&ADC_DMA_axi_dma_0 {
 	clocks = <&zynqmp_clk 0x47>,
 		 <&zynqmp_clk 0x47>,
 		 <&zynqmp_clk 0x47>;
@@ -19,7 +19,7 @@
 &amba_pl {
 	msap1_ad7771_iio: adc-acquisition {
 		compatible = "monutchee,msap1-ad7771-iio";
-		dmas = <&axi_dma_0 1>;
+		dmas = <&ADC_DMA_axi_dma_0 1>;
 		dma-names = "rx";
 		status = "okay";
 	};
