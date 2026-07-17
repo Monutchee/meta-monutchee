@@ -14,6 +14,7 @@ IMAGE_INSTALL:append = " \
     dfx-mgr \
     msap1-dfx-firmware \
     lmsensors-config-kria-fancontrol \
+    devmem2 \
 "
 
 IMAGE_FEATURES:remove = "hwcodecs"
