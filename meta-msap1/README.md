@@ -46,6 +46,11 @@ owns IIO/DMAengine and publishes the full-rate stream through shared memory.
 R5 core 0 still owns AD7771 SPI, reset/synchronization, capture control, and
 health; RPMsg carries control and health only.
 
+At boot, the default DFX firmware load remains active after its successful
+one-shot execution. R5 firmware loading completes next, and acquisition starts
+only after both R5 cores and their RPMsg endpoints have been brought up. This
+ordering prevents service retries from reloading an already active PL design.
+
 `conf/machineyaml/msap1-sdt.yaml` inherits the KR260 machine template and sets
 `CONFIG_SUBSYSTEM_PL_INPUT_DTSI` to
 `conf/dtsi/msap1-ad7771-iio.dtsi`. `gen-machineconf` therefore merges the IIO
