@@ -31,7 +31,7 @@ PV = "${@'1.0+local' if d.getVar('MSAP1_APU_APP_SRC') == 'local_inst' else '1.0+
 S = "${WORKDIR}/git"
 
 DEPENDS:append = " boost openssl"
-RDEPENDS:${PN}:append = " worker-user nginx openssl-bin msap1-web"
+RDEPENDS:${PN}:append = " worker-user nginx openssl-bin msap1-web msap1-dfx-firmware"
 
 inherit cmake externalsrc systemd useradd
 
