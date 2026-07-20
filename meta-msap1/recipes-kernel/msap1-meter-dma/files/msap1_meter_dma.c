@@ -14,7 +14,19 @@
 #include <linux/wait.h>
 
 #define MSAP1_METER_RECORD_SIZE 256U
-#define MSAP1_METER_RING_RECORDS 64U
+/*
+ * The Xilinx AXI DMAengine driver does not expose a cyclic transaction to its
+ * client until the final hardware descriptor in that transaction has
+ * completed.  A 64-period ring therefore made the first callback arrive only
+ * after 64 meter records and left userspace one complete ring revolution
+ * behind the PL (12.8 seconds at the 200 ms result cadence).
+ *
+ * Two periods provide the required ping-pong ownership without accumulating a
+ * user-visible history in the DMA transport.  With the Xilinx callback phase,
+ * readers see the preceding completed period while the DMA owns the other
+ * period, bounding transport latency to one meter record.
+ */
+#define MSAP1_METER_RING_RECORDS 2U
 #define MSAP1_METER_RING_SIZE \
 	(MSAP1_METER_RECORD_SIZE * MSAP1_METER_RING_RECORDS)
 
