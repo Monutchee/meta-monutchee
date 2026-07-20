@@ -11,7 +11,7 @@ MNCOS_IMAGE_LABEL = "MNCOS MSAP1 MAIN SYSTEM IMAGE"
 IMAGE_INSTALL:append = " \
     msap1-apu-app \
     msap1-web \
-    msap1-ad7771-iio \
+    msap1-meter-dma \
     dfx-mgr \
     msap1-dfx-firmware \
     lmsensors-config-kria-fancontrol \

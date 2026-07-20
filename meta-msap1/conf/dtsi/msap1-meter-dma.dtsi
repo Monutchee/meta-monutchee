@@ -1,4 +1,4 @@
-/* MSAP1 Linux AD7771 acquisition ownership. */
+/* MSAP1 Linux meter-result DMA ownership. */
 &ADC_DMA_axi_dma_0 {
 	clocks = <&zynqmp_clk 0x47>,
 		 <&zynqmp_clk 0x47>,
@@ -6,16 +6,12 @@
 	clock-names = "m_axi_s2mm_aclk", "s_axi_lite_aclk", "m_axi_sg_aclk";
 };
 
-/*
- * Only S2MM is enabled and its interrupt is wired to pl_ps_irq0. The SDT
- * generator nevertheless assigns the S2MM child the second DMA interrupt
- * (SPI 90). Override it with pl_ps_irq0's actual GIC SPI number (89).
- */
+/* The S2MM interrupt is wired to pl_ps_irq0 GIC SPI 89. */
 &dma_channel_b0030030 {
 	interrupts = <0 89 4>;
 };
 
-/* SPI configuration and capture control remain exclusively R5 core 0 owned. */
+/* SPI, capture, and metering configuration remain R5 core 0 owned. */
 &AdcSubSystem_0_Ad7771Capture_Wrapper_0 {
 	status = "disabled";
 };
@@ -24,10 +20,18 @@
 	status = "disabled";
 };
 
+&AdcConversion_0_AdcConversion_Wrapper_0 {
+	status = "disabled";
+};
+
+&MeterProcessing_0_VoltageRms_Wrapper_0 {
+	status = "disabled";
+};
+
 /* Lopper extracts /amba_pl into the runtime overlay and renames it to &amba. */
 &amba_pl {
-	msap1_ad7771_iio: adc-acquisition {
-		compatible = "monutchee,msap1-ad7771-iio";
+	msap1_meter_dma: meter-acquisition {
+		compatible = "monutchee,msap1-meter-dma";
 		dmas = <&ADC_DMA_axi_dma_0 1>;
 		dma-names = "rx";
 		status = "okay";
