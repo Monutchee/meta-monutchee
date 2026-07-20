@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "rms_window_ms": 200,
+  "adc_reference_volts": 2.5,
+  "adc_pga_gain": 1.0,
+  "voltage_channels": [
+    { "channel": 4, "name": "VLC", "rin_ohms": 6000000.0, "rf_ohms": 4640.0 },
+    { "channel": 5, "name": "VLB", "rin_ohms": 6000000.0, "rf_ohms": 4640.0 },
+    { "channel": 6, "name": "VLA", "rin_ohms": 6000000.0, "rf_ohms": 4640.0 }
+  ]
+}
