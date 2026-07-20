@@ -85,6 +85,12 @@ The recipe fetches dependencies from the layer's `npm-shrinkwrap.json` before
 the network-disabled compile task. Update the lockfile in `MSAP1_WEB` and its
 identical copy under `recipes-httpd/msap1-web/files/` together.
 
+In `local_inst` mode, the recipe includes a content hash of the frontend build
+configuration and the complete `src/` and `public/` trees in `do_configure`'s
+task signature. Editing, adding, or removing a frontend source file therefore
+repackages the live source before Vite runs; a manual recipe clean is not
+required.
+
 The product web backend enables nginx on HTTP port 80 and HTTPS port 443. On
 first boot, `msap1-web-tls-setup` creates a per-device self-signed development
 certificate in `/var/lib/monutchee/tls`. Replace `msap1-web.crt` and
