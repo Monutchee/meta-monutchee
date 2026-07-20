@@ -40,11 +40,11 @@ R5 OpenAMP applications, and the standard KR260 board description
 The default image target is `msap1-image`. The optional production
 flashing target is `msap1-production-flash-image`.
 
-`msap1-image` includes the `msap1_ad7771_iio` kernel module and
+`msap1-image` includes the `msap1_meter_dma` kernel module and
 `msap1-apu-app`. The package enables `msap1-fpga-acquisition.service`, which
-owns IIO/DMAengine and publishes the full-rate stream through shared memory.
-R5 core 0 still owns AD7771 SPI, reset/synchronization, capture control, and
-health; RPMsg carries control and health only.
+owns DMAengine and caches fixed 256-byte PL meter records. R5 core 0 owns
+AD7771 SPI, reset/synchronization, capture and meter configuration; RPMsg
+carries configuration/control/health only.
 
 At boot, the default DFX firmware load remains active after its successful
 one-shot execution. R5 firmware loading completes next, and acquisition starts
@@ -53,11 +53,11 @@ ordering prevents service retries from reloading an already active PL design.
 
 `conf/machineyaml/msap1-sdt.yaml` inherits the KR260 machine template and sets
 `CONFIG_SUBSYSTEM_PL_INPUT_DTSI` to
-`conf/dtsi/msap1-ad7771-iio.dtsi`. `gen-machineconf` therefore merges the IIO
-consumer, SG clock metadata, and Linux ownership overrides into the generated
+`conf/dtsi/msap1-meter-dma.dtsi`. `gen-machineconf` therefore merges the meter
+DMA consumer, SG clock metadata, and Linux ownership overrides into the generated
 `pl.dtso`; the DFX firmware recipe consumes that generated overlay unchanged.
-DMA descriptors and sample buffers use Linux DMA/CMA allocation, with no fixed
-ADC reserved-memory carveout.
+DMA descriptors and record buffers use Linux DMA/CMA allocation, with no fixed
+meter reserved-memory carveout.
 
 The default template builds the APU application from the adjacent `MSAP1_APU`
 checkout. Initialize that repository's submodules before using

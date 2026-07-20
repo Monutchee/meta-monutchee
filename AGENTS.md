@@ -14,18 +14,18 @@
 
 ## MSAP1 integration contract
 
-- `msap1-image` installs the AD7771 IIO kernel module, `msap1-apu-app`, its
+- `msap1-image` installs the meter DMA kernel module, `msap1-apu-app`, its
   acquisition daemon service, the MSAP1 DFX firmware, and supporting packages.
 - The hardware workflow consumes a bitstream-inclusive `MSAP1_PL.xsa` and both
   R5 firmware applications. Keep PL, RPU, APU, and layer revisions traceable in
   target-test records.
-- Linux owns AD7771 AXI DMA through IIO/DMAengine. The product-specific
-  `gen-machineconf` YAML merges `msap1-ad7771-iio.dtsi` into `pl.dtso`; keep the
-  IIO consumer atomic with the matching FPGA overlay and do not append DTS text
-  in the firmware recipe.
-- AD7771 SPI and capture-register overlay nodes must remain unavailable to
-  Linux because R5 core 0 owns them. DMA buffers come from Linux DMA/CMA; do not
-  add a fixed ADC reserved-memory region.
+- Linux owns the meter AXI DMA through the product-specific DMAengine misc
+  driver. The `gen-machineconf` YAML merges `msap1-meter-dma.dtsi` into
+  `pl.dtso`; keep the consumer atomic with the matching FPGA overlay and do not
+  append DTS text in the firmware recipe.
+- AD7771 SPI, capture, conversion, and processing register nodes remain
+  unavailable to Linux because R5 core 0 owns them. DMA buffers come from
+  Linux DMA/CMA; do not add fixed meter reserved memory.
 - `MSAP1_APU_APP_SRC` supports `cloud`, `local`, and `local_inst`:
   `local_inst` builds the adjacent APU working tree directly, including
   uncommitted edits; `local` fetches its committed Git state; `cloud` fetches
