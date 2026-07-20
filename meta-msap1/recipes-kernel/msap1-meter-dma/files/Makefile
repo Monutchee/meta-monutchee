@@ -1,4 +1,4 @@
-obj-m += msap1_ad7771_iio.o
+obj-m += msap1_meter_dma.o
 
 SRC := $(shell pwd)
 
