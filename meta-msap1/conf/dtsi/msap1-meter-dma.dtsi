@@ -11,20 +11,12 @@
 	interrupts = <0 89 4>;
 };
 
-/* SPI, capture, and metering configuration remain R5 core 0 owned. */
-&AdcSubSystem_0_Ad7771Capture_Wrapper_0 {
+/* SPI and the consolidated MeterCore registers remain R5 core 0 owned. */
+&MeterLogic_ADC_SPI {
 	status = "disabled";
 };
 
-&AdcSubSystem_0_axi_quad_spi_0 {
-	status = "disabled";
-};
-
-&AdcConversion_0_AdcConversion_Wrapper_0 {
-	status = "disabled";
-};
-
-&MeterProcessing_0_VoltageRms_Wrapper_0 {
+&MeterLogic_MeterCore_Wrapper {
 	status = "disabled";
 };
 
