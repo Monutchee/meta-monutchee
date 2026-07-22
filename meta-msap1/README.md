@@ -41,8 +41,9 @@ The default image target is `msap1-image`. The optional production
 flashing target is `msap1-production-flash-image`.
 
 `msap1-image` includes the `msap1_meter_dma` kernel module and
-`msap1-apu-app`. The package enables `msap1-fpga-acquisition.service`, which
-owns DMAengine and caches fixed 256-byte PL meter records. R5 core 0 owns
+`msap1-apu-app`. The package installs the `mnc` diagnostic CLI with Bash
+completion and enables `msap1-fpga-acquisition.service`, which owns DMAengine
+and caches fixed 256-byte PL meter records. R5 core 0 owns
 AD7771 SPI, reset/synchronization, capture and meter configuration; RPMsg
 carries configuration/control/health only.
 
