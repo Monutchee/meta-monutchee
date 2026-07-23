@@ -1,0 +1,71 @@
+{
+  "schema_version": 2,
+  "profile_id": "acuvim3-sb-mv",
+  "rms_window_ms": 200,
+  "remove_dc": true,
+  "adc_reference_volts": 1.0,
+  "current_channels": [
+    {
+      "channel": 0,
+      "name": "ILA",
+      "enabled": false,
+      "adc_pga_gain": 1,
+      "sensor_model": "voltage_output_current_sensor",
+      "rated_output_millivolts": 333.0,
+      "frontend_gain": 1.0
+    },
+    {
+      "channel": 1,
+      "name": "ILB",
+      "enabled": false,
+      "adc_pga_gain": 1,
+      "sensor_model": "voltage_output_current_sensor",
+      "rated_output_millivolts": 333.0,
+      "frontend_gain": 1.0
+    },
+    {
+      "channel": 2,
+      "name": "ILC",
+      "enabled": false,
+      "adc_pga_gain": 1,
+      "sensor_model": "voltage_output_current_sensor",
+      "rated_output_millivolts": 333.0,
+      "frontend_gain": 1.0
+    },
+    {
+      "channel": 3,
+      "name": "ILN",
+      "enabled": false,
+      "adc_pga_gain": 1,
+      "sensor_model": "voltage_output_current_sensor",
+      "rated_output_millivolts": 333.0,
+      "frontend_gain": 1.0
+    }
+  ],
+  "voltage_channels": [
+    {
+      "channel": 4,
+      "name": "VLC",
+      "enabled": true,
+      "adc_pga_gain": 1,
+      "rin_ohms": 6000000.0,
+      "rf_ohms": 4640.0
+    },
+    {
+      "channel": 5,
+      "name": "VLB",
+      "enabled": true,
+      "adc_pga_gain": 1,
+      "rin_ohms": 6000000.0,
+      "rf_ohms": 4640.0
+    },
+    {
+      "channel": 6,
+      "name": "VLA",
+      "enabled": true,
+      "adc_pga_gain": 1,
+      "rin_ohms": 6000000.0,
+      "rf_ohms": 4640.0
+    }
+  ]
+}

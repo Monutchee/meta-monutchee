@@ -24,7 +24,9 @@ SRC_URI:append = " \
     file://msap1-web-tls-setup \
     file://msap1-nginx.conf \
     file://msap1-runtime.conf \
-    file://meter-conversion.json \
+    file://acuvim3-sb-1a.json \
+    file://acuvim3-sb-5a.json \
+    file://acuvim3-sb-mv.json \
     file://70-msap1-meter.rules \
 "
 SRCREV_msap1-apu-app ?= "${AUTOREV}"
@@ -63,8 +65,16 @@ do_install:append() {
     install -d ${D}${sysconfdir}/monutchee/msap1
     install -m 0644 ${WORKDIR}/msap1-nginx.conf \
         ${D}${sysconfdir}/monutchee/msap1/nginx.conf
-    install -m 0644 ${WORKDIR}/meter-conversion.json \
-        ${D}${sysconfdir}/monutchee/msap1/meter-conversion.json
+    install -d ${D}${sysconfdir}/monutchee/msap1/default/adc_config
+    install -m 0644 ${WORKDIR}/acuvim3-sb-1a.json \
+        ${D}${sysconfdir}/monutchee/msap1/default/adc_config/acuvim3-sb-1a.json
+    install -m 0644 ${WORKDIR}/acuvim3-sb-5a.json \
+        ${D}${sysconfdir}/monutchee/msap1/default/adc_config/acuvim3-sb-5a.json
+    install -m 0644 ${WORKDIR}/acuvim3-sb-mv.json \
+        ${D}${sysconfdir}/monutchee/msap1/default/adc_config/acuvim3-sb-mv.json
+    # Reserved for a future complete Web-generated active.json. Do not install
+    # a packaged file here because product updates must preserve user settings.
+    install -d ${D}${sysconfdir}/monutchee/msap1/adc_config
 
     install -d ${D}${sysconfdir}/udev/rules.d
     install -m 0644 ${WORKDIR}/70-msap1-meter.rules \
@@ -80,7 +90,10 @@ FILES:${PN}:append = " \
     ${systemd_system_unitdir}/msap1-web-backend.service \
     ${libexecdir}/msap1-web-tls-setup \
     ${sysconfdir}/monutchee/msap1/nginx.conf \
-    ${sysconfdir}/monutchee/msap1/meter-conversion.json \
+    ${sysconfdir}/monutchee/msap1/default/adc_config/acuvim3-sb-1a.json \
+    ${sysconfdir}/monutchee/msap1/default/adc_config/acuvim3-sb-5a.json \
+    ${sysconfdir}/monutchee/msap1/default/adc_config/acuvim3-sb-mv.json \
+    ${sysconfdir}/monutchee/msap1/adc_config \
     ${sysconfdir}/udev/rules.d/70-msap1-meter.rules \
     ${nonarch_libdir}/tmpfiles.d/msap1-runtime.conf \
 "
