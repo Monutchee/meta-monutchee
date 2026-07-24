@@ -53,12 +53,14 @@ only after both R5 cores and their RPMsg endpoints have been brought up. This
 ordering prevents service retries from reloading an already active PL design.
 
 `conf/machineyaml/msap1-sdt.yaml` inherits the KR260 machine template and sets
-`CONFIG_SUBSYSTEM_PL_INPUT_DTSI` to
-`conf/dtsi/msap1-meter-dma.dtsi`. `gen-machineconf` therefore merges the meter
-DMA consumer, SG clock metadata, and Linux ownership overrides into the generated
-`pl.dtso`; the DFX firmware recipe consumes that generated overlay unchanged.
-DMA descriptors and record buffers use Linux DMA/CMA allocation, with no fixed
-meter reserved-memory carveout.
+`CONFIG_SUBSYSTEM_PL_INPUT_DTSI` to the product's meter-DMA and fabric-clock
+DTSI files. `gen-machineconf` therefore merges the meter DMA consumer, SG clock
+metadata, Linux ownership overrides, and the nominal 100 MHz PL0 request into
+the generated `pl.dtso`; the DFX firmware recipe consumes that generated
+overlay unchanged. The explicit 100 MHz request prevents the ZynqMP Linux clock
+framework from rounding Vivado's exported 99,999,001 Hz value down to the
+90.909 MHz divider. DMA descriptors and record buffers use Linux DMA/CMA
+allocation, with no fixed meter reserved-memory carveout.
 
 The default template builds the APU application from the adjacent `MSAP1_APU`
 checkout. Initialize that repository's submodules before using
