@@ -1,6 +1,7 @@
 inherit: ${LAYER_PATH_kria-layer}/conf/machineyaml/k26-smk-kr-sdt.yaml
 
-# Merge MSAP1 Linux ownership overrides into the generated full PL overlay.
-# gen-machineconf passes this input to the xlnx_overlay_pl_dt lopper assist.
+# Merge MSAP1 fabric-clock and Linux ownership overrides into the generated
+# full PL overlay. gen-machineconf passes both inputs to the
+# xlnx_overlay_pl_dt lopper assist in the listed order.
 kconfig:
-    CONFIG_SUBSYSTEM_PL_INPUT_DTSI: "${MSAP1_LAYERDIR}/conf/dtsi/msap1-meter-dma.dtsi"
+    CONFIG_SUBSYSTEM_PL_INPUT_DTSI: "${MSAP1_LAYERDIR}/conf/dtsi/msap1-meter-dma.dtsi ${MSAP1_LAYERDIR}/conf/dtsi/msap1-fabric-clock.dtsi"
