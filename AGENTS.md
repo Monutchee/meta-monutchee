@@ -20,12 +20,16 @@
   R5 firmware applications. Keep PL, RPU, APU, and layer revisions traceable in
   target-test records.
 - Linux owns the meter AXI DMA through the product-specific DMAengine misc
-  driver. The `gen-machineconf` YAML merges `msap1-meter-dma.dtsi` into
-  `pl.dtso`; keep the consumer atomic with the matching FPGA overlay and do not
+  driver. The `gen-machineconf` YAML merges `msap1-meter-dma.dtsi` and
+  `msap1-fabric-clock.dtsi` into `pl.dtso`; keep the consumer and nominal
+  100 MHz PL0 assignment atomic with the matching FPGA overlay and do not
   append DTS text in the firmware recipe.
 - AD7771 SPI, capture, conversion, and processing register nodes remain
   unavailable to Linux because R5 core 0 owns them. DMA buffers come from
   Linux DMA/CMA; do not add fixed meter reserved memory.
+- Install frequency settings inside each complete schema-v2 ADC profile. The
+  packaged 5 A file is the fallback; preserve the Web-generated complete
+  `/etc/monutchee/msap1/adc_config/active.json` across image updates.
 - `MSAP1_APU_APP_SRC` supports `cloud`, `local`, and `local_inst`:
   `local_inst` builds the adjacent APU working tree directly, including
   uncommitted edits; `local` fetches its committed Git state; `cloud` fetches
