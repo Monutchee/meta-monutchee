@@ -4,6 +4,16 @@
   "rms_window_ms": 200,
   "remove_dc": true,
   "adc_reference_volts": 1.0,
+  "frequency": {
+    "enabled": true,
+    "reference_channel": 6,
+    "mode": "rolling_cycles",
+    "averaging_cycles": 10,
+    "averaging_window_ms": 1000,
+    "minimum_hz": 40.0,
+    "maximum_hz": 70.0,
+    "hysteresis_volts": 1.0
+  },
   "current_channels": [
     {
       "channel": 0,
