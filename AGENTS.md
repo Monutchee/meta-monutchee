@@ -26,6 +26,9 @@
 - AD7771 SPI, capture, conversion, and processing register nodes remain
   unavailable to Linux because R5 core 0 owns them. DMA buffers come from
   Linux DMA/CMA; do not add fixed meter reserved memory.
+- Install frequency settings inside each complete schema-v2 ADC profile. The
+  packaged 5 A file is the fallback; preserve the Web-generated complete
+  `/etc/monutchee/msap1/adc_config/active.json` across image updates.
 - `MSAP1_APU_APP_SRC` supports `cloud`, `local`, and `local_inst`:
   `local_inst` builds the adjacent APU working tree directly, including
   uncommitted edits; `local` fetches its committed Git state; `cloud` fetches

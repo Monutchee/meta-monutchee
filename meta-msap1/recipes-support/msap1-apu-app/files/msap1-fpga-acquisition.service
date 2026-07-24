@@ -7,7 +7,7 @@ After=msap1-dfx-firmware-rpu-load.service systemd-tmpfiles-setup.service
 Type=simple
 Group=msap1-data
 UMask=0007
-ExecStart=/usr/bin/msap1-fpga-acquisition --config /etc/monutchee/msap1/default/adc_config/msap1-sensor-board-5a.json
+ExecStart=/usr/bin/msap1-fpga-acquisition --config /etc/monutchee/msap1/default/adc_config/msap1-sensor-board-5a.json --active-config /etc/monutchee/msap1/adc_config/active.json
 Restart=on-failure
 RestartSec=2
 
