@@ -1,0 +1,13 @@
+/*
+ * Keep the Linux-programmed PL0 fabric clock aligned with the 100 MHz
+ * TopDesign timing contract.
+ *
+ * Vivado exports its calculated 99,999,001 Hz rate. The ZynqMP Linux clock
+ * framework derives a slightly higher /10 rate from its runtime IOPLL model;
+ * when asked for the lower exported value it selects /11 instead, reducing
+ * PL0 to about 90.909 MHz. Requesting the nominal rate selects /10 and yields
+ * approximately 100 MHz on the target.
+ */
+&clocking0 {
+	assigned-clock-rates = <100000000>;
+};

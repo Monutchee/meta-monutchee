@@ -20,8 +20,9 @@
   R5 firmware applications. Keep PL, RPU, APU, and layer revisions traceable in
   target-test records.
 - Linux owns the meter AXI DMA through the product-specific DMAengine misc
-  driver. The `gen-machineconf` YAML merges `msap1-meter-dma.dtsi` into
-  `pl.dtso`; keep the consumer atomic with the matching FPGA overlay and do not
+  driver. The `gen-machineconf` YAML merges `msap1-meter-dma.dtsi` and
+  `msap1-fabric-clock.dtsi` into `pl.dtso`; keep the consumer and nominal
+  100 MHz PL0 assignment atomic with the matching FPGA overlay and do not
   append DTS text in the firmware recipe.
 - AD7771 SPI, capture, conversion, and processing register nodes remain
   unavailable to Linux because R5 core 0 owns them. DMA buffers come from
