@@ -16,6 +16,12 @@
 
 - `msap1-image` installs the meter DMA kernel module, `msap1-apu-app`, its
   acquisition daemon service, the MSAP1 DFX firmware, and supporting packages.
+- MSAP1 uses persistent journald as its only log store, with product retention
+  policy under `meta-msap1`. Preserve structured component metadata on the APU
+  and firmware-loader services; do not create a second log database.
+- Keep `msap1-web-backend.service` unprivileged and grant its authenticated
+  Developer log API read-only system-journal access through the
+  `systemd-journal` supplementary group.
 - The hardware workflow consumes a bitstream-inclusive `MSAP1_PL.xsa` and both
   R5 firmware applications. Keep PL, RPU, APU, and layer revisions traceable in
   target-test records.

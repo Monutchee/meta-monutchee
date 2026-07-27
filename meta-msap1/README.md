@@ -52,6 +52,14 @@ one-shot execution. R5 firmware loading completes next, and acquisition starts
 only after both R5 cores and their RPMsg endpoints have been brought up. This
 ordering prevents service retries from reloading an already active PL design.
 
+The image keeps systemd-journald as the single product log store. MSAP1
+configures persistent storage with a 32 MiB maximum and seven-day retention.
+The APU services and PL/RPU firmware loaders add structured component metadata,
+and `mnc log` presents their combined timestamp-ordered lifecycle. The
+unprivileged web backend receives read-only journal access through its
+`systemd-journal` supplementary group so the authenticated administrator
+Developer page can query the same entries without running the backend as root.
+
 `conf/machineyaml/msap1-sdt.yaml` inherits the KR260 machine template and sets
 `CONFIG_SUBSYSTEM_PL_INPUT_DTSI` to the product's meter-DMA and fabric-clock
 DTSI files. `gen-machineconf` therefore merges the meter DMA consumer, SG clock

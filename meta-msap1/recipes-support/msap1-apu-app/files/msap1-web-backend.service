@@ -6,11 +6,18 @@ Conflicts=nginx.service
 
 [Service]
 Type=notify
+SyslogIdentifier=msap1-web-backend
+LogExtraFields=MNC_COMPONENT=web-backend
+StandardOutput=journal
+StandardError=journal
 NotifyAccess=main
 WatchdogSec=20s
 User=worker
 Group=worker
-SupplementaryGroups=msap1-data
+# The authenticated Developer log API reads the system journal through
+# libsystemd. systemd-journal grants read-only journal access; msap1-data
+# continues to grant access to acquisition IPC runtime objects.
+SupplementaryGroups=msap1-data systemd-journal
 UMask=0007
 
 AmbientCapabilities=CAP_NET_BIND_SERVICE
