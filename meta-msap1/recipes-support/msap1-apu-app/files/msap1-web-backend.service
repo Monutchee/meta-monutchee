@@ -6,6 +6,10 @@ Conflicts=nginx.service
 
 [Service]
 Type=notify
+SyslogIdentifier=msap1-web-backend
+LogExtraFields=MNC_COMPONENT=web-backend
+StandardOutput=journal
+StandardError=journal
 NotifyAccess=main
 WatchdogSec=20s
 User=worker
