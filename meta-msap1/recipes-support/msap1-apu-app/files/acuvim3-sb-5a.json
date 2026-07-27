@@ -23,7 +23,7 @@
       "sensor_model": "internal_ct",
       "primary_rated_amps": 5.0,
       "secondary_rated_amps": 0.0025,
-      "burden_ohms": 48.71794871794872
+      "burden_ohms": 95.0
     },
     {
       "channel": 1,
@@ -33,7 +33,7 @@
       "sensor_model": "internal_ct",
       "primary_rated_amps": 5.0,
       "secondary_rated_amps": 0.0025,
-      "burden_ohms": 48.71794871794872
+      "burden_ohms": 95.0
     },
     {
       "channel": 2,
@@ -43,7 +43,7 @@
       "sensor_model": "internal_ct",
       "primary_rated_amps": 5.0,
       "secondary_rated_amps": 0.0025,
-      "burden_ohms": 48.71794871794872
+      "burden_ohms": 95.0
     },
     {
       "channel": 3,
@@ -53,7 +53,7 @@
       "sensor_model": "internal_ct",
       "primary_rated_amps": 5.0,
       "secondary_rated_amps": 0.0025,
-      "burden_ohms": 48.71794871794872
+      "burden_ohms": 95.0
     }
   ],
   "voltage_channels": [
