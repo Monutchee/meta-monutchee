@@ -18,4 +18,17 @@ SRC_URI = " \
     file://pl.dtso \
     file://R5c0.elf \
     file://R5c1.elf \
+    file://rpu-load-logging.conf \
+"
+
+do_install:append() {
+    install -d \
+        ${D}${systemd_system_unitdir}/${PN}-rpu-load.service.d
+    install -m 0644 \
+        ${WORKDIR}/rpu-load-logging.conf \
+        ${D}${systemd_system_unitdir}/${PN}-rpu-load.service.d/20-msap1-logging.conf
+}
+
+FILES:${PN}:append = " \
+    ${systemd_system_unitdir}/${PN}-rpu-load.service.d/20-msap1-logging.conf \
 "
