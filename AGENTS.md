@@ -30,6 +30,9 @@
 - Install frequency settings inside each complete schema-v2 ADC profile. The
   packaged 5 A file is the fallback; preserve the Web-generated complete
   `/etc/monutchee/msap1/adc_config/active.json` across image updates.
+- Use neutral MSAP1 sensor-board identifiers in packaged profile IDs,
+  filenames, services, recipes, tests, and documentation. Do not introduce
+  third-party vendor or product branding into this repository.
 - `MSAP1_APU_APP_SRC` supports `cloud`, `local`, and `local_inst`:
   `local_inst` builds the adjacent APU working tree directly, including
   uncommitted edits; `local` fetches its committed Git state; `cloud` fetches
