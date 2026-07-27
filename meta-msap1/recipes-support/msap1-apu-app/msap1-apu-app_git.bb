@@ -28,16 +28,17 @@ SRC_URI:append = " \
     file://msap1-sensor-board-5a.json \
     file://msap1-sensor-board-mv.json \
     file://70-msap1-meter.rules \
+    file://60-msap1-journal.conf \
 "
 SRCREV_msap1-apu-app ?= "${AUTOREV}"
 PV = "${@'1.0+local' if d.getVar('MSAP1_APU_APP_SRC') == 'local_inst' else '1.0+git' + (d.getVar('SRCPV') or '')}"
 
 S = "${WORKDIR}/git"
 
-DEPENDS:append = " boost openssl"
-RDEPENDS:${PN}:append = " worker-user nginx openssl-bin msap1-web msap1-dfx-firmware ${PN}-bash-completion"
+DEPENDS:append = " boost openssl systemd"
+RDEPENDS:${PN}:append = " worker-user nginx openssl-bin libsystemd msap1-web msap1-dfx-firmware ${PN}-bash-completion"
 
-inherit bash-completion cmake externalsrc systemd useradd
+inherit bash-completion cmake externalsrc pkgconfig systemd useradd
 
 USERADD_PACKAGES = "${PN}"
 GROUPADD_PARAM:${PN} = "--system msap1-data"
@@ -46,7 +47,11 @@ GROUPADD_PARAM:${PN} = "--system msap1-data"
 EXTERNALSRC = "${@d.getVar('MSAP1_APU_APP_LOCAL_DIR') if d.getVar('MSAP1_APU_APP_SRC') == 'local_inst' else ''}"
 EXTERNALSRC_BUILD = "${WORKDIR}/build"
 
-EXTRA_OECMAKE = "-DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF"
+EXTRA_OECMAKE = " \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_TESTING=OFF \
+    -DMNC_LOGGING_REQUIRE_SYSTEMD=ON \
+"
 
 SYSTEMD_SERVICE:${PN} = "msap1-fpga-acquisition.service msap1-web-backend.service"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
@@ -83,6 +88,10 @@ do_install:append() {
     install -d ${D}${nonarch_libdir}/tmpfiles.d
     install -m 0644 ${WORKDIR}/msap1-runtime.conf \
         ${D}${nonarch_libdir}/tmpfiles.d/msap1-runtime.conf
+
+    install -d ${D}${sysconfdir}/systemd/journald.conf.d
+    install -m 0644 ${WORKDIR}/60-msap1-journal.conf \
+        ${D}${sysconfdir}/systemd/journald.conf.d/60-msap1-journal.conf
 }
 
 FILES:${PN}:append = " \
@@ -96,4 +105,5 @@ FILES:${PN}:append = " \
     ${sysconfdir}/monutchee/msap1/adc_config \
     ${sysconfdir}/udev/rules.d/70-msap1-meter.rules \
     ${nonarch_libdir}/tmpfiles.d/msap1-runtime.conf \
+    ${sysconfdir}/systemd/journald.conf.d/60-msap1-journal.conf \
 "
