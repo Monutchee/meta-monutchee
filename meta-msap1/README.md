@@ -60,6 +60,31 @@ unprivileged web backend receives read-only journal access through its
 `systemd-journal` supplementary group so the authenticated administrator
 Developer page can query the same entries without running the backend as root.
 
+## Temporary machine-diagnostics account
+
+The restricted account used to exercise the future MCP/remote-support
+interface is disabled by default. Enable it only in a development build:
+
+```bitbake
+MSAP1_ENABLE_DEBUGAI = "1"
+```
+
+This installs the temporary `debugai` / `debugai` credentials and an SSH
+`Match User` policy with no PTY, forwarding, tunnel, user RC, interactive
+shell, SCP, or SFTP access. Its forced APU gateway accepts only
+machine-readable, metadata-classified diagnostic commands:
+
+```sh
+ssh debugai@METER 'mnc --output json machine describe'
+ssh debugai@METER 'mnc --output json meter health'
+```
+
+Runtime-control, maintenance, continuous, socket-override, and timeout-override
+commands are rejected before their handlers run. The production-flash image
+recipe fails if `MSAP1_ENABLE_DEBUGAI` is enabled. The password account is only
+for prototype validation; production support access must use provisioned
+per-device certificates or keys and an audited enablement workflow.
+
 `conf/machineyaml/msap1-sdt.yaml` inherits the KR260 machine template and sets
 `CONFIG_SUBSYSTEM_PL_INPUT_DTSI` to the product's meter-DMA and fabric-clock
 DTSI files. `gen-machineconf` therefore merges the meter DMA consumer, SG clock
