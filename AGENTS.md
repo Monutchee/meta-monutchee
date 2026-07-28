@@ -22,6 +22,10 @@
 - Keep `msap1-web-backend.service` unprivileged and grant its authenticated
   Developer log API read-only system-journal access through the
   `systemd-journal` supplementary group.
+- The temporary `debugai` SSH account is an explicit development-image opt-in.
+  Keep it disabled by default, reject it from production-flash builds, and
+  confine it to the metadata-enforced `mnc` diagnostic JSON gateway without
+  PTY, forwarding, shell, SCP, or SFTP access.
 - The hardware workflow consumes a bitstream-inclusive `MSAP1_PL.xsa` and both
   R5 firmware applications. Keep PL, RPU, APU, and layer revisions traceable in
   target-test records.

@@ -13,6 +13,11 @@ MSAP1_WEB_SRC = "local_inst"
 MSAP1_WEB_GIT_BRANCH = "main"
 MSAP1_WEB_LOCAL_DIR = "${TOPDIR}/../../MSAP1_WEB"
 
+# Development-only restricted SSH account for testing the machine-readable
+# mnc interface. Disabled by default and forbidden in production-flash builds.
+# Login: debugai / debugai
+MSAP1_ENABLE_DEBUGAI = "0"
+
 # Load the PL application and both R5 firmwares at boot.
 XILINX_DFX_AUTOLOAD = "1"
 
