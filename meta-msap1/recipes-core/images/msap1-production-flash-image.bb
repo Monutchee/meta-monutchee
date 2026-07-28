@@ -23,10 +23,15 @@ IMAGE_ROOTFS_EXTRA_SPACE = "0"
 NO_RECOMMENDATIONS = "1"
 
 MSAP1_PRODUCTION_FLASH_IMAGE_FSTYPES ?= "cpio.gz cpio.gz.u-boot"
+IMAGE_FSTYPES = "${MSAP1_PRODUCTION_FLASH_IMAGE_FSTYPES}"
 
-python () {
-    d.setVar("IMAGE_FSTYPES", d.getVar("MSAP1_PRODUCTION_FLASH_IMAGE_FSTYPES"))
+python do_validate_debugai_disabled() {
+    if d.getVar("MSAP1_ENABLE_DEBUGAI") == "1":
+        bb.fatal(
+            "MSAP1_ENABLE_DEBUGAI must be disabled for a production "
+            "flash image")
 }
+addtask validate_debugai_disabled before do_build
 
 do_image_wic[noexec] = "1"
 
