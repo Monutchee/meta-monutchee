@@ -1,0 +1,12 @@
+[Unit]
+Description=Mount the MSAP1 persistent-data SD card
+
+[Mount]
+What=/dev/sda1
+Where=/data
+Type=vfat
+Options=rw,nosuid,nodev,noexec,uid=root,gid=msap1-data,dmask=0007,fmask=0117
+TimeoutSec=30s
+
+[Install]
+WantedBy=local-fs.target
