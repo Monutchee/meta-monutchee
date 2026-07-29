@@ -39,6 +39,12 @@ use:
 cat /etc/mncos-image-info
 ```
 
+The login banner and MOTD show the image build time in UTC and the first six
+hexadecimal characters of the BitBake `do_rootfs` task hash. The complete task
+hash remains in `/etc/mncos-image-info` for unambiguous diagnostics. The short
+hash is a convenient display identifier; it must not be treated as a security
+or integrity check.
+
 ## SDK export
 
 For generate the sdk
