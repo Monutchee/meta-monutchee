@@ -18,6 +18,7 @@ IMAGE_INSTALL:append = " \
     msap1-dfx-firmware \
     lmsensors-config-kria-fancontrol \
     devmem2 \
+    msap1-data-mount \
     ${@'msap1-debugai' if d.getVar('MSAP1_ENABLE_DEBUGAI') == '1' else ''} \
 "
 

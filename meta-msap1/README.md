@@ -69,6 +69,12 @@ ordering prevents service retries from reloading an already active PL design.
 
 The image keeps systemd-journald as the single product log store. MSAP1
 configures persistent storage with a 32 MiB maximum and seven-day retention.
+The SD-card VFAT partition `/dev/sda1` is mounted at `/data` during
+`local-fs.target` startup for meter-system persistent data. The
+`msap1-data-mount` package installs and enables the path-matched `data.mount`
+unit. Files on the FAT filesystem are non-executable and writable by the
+existing `msap1-data` service group.
+
 The APU services and PL/RPU firmware loaders add structured component metadata,
 and `mnc log` presents their combined timestamp-ordered lifecycle. The
 unprivileged web backend receives read-only journal access through its
