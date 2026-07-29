@@ -40,6 +40,21 @@ R5 OpenAMP applications, and the standard KR260 board description
 The default image target is `msap1-image`. The optional production
 flashing target is `msap1-production-flash-image`.
 
+The serial login banner and post-login MOTD identify the built image:
+
+```text
+*** MNCOS MSAP1 MAIN SYSTEM IMAGE ***
+Image role: main
+Image recipe: msap1-image
+Machine: msap1
+Build time: 2026-07-29 14:25:03 UTC
+Build hash: 4eb8ae
+```
+
+The six-character value is the display form of the BitBake `do_rootfs` task
+hash. `/etc/mncos-image-info` stores the full hash and the same human-readable
+UTC build time.
+
 `msap1-image` includes the `msap1_meter_dma` kernel module and
 `msap1-apu-app`. The package installs the `mnc` diagnostic CLI with Bash
 completion and enables `msap1-fpga-acquisition.service`, which owns DMAengine
