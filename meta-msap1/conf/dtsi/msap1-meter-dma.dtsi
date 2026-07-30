@@ -1,5 +1,5 @@
 /* MSAP1 Linux meter-result DMA ownership. */
-&ADC_DMA_axi_dma_0 {
+&MeterLogic_Meter_DMA_Meter_data_DMA {
 	clocks = <&zynqmp_clk 0x47>,
 		 <&zynqmp_clk 0x47>,
 		 <&zynqmp_clk 0x47>;
@@ -9,6 +9,18 @@
 /* The S2MM interrupt is wired to pl_ps_irq0 GIC SPI 89. */
 &dma_channel_b0030030 {
 	interrupts = <0 89 4>;
+};
+
+/* Independent raw-waveform SG/S2MM channel on GIC SPI 90. */
+&MeterLogic_Meter_DMA_Waveform_DMA {
+	clocks = <&zynqmp_clk 0x47>,
+		 <&zynqmp_clk 0x47>,
+		 <&zynqmp_clk 0x47>;
+	clock-names = "m_axi_s2mm_aclk", "s_axi_lite_aclk", "m_axi_sg_aclk";
+};
+
+&dma_channel_b0060030 {
+	interrupts = <0 90 4>;
 };
 
 /* SPI and the consolidated MeterCore registers remain R5 core 0 owned. */
@@ -24,7 +36,20 @@
 &amba_pl {
 	msap1_meter_dma: meter-acquisition {
 		compatible = "monutchee,msap1-meter-dma";
-		dmas = <&ADC_DMA_axi_dma_0 1>;
+		dmas = <&MeterLogic_Meter_DMA_Meter_data_DMA 1>;
+		dma-names = "rx";
+		status = "okay";
+	};
+
+	/*
+	 * The driver owns both the waveform DMA channel and the small AXI-Lite
+	 * register bank used to atomically correlate CLOCK_TAI with PL tick and
+	 * frame sequence. Raw history remains in daemon-owned DDR.
+	 */
+	msap1_waveform_dma: waveform-acquisition@b0070000 {
+		compatible = "monutchee,msap1-waveform-dma";
+		reg = <0x0 0xb0070000 0x0 0x10000>;
+		dmas = <&MeterLogic_Meter_DMA_Waveform_DMA 1>;
 		dma-names = "rx";
 		status = "okay";
 	};
