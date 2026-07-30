@@ -2,9 +2,13 @@
 /*
  * MSAP1 raw waveform AXI DMA S2MM consumer.
  *
- * The driver deliberately owns only the small transport ping-pong buffer.
+ * The driver deliberately owns only a bounded transport ring.
  * Long pre-trigger history and capture-session policy belong to the Linux
  * acquisition daemon, where retention can be changed without a new bitstream.
+ *
+ * One period is always reserved for the DMA engine's active write position.
+ * Userspace can therefore consume at most RING_BLOCKS - 1 completed periods.
+ * This avoids exposing a block while the cyclic DMA is overwriting it.
  */
 
 #include <linux/atomic.h>
@@ -24,7 +28,7 @@
 #include <linux/wait.h>
 
 #define MSAP1_WAVEFORM_BLOCK_SIZE 32832U
-#define MSAP1_WAVEFORM_RING_BLOCKS 2U
+#define MSAP1_WAVEFORM_RING_BLOCKS 64U
 #define MSAP1_WAVEFORM_RING_SIZE \
 	(MSAP1_WAVEFORM_BLOCK_SIZE * MSAP1_WAVEFORM_RING_BLOCKS)
 
@@ -41,8 +45,18 @@ struct msap1_waveform_correlation {
 	__u64 frame_sequence;
 };
 
+struct msap1_waveform_transport_status {
+	__u64 produced_blocks;
+	__u64 consumed_blocks;
+	__u64 overrun_blocks;
+	__u32 ring_blocks;
+	__u32 reserved;
+};
+
 #define MSAP1_WAVEFORM_IOC_CORRELATE \
 	_IOR('W', 0x01, struct msap1_waveform_correlation)
+#define MSAP1_WAVEFORM_IOC_TRANSPORT_STATUS \
+	_IOR('W', 0x02, struct msap1_waveform_transport_status)
 
 struct msap1_waveform_dma {
 	struct device *dev;
@@ -59,6 +73,8 @@ struct msap1_waveform_dma {
 struct msap1_waveform_file {
 	struct msap1_waveform_dma *waveform;
 	u64 consumed;
+	u64 overrun_blocks;
+	void *staging;
 };
 
 static u64 msap1_read_u64(void __iomem *registers, unsigned int low_offset)
@@ -103,6 +119,11 @@ static int msap1_waveform_open(struct inode *inode, struct file *file)
 		error = -ENOMEM;
 		goto clear_opened;
 	}
+	context->staging = kmalloc(MSAP1_WAVEFORM_BLOCK_SIZE, GFP_KERNEL);
+	if (!context->staging) {
+		error = -ENOMEM;
+		goto free_context;
+	}
 	context->waveform = waveform;
 	atomic64_set(&waveform->produced, 0);
 	memset(waveform->buffer, 0, MSAP1_WAVEFORM_RING_SIZE);
@@ -139,6 +160,7 @@ static int msap1_waveform_open(struct inode *inode, struct file *file)
 terminate:
 	dmaengine_terminate_sync(waveform->rx);
 free_context:
+	kfree(context->staging);
 	kfree(context);
 clear_opened:
 	atomic_set(&waveform->opened, 0);
@@ -153,6 +175,7 @@ static int msap1_waveform_release(struct inode *inode, struct file *file)
 	writel(0x0U, waveform->registers + MSAP1_WAVEFORM_CONTROL);
 	(void)readl(waveform->registers + MSAP1_WAVEFORM_CONTROL);
 	dmaengine_terminate_sync(waveform->rx);
+	kfree(context->staging);
 	kfree(context);
 	atomic_set(&waveform->opened, 0);
 	wake_up_interruptible(&waveform->wait);
@@ -165,6 +188,7 @@ static ssize_t msap1_waveform_read(struct file *file, char __user *buffer,
 	struct msap1_waveform_file *context = file->private_data;
 	struct msap1_waveform_dma *waveform = context->waveform;
 	u64 produced;
+	u64 oldest_safe;
 	size_t requested;
 	size_t available;
 	size_t copied = 0;
@@ -173,7 +197,8 @@ static ssize_t msap1_waveform_read(struct file *file, char __user *buffer,
 	requested = count / MSAP1_WAVEFORM_BLOCK_SIZE;
 	if (!requested)
 		return -EINVAL;
-	requested = min_t(size_t, requested, MSAP1_WAVEFORM_RING_BLOCKS);
+	requested = min_t(size_t, requested,
+			  MSAP1_WAVEFORM_RING_BLOCKS - 1U);
 
 	for (;;) {
 		produced = atomic64_read(&waveform->produced);
@@ -190,16 +215,43 @@ static ssize_t msap1_waveform_read(struct file *file, char __user *buffer,
 			return 0;
 	}
 
-	if (produced - context->consumed > MSAP1_WAVEFORM_RING_BLOCKS)
-		context->consumed = produced - MSAP1_WAVEFORM_RING_BLOCKS;
+	oldest_safe = produced > MSAP1_WAVEFORM_RING_BLOCKS - 1U
+		? produced - (MSAP1_WAVEFORM_RING_BLOCKS - 1U)
+		: 0U;
+	if (context->consumed < oldest_safe) {
+		context->overrun_blocks += oldest_safe - context->consumed;
+		context->consumed = oldest_safe;
+	}
 	available = min_t(u64, produced - context->consumed, requested);
 	while (available--) {
-		const size_t index =
-			context->consumed % MSAP1_WAVEFORM_RING_BLOCKS;
-		const void *block = waveform->buffer +
-			index * MSAP1_WAVEFORM_BLOCK_SIZE;
+		const void *block;
+		size_t index;
 
-		if (copy_to_user(buffer + copied, block,
+		/*
+		 * Re-evaluate the safe window before every copy. A task may have
+		 * been descheduled since the first availability snapshot.
+		 */
+		produced = atomic64_read(&waveform->produced);
+		oldest_safe = produced > MSAP1_WAVEFORM_RING_BLOCKS - 1U
+			? produced - (MSAP1_WAVEFORM_RING_BLOCKS - 1U)
+			: 0U;
+		if (context->consumed < oldest_safe) {
+			context->overrun_blocks += oldest_safe - context->consumed;
+			context->consumed = oldest_safe;
+		}
+		if (context->consumed >= produced)
+			break;
+
+		index = context->consumed % MSAP1_WAVEFORM_RING_BLOCKS;
+		block = waveform->buffer +
+			index * MSAP1_WAVEFORM_BLOCK_SIZE;
+		/*
+		 * Snapshot coherent DMA memory before copy_to_user(), which may
+		 * fault and sleep. With 63 completed periods retained, this memcpy
+		 * cannot be lapped by the 32 kframe/s producer.
+		 */
+		memcpy(context->staging, block, MSAP1_WAVEFORM_BLOCK_SIZE);
+		if (copy_to_user(buffer + copied, context->staging,
 				 MSAP1_WAVEFORM_BLOCK_SIZE))
 			return copied ? (ssize_t)copied : -EFAULT;
 		copied += MSAP1_WAVEFORM_BLOCK_SIZE;
@@ -214,9 +266,22 @@ static long msap1_waveform_ioctl(struct file *file, unsigned int command,
 	struct msap1_waveform_file *context = file->private_data;
 	struct msap1_waveform_dma *waveform = context->waveform;
 	struct msap1_waveform_correlation correlation;
+	struct msap1_waveform_transport_status transport;
 	struct timespec64 before;
 	struct timespec64 after;
 
+	if (command == MSAP1_WAVEFORM_IOC_TRANSPORT_STATUS) {
+		transport.produced_blocks =
+			atomic64_read(&waveform->produced);
+		transport.consumed_blocks = context->consumed;
+		transport.overrun_blocks = context->overrun_blocks;
+		transport.ring_blocks = MSAP1_WAVEFORM_RING_BLOCKS;
+		transport.reserved = 0;
+		if (copy_to_user((void __user *)argument, &transport,
+				 sizeof(transport)))
+			return -EFAULT;
+		return 0;
+	}
 	if (command != MSAP1_WAVEFORM_IOC_CORRELATE)
 		return -ENOTTY;
 	ktime_get_clocktai_ts64(&before);

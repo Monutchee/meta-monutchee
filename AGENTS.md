@@ -35,9 +35,12 @@
   `msap1-meter-dma.dtsi` and `msap1-fabric-clock.dtsi` into `pl.dtso`; keep
   both consumers and the nominal 100 MHz PL0 assignment atomic with the
   matching FPGA overlay and do not append DTS text in the firmware recipe.
-- The waveform consumer exposes `/dev/msap1-waveform` and uses two coherent
-  32,832-byte transport periods. Long pre-trigger history and `.mncwf` storage
-  belong to the APU daemon, not the kernel driver or a reserved DDR carveout.
+- The waveform consumer exposes `/dev/msap1-waveform` and uses a 64-period
+  coherent transport ring of 32,832-byte blocks. It reserves the active DMA
+  period, reports kernel-ring overruns separately, and never returns a period
+  while DMA may be overwriting it. Long pre-trigger history and `.mncwf`
+  storage belong to the APU daemon, not the kernel driver or a reserved DDR
+  carveout.
 - AD7771 SPI, capture, conversion, and processing register nodes remain
   unavailable to Linux because R5 core 0 owns them. DMA buffers come from
   Linux DMA/CMA; do not add fixed meter reserved memory.
