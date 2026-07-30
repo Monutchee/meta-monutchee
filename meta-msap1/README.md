@@ -60,7 +60,7 @@ modules plus `msap1-apu-app`. The package installs the `mnc` diagnostic CLI
 with Bash completion and enables `msap1-fpga-acquisition.service`, which owns
 both DMAengine channels, caches fixed 256-byte PL meter records, and retains
 128 MiB of raw waveform history. Completed triggered waveform files are
-written below `/var/lib/monutchee/waveforms`. R5 core 0 owns
+written below persistent storage at `/data/mnc/waveform`. R5 core 0 owns
 AD7771 SPI, reset/synchronization, capture and meter configuration; RPMsg
 carries configuration/control/health only and never carries waveform data.
 
