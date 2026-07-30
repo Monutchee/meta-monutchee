@@ -75,6 +75,7 @@ struct msap1_waveform_file {
 	u64 consumed;
 	u64 overrun_blocks;
 	void *staging;
+	bool consumer_synchronized;
 };
 
 static u64 msap1_read_u64(void __iomem *registers, unsigned int low_offset)
@@ -95,7 +96,18 @@ static void msap1_waveform_period_complete(void *parameter)
 {
 	struct msap1_waveform_dma *waveform = parameter;
 
-	atomic64_inc(&waveform->produced);
+	/*
+	 * The Xilinx AXI DMA driver first invokes a cyclic callback only after
+	 * the final descriptor in the ring completes.  That first callback
+	 * therefore represents one complete ring, not one completed period.
+	 * Subsequent callbacks represent one additional completed period.
+	 *
+	 * Keeping produced aligned to the hardware's absolute period count makes
+	 * produced % RING_BLOCKS identify the period DMA is currently writing.
+	 */
+	if (atomic64_cmpxchg(&waveform->produced, 0,
+			    MSAP1_WAVEFORM_RING_BLOCKS) != 0)
+		atomic64_inc(&waveform->produced);
 	wake_up_interruptible(&waveform->wait);
 }
 
@@ -218,7 +230,21 @@ static ssize_t msap1_waveform_read(struct file *file, char __user *buffer,
 	oldest_safe = produced > MSAP1_WAVEFORM_RING_BLOCKS - 1U
 		? produced - (MSAP1_WAVEFORM_RING_BLOCKS - 1U)
 		: 0U;
-	if (context->consumed < oldest_safe) {
+	if (!context->consumer_synchronized) {
+		/*
+		 * At the first callback, period zero is already the active DMA
+		 * destination again.  Begin at period one so userspace never sees
+		 * that block while it is being overwritten.  This one startup
+		 * discard is phase synchronization, not a transport overrun.
+		 *
+		 * If userspace did not run until later callbacks, count only the
+		 * additional completed periods it genuinely missed.
+		 */
+		if (oldest_safe > 1U)
+			context->overrun_blocks += oldest_safe - 1U;
+		context->consumed = oldest_safe;
+		context->consumer_synchronized = true;
+	} else if (context->consumed < oldest_safe) {
 		context->overrun_blocks += oldest_safe - context->consumed;
 		context->consumed = oldest_safe;
 	}
