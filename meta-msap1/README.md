@@ -55,12 +55,14 @@ The six-character value is the display form of the BitBake `do_rootfs` task
 hash. `/etc/mncos-image-info` stores the full hash and the same human-readable
 UTC build time.
 
-`msap1-image` includes the `msap1_meter_dma` kernel module and
-`msap1-apu-app`. The package installs the `mnc` diagnostic CLI with Bash
-completion and enables `msap1-fpga-acquisition.service`, which owns DMAengine
-and caches fixed 256-byte PL meter records. R5 core 0 owns
+`msap1-image` includes the `msap1_meter_dma` and `msap1_waveform_dma` kernel
+modules plus `msap1-apu-app`. The package installs the `mnc` diagnostic CLI
+with Bash completion and enables `msap1-fpga-acquisition.service`, which owns
+both DMAengine channels, caches fixed 256-byte PL meter records, and retains
+128 MiB of raw waveform history. Completed triggered waveform files are
+written below persistent storage at `/data/mnc/waveform`. R5 core 0 owns
 AD7771 SPI, reset/synchronization, capture and meter configuration; RPMsg
-carries configuration/control/health only.
+carries configuration/control/health only and never carries waveform data.
 
 At boot, the default DFX firmware load remains active after its successful
 one-shot execution. R5 firmware loading completes next, and acquisition starts
@@ -107,14 +109,15 @@ for prototype validation; production support access must use provisioned
 per-device certificates or keys and an audited enablement workflow.
 
 `conf/machineyaml/msap1-sdt.yaml` inherits the KR260 machine template and sets
-`CONFIG_SUBSYSTEM_PL_INPUT_DTSI` to the product's meter-DMA and fabric-clock
-DTSI files. `gen-machineconf` therefore merges the meter DMA consumer, SG clock
-metadata, Linux ownership overrides, and the nominal 100 MHz PL0 request into
-the generated `pl.dtso`; the DFX firmware recipe consumes that generated
-overlay unchanged. The explicit 100 MHz request prevents the ZynqMP Linux clock
-framework from rounding Vivado's exported 99,999,001 Hz value down to the
-90.909 MHz divider. DMA descriptors and record buffers use Linux DMA/CMA
-allocation, with no fixed meter reserved-memory carveout.
+`CONFIG_SUBSYSTEM_PL_INPUT_DTSI` to the product's DMA and fabric-clock DTSI
+files. `gen-machineconf` therefore merges both the meter and waveform DMA
+consumers, SG clock metadata, Linux ownership overrides, and the nominal
+100 MHz PL0 request into the generated `pl.dtso`; the DFX firmware recipe
+consumes that generated overlay unchanged. The explicit 100 MHz request
+prevents the ZynqMP Linux clock framework from rounding Vivado's exported
+99,999,001 Hz value down to the 90.909 MHz divider. DMA descriptors and
+transport buffers use Linux DMA/CMA allocation, with no fixed waveform or
+meter reserved-memory carveout.
 
 The default template builds the APU application from the adjacent `MSAP1_APU`
 checkout. Initialize that repository's submodules before using

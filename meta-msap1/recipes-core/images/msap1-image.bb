@@ -14,6 +14,7 @@ IMAGE_INSTALL:append = " \
     msap1-apu-app \
     msap1-web \
     msap1-meter-dma \
+    msap1-waveform-dma \
     dfx-mgr \
     msap1-dfx-firmware \
     lmsensors-config-kria-fancontrol \
