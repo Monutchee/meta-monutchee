@@ -69,6 +69,12 @@ one-shot execution. R5 firmware loading completes next, and acquisition starts
 only after both R5 cores and their RPMsg endpoints have been brought up. This
 ordering prevents service retries from reloading an already active PL design.
 
+The installed complete ADC profiles use schema version 3. They default to the
+physical ADC and also carry nominal raw-simulator frequency, RMS amplitude,
+and phase settings. Runtime source selection is persisted only after the APU,
+RPU, and PL readback transaction succeeds; schema-version-2 user profiles are
+accepted as physical-source configurations for migration.
+
 The image keeps systemd-journald as the single product log store. MSAP1
 configures persistent storage with a 32 MiB maximum and seven-day retention.
 The SD-card VFAT partition `/dev/sda1` is mounted at `/data` during

@@ -1,9 +1,22 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "profile_id": "msap1-sensor-board-1a",
+  "adc_source": "physical",
   "rms_window_ms": 200,
   "remove_dc": true,
   "adc_reference_volts": 1.0,
+  "simulator": {
+    "frequency_hz": 60.0,
+    "channels": [
+      { "channel": 0, "rms": 1.0, "phase_degrees": 0.0 },
+      { "channel": 1, "rms": 1.0, "phase_degrees": -120.0 },
+      { "channel": 2, "rms": 1.0, "phase_degrees": 120.0 },
+      { "channel": 3, "rms": 0.0, "phase_degrees": 0.0 },
+      { "channel": 4, "rms": 120.0, "phase_degrees": 120.0 },
+      { "channel": 5, "rms": 120.0, "phase_degrees": -120.0 },
+      { "channel": 6, "rms": 120.0, "phase_degrees": 0.0 }
+    ]
+  },
   "frequency": {
     "enabled": true,
     "reference_channel": 6,
