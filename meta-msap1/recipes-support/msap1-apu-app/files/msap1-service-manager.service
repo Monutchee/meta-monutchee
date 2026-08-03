@@ -1,0 +1,20 @@
+[Unit]
+Description=MSAP1 product service manager
+Wants=dbus.service
+After=dbus.service systemd-tmpfiles-setup.service
+
+[Service]
+Type=notify
+SyslogIdentifier=msap1-service-manager
+LogExtraFields=MNC_COMPONENT=service-manager
+StandardOutput=journal
+StandardError=journal
+NotifyAccess=main
+WatchdogSec=20s
+UMask=0007
+ExecStart=/usr/bin/msap1-service-manager
+Restart=on-failure
+RestartSec=2s
+
+[Install]
+WantedBy=multi-user.target

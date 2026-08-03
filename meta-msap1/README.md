@@ -57,12 +57,20 @@ UTC build time.
 
 `msap1-image` includes the `msap1_meter_dma` and `msap1_waveform_dma` kernel
 modules plus `msap1-apu-app`. The package installs the `mnc` diagnostic CLI
-with Bash completion and enables `msap1-fpga-acquisition.service`, which owns
-both DMAengine channels, caches fixed 256-byte PL meter records, and retains
-128 MiB of raw waveform history. Completed triggered waveform files are
-written below persistent storage at `/data/mnc/waveform`. R5 core 0 owns
+with Bash completion and enables the acquisition, web-backend, and product
+service-manager units. `msap1-fpga-acquisition.service` owns both DMAengine
+channels, commits fixed 256-byte PL meter records to the SQLite WAL stream at
+`/data/mnc/meter/record-stream.sqlite3`, and retains 128 MiB of raw waveform
+history. Completed triggered waveform files are written below persistent
+storage at `/data/mnc/waveform`. R5 core 0 owns
 AD7771 SPI, reset/synchronization, capture and meter configuration; RPMsg
 carries configuration/control/health only and never carries waveform data.
+
+Internal APU services communicate through explicitly framed Boost.Asio
+Unix-domain stream sockets. `msap1-service-manager` starts or adopts
+acquisition before the web backend, audits systemd unit health through sd-bus,
+and exposes the `mnc service` control surface. systemd remains responsible for
+process ownership, watchdog enforcement, restart limits, and final unit state.
 
 At boot, the default DFX firmware load remains active after its successful
 one-shot execution. R5 firmware loading completes next, and acquisition starts

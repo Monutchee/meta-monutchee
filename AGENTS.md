@@ -15,8 +15,17 @@
 ## MSAP1 integration contract
 
 - `msap1-image` installs the meter and waveform DMA kernel modules,
-  `msap1-apu-app`, its acquisition daemon service, the MSAP1 DFX firmware, and
-  supporting packages.
+  `msap1-apu-app`, its acquisition, web, and product service-manager units,
+  the MSAP1 DFX firmware, and supporting packages.
+- The acquisition daemon durably commits every validated PL meter record to
+  `/data/mnc/meter/record-stream.sqlite3` before publishing typed latest
+  values. Keep the SQLite runtime dependency and persistent-data tmpfiles
+  entry together; storage failure must stop acquisition rather than silently
+  lose accepted records.
+- Product daemons use the framed Boost.Asio Unix-stream transport and
+  `mnc::Service` readiness/watchdog lifecycle. `msap1-service-manager` orders
+  and audits units through systemd sd-bus; it must not replace systemd PID
+  ownership or restart limits.
 - MSAP1 uses persistent journald as its only log store, with product retention
   policy under `meta-msap1`. Preserve structured component metadata on the APU
   and firmware-loader services; do not create a second log database.
