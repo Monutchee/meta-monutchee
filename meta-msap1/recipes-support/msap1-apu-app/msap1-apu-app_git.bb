@@ -1,5 +1,5 @@
 SUMMARY = "MSAP1 APU application"
-DESCRIPTION = "Builds the meter DMA acquisition daemon, mnc diagnostic CLI, and authenticated MSAP1 web backend."
+DESCRIPTION = "Builds the durable meter acquisition daemon, service manager, mnc diagnostic CLI, and authenticated MSAP1 web backend."
 HOMEPAGE = "https://github.com/Monutchee/MSAP1_APU"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=86d3f3a95c324c9479bd8986968f4327"
@@ -20,6 +20,7 @@ SRC_URI = "${@d.getVar('MSAP1_APU_APP_REPO_' + (d.getVar('MSAP1_APU_APP_SRC') or
 FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 SRC_URI:append = " \
     file://msap1-fpga-acquisition.service \
+    file://msap1-service-manager.service \
     file://msap1-web-backend.service \
     file://msap1-web-tls-setup \
     file://msap1-nginx.conf \
@@ -35,8 +36,8 @@ PV = "${@'1.0+local' if d.getVar('MSAP1_APU_APP_SRC') == 'local_inst' else '1.0+
 
 S = "${WORKDIR}/git"
 
-DEPENDS:append = " boost openssl systemd"
-RDEPENDS:${PN}:append = " worker-user nginx openssl-bin libsystemd msap1-web msap1-dfx-firmware ${PN}-bash-completion"
+DEPENDS:append = " boost openssl sqlite3 systemd"
+RDEPENDS:${PN}:append = " boost-system libsqlite3 worker-user nginx openssl-bin libsystemd msap1-web msap1-dfx-firmware ${PN}-bash-completion"
 
 inherit bash-completion cmake externalsrc pkgconfig systemd useradd
 
@@ -53,13 +54,15 @@ EXTRA_OECMAKE = " \
     -DMNC_LOGGING_REQUIRE_SYSTEMD=ON \
 "
 
-SYSTEMD_SERVICE:${PN} = "msap1-fpga-acquisition.service msap1-web-backend.service"
+SYSTEMD_SERVICE:${PN} = "msap1-fpga-acquisition.service msap1-web-backend.service msap1-service-manager.service"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 
 do_install:append() {
     install -d ${D}${systemd_system_unitdir}
     install -m 0644 ${WORKDIR}/msap1-fpga-acquisition.service \
         ${D}${systemd_system_unitdir}/msap1-fpga-acquisition.service
+    install -m 0644 ${WORKDIR}/msap1-service-manager.service \
+        ${D}${systemd_system_unitdir}/msap1-service-manager.service
     install -m 0644 ${WORKDIR}/msap1-web-backend.service \
         ${D}${systemd_system_unitdir}/msap1-web-backend.service
 
@@ -96,6 +99,7 @@ do_install:append() {
 
 FILES:${PN}:append = " \
     ${systemd_system_unitdir}/msap1-fpga-acquisition.service \
+    ${systemd_system_unitdir}/msap1-service-manager.service \
     ${systemd_system_unitdir}/msap1-web-backend.service \
     ${libexecdir}/msap1-web-tls-setup \
     ${sysconfdir}/monutchee/msap1/nginx.conf \
