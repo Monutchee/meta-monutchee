@@ -89,7 +89,11 @@ configures persistent storage with a 32 MiB maximum and seven-day retention.
 The SD-card VFAT partition `/dev/sda1` is mounted at `/data` during
 `local-fs.target` startup for meter-system persistent data. The
 `msap1-data-mount` package installs and enables the path-matched `data.mount`
-unit. Files on the FAT filesystem are non-executable and writable by the
+unit. Before mounting, systemd runs `fsck.vfat` so an unclean shutdown or JTAG
+reset cannot silently expose a damaged partition to the settings, meter-record,
+or waveform services. An unrepairable filesystem prevents `data.mount` and its
+dependent services from starting instead of falling back to non-persistent root
+storage. Files on the FAT filesystem are non-executable and writable by the
 existing `msap1-data` service group.
 
 The APU services and PL/RPU firmware loaders add structured component metadata,
