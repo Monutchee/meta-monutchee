@@ -79,21 +79,21 @@ ordering prevents service retries from reloading an already active PL design.
 
 The canonical factory settings are installed directly from the selected APU
 source as `/usr/share/monutchee/msap1/settings/factory-defaults.json`.
-`msap1-settings` validates and initializes `/data/mnc/settings`, then owns all
-active, draft, revision, and secret persistence. The layer defines only users,
+`msap1-settings` validates and initializes `/data/mnc/settings`, then owns the
+active settings document and separate secret persistence. The layer defines only users,
 permissions, service ordering, and directory creation; it does not duplicate
 product default values or migrate legacy `/etc` ADC profiles.
 
 The image keeps systemd-journald as the single product log store. MSAP1
 configures persistent storage with a 32 MiB maximum and seven-day retention.
-The SD-card VFAT partition `/dev/sda1` is mounted at `/data` during
+The SD-card ext4 partition `/dev/sda1` is mounted at `/data` during
 `local-fs.target` startup for meter-system persistent data. The
 `msap1-data-mount` package installs and enables the path-matched `data.mount`
-unit. Before mounting, systemd runs `fsck.vfat` so an unclean shutdown or JTAG
+unit. Before mounting, systemd runs `fsck.ext4` so an unclean shutdown or JTAG
 reset cannot silently expose a damaged partition to the settings, meter-record,
 or waveform services. An unrepairable filesystem prevents `data.mount` and its
 dependent services from starting instead of falling back to non-persistent root
-storage. Files on the FAT filesystem are non-executable and writable by the
+storage. Files on the ext4 filesystem are non-executable and writable by the
 existing `msap1-data` service group.
 
 The APU services and PL/RPU firmware loaders add structured component metadata,
