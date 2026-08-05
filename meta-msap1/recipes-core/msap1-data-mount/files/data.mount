@@ -7,7 +7,7 @@ After=systemd-fsck@dev-sda1.service
 What=/dev/sda1
 Where=/data
 Type=ext4
-Options=rw,nosuid,nodev,noexec,uid=root,gid=msap1-data,dmask=0007,fmask=0117
+Options=rw,nosuid,nodev,noexec
 TimeoutSec=30s
 
 [Install]
