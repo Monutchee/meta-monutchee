@@ -5,13 +5,13 @@ DISTRO ?= "mncos"
 
 # Build directly from the MSAP1_APU working tree, including uncommitted edits.
 MSAP1_APU_APP_SRC = "local_inst"
-MSAP1_APU_APP_GIT_BRANCH = "feat/add_adc_spi"
-MSAP1_APU_APP_LOCAL_DIR = "${TOPDIR}/../../MSAP1_APU"
+MSAP1_APU_APP_GIT_BRANCH = "main"
+MSAP1_APU_APP_LOCAL_DIR = "${TOPDIR}/../../applications/MSAP1_APU"
 
 # Build the React/Vite UI from the live checkout, including uncommitted edits.
 MSAP1_WEB_SRC = "local_inst"
 MSAP1_WEB_GIT_BRANCH = "main"
-MSAP1_WEB_LOCAL_DIR = "${TOPDIR}/../../MSAP1_WEB"
+MSAP1_WEB_LOCAL_DIR = "${TOPDIR}/../../applications/MSAP1_WEB"
 
 # Development-only restricted SSH account for testing the machine-readable
 # mnc interface. Disabled by default and forbidden in production-flash builds.
