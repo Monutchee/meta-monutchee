@@ -20,14 +20,12 @@ SRC_URI = "${@d.getVar('MSAP1_APU_APP_REPO_' + (d.getVar('MSAP1_APU_APP_SRC') or
 FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 SRC_URI:append = " \
     file://msap1-fpga-acquisition.service \
+    file://msap1-settings.service \
     file://msap1-service-manager.service \
     file://msap1-web-backend.service \
     file://msap1-web-tls-setup \
     file://msap1-nginx.conf \
     file://msap1-runtime.conf \
-    file://msap1-sensor-board-1a.json \
-    file://msap1-sensor-board-5a.json \
-    file://msap1-sensor-board-mv.json \
     file://70-msap1-meter.rules \
     file://60-msap1-journal.conf \
 "
@@ -42,7 +40,8 @@ RDEPENDS:${PN}:append = " boost-system libsqlite3 worker-user nginx openssl-bin 
 inherit bash-completion cmake externalsrc pkgconfig systemd useradd
 
 USERADD_PACKAGES = "${PN}"
-GROUPADD_PARAM:${PN} = "--system msap1-data"
+GROUPADD_PARAM:${PN} = "--system msap1-data; --system msap1-settings"
+USERADD_PARAM:${PN} = "--system --home /nonexistent --no-create-home --shell /sbin/nologin --gid msap1-settings --groups msap1-data msap1-settings"
 
 # Keep the external source tree clean: CMake configures and builds in WORKDIR.
 EXTERNALSRC = "${@d.getVar('MSAP1_APU_APP_LOCAL_DIR') if d.getVar('MSAP1_APU_APP_SRC') == 'local_inst' else ''}"
@@ -54,13 +53,20 @@ EXTRA_OECMAKE = " \
     -DMNC_LOGGING_REQUIRE_SYSTEMD=ON \
 "
 
-SYSTEMD_SERVICE:${PN} = "msap1-fpga-acquisition.service msap1-web-backend.service msap1-service-manager.service"
+SYSTEMD_SERVICE:${PN} = "msap1-settings.service msap1-fpga-acquisition.service msap1-web-backend.service msap1-service-manager.service"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
+
+# EXTERNALSRC/local_inst bypasses fetch/unpack checksums. Include the APU-owned
+# factory document explicitly so edits invalidate do_install and are reflected
+# in the image without copying product defaults into this layer.
+do_install[file-checksums] += "${S}/config/settings/factory-defaults.json:True"
 
 do_install:append() {
     install -d ${D}${systemd_system_unitdir}
     install -m 0644 ${WORKDIR}/msap1-fpga-acquisition.service \
         ${D}${systemd_system_unitdir}/msap1-fpga-acquisition.service
+    install -m 0644 ${WORKDIR}/msap1-settings.service \
+        ${D}${systemd_system_unitdir}/msap1-settings.service
     install -m 0644 ${WORKDIR}/msap1-service-manager.service \
         ${D}${systemd_system_unitdir}/msap1-service-manager.service
     install -m 0644 ${WORKDIR}/msap1-web-backend.service \
@@ -73,16 +79,12 @@ do_install:append() {
     install -d ${D}${sysconfdir}/monutchee/msap1
     install -m 0644 ${WORKDIR}/msap1-nginx.conf \
         ${D}${sysconfdir}/monutchee/msap1/nginx.conf
-    install -d ${D}${sysconfdir}/monutchee/msap1/default/adc_config
-    install -m 0644 ${WORKDIR}/msap1-sensor-board-1a.json \
-        ${D}${sysconfdir}/monutchee/msap1/default/adc_config/msap1-sensor-board-1a.json
-    install -m 0644 ${WORKDIR}/msap1-sensor-board-5a.json \
-        ${D}${sysconfdir}/monutchee/msap1/default/adc_config/msap1-sensor-board-5a.json
-    install -m 0644 ${WORKDIR}/msap1-sensor-board-mv.json \
-        ${D}${sysconfdir}/monutchee/msap1/default/adc_config/msap1-sensor-board-mv.json
-    # Reserved for a future complete Web-generated active.json. Do not install
-    # a packaged file here because product updates must preserve user settings.
-    install -d ${D}${sysconfdir}/monutchee/msap1/adc_config
+    install -d ${D}${datadir}/monutchee/msap1/settings
+    install -m 0644 ${S}/config/settings/factory-defaults.json \
+        ${D}${datadir}/monutchee/msap1/settings/factory-defaults.json
+    cmp -s ${S}/config/settings/factory-defaults.json \
+        ${D}${datadir}/monutchee/msap1/settings/factory-defaults.json || \
+        bbfatal "installed factory settings differ from the selected APU source"
 
     install -d ${D}${sysconfdir}/udev/rules.d
     install -m 0644 ${WORKDIR}/70-msap1-meter.rules \
@@ -99,14 +101,12 @@ do_install:append() {
 
 FILES:${PN}:append = " \
     ${systemd_system_unitdir}/msap1-fpga-acquisition.service \
+    ${systemd_system_unitdir}/msap1-settings.service \
     ${systemd_system_unitdir}/msap1-service-manager.service \
     ${systemd_system_unitdir}/msap1-web-backend.service \
     ${libexecdir}/msap1-web-tls-setup \
     ${sysconfdir}/monutchee/msap1/nginx.conf \
-    ${sysconfdir}/monutchee/msap1/default/adc_config/msap1-sensor-board-1a.json \
-    ${sysconfdir}/monutchee/msap1/default/adc_config/msap1-sensor-board-5a.json \
-    ${sysconfdir}/monutchee/msap1/default/adc_config/msap1-sensor-board-mv.json \
-    ${sysconfdir}/monutchee/msap1/adc_config \
+    ${datadir}/monutchee/msap1/settings/factory-defaults.json \
     ${sysconfdir}/udev/rules.d/70-msap1-meter.rules \
     ${nonarch_libdir}/tmpfiles.d/msap1-runtime.conf \
     ${sysconfdir}/systemd/journald.conf.d/60-msap1-journal.conf \
