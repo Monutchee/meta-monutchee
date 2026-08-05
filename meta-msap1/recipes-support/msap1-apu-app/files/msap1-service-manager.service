@@ -1,7 +1,7 @@
 [Unit]
 Description=MSAP1 product service manager
-Wants=dbus.service
-After=dbus.service systemd-tmpfiles-setup.service
+Wants=dbus.service msap1-settings.service
+After=dbus.service systemd-tmpfiles-setup.service msap1-settings.service
 
 [Service]
 Type=notify

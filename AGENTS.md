@@ -15,8 +15,8 @@
 ## MSAP1 integration contract
 
 - `msap1-image` installs the meter and waveform DMA kernel modules,
-  `msap1-apu-app`, its acquisition, web, and product service-manager units,
-  the MSAP1 DFX firmware, and supporting packages.
+  `msap1-apu-app`, its settings, acquisition, web, and product service-manager
+  units, the MSAP1 DFX firmware, and supporting packages.
 - The acquisition daemon durably commits every validated PL meter record to
   `/data/mnc/meter/record-stream.sqlite3` before publishing typed latest
   values. Keep the SQLite runtime dependency and persistent-data tmpfiles
@@ -54,10 +54,11 @@
 - AD7771 SPI, capture, conversion, and processing register nodes remain
   unavailable to Linux because R5 core 0 owns them. DMA buffers come from
   Linux DMA/CMA; do not add fixed meter reserved memory.
-- Install frequency and ADC-source/simulator settings inside each complete
-  schema-v3 ADC profile. The packaged 5 A file is the physical-source fallback;
-  preserve the Web-generated complete
-  `/etc/monutchee/msap1/adc_config/active.json` across image updates.
+- Install the canonical factory settings directly from the selected APU source
+  at `${S}/config/settings/factory-defaults.json`; never maintain a recipe-local
+  duplicate. `msap1-settings` owns `/data/mnc/settings` and must start before
+  acquisition and Web. Packaging must preserve active settings, drafts,
+  revisions, and secrets across image updates.
 - Use neutral MSAP1 sensor-board identifiers in packaged profile IDs,
   filenames, services, recipes, tests, and documentation. Do not introduce
   third-party vendor or product branding into this repository.

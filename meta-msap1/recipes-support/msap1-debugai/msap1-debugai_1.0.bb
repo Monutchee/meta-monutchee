@@ -15,12 +15,12 @@ USERADD_PACKAGES = "${PN}"
 # Repeat the shared groups defensively so the account can be constructed in
 # this recipe's isolated sysroot. At image install time useradd.bbclass keeps
 # an existing group instead of recreating it.
-GROUPADD_PARAM:${PN} = "--system msap1-data; --system systemd-journal"
+GROUPADD_PARAM:${PN} = "--system msap1-data; --system msap1-settings; --system systemd-journal"
 USERADD_PARAM:${PN} = " \
     --create-home \
     --home-dir /var/lib/debugai \
     --shell /usr/bin/mnc-ssh-gateway \
-    --groups msap1-data,systemd-journal \
+    --groups msap1-data,msap1-settings,systemd-journal \
     --password '\$6\$mncdebugai\$uAytevGe0YCxUwm.TphDELwLvq7Ks8bCgEw5E1x0U6Bn0FcFGkLYqRzyjgWrFAGiU2ZpSHIJnzGth7uXEUoq2/' \
     debugai \
 "

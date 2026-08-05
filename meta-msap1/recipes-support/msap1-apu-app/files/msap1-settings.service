@@ -1,0 +1,28 @@
+[Unit]
+Description=MSAP1 persistent settings authority
+After=data.mount systemd-tmpfiles-setup.service
+RequiresMountsFor=/data/mnc/settings
+
+[Service]
+Type=notify
+SyslogIdentifier=msap1-settings
+LogExtraFields=MNC_COMPONENT=settings
+StandardOutput=journal
+StandardError=journal
+NotifyAccess=main
+WatchdogSec=20s
+User=msap1-settings
+Group=msap1-settings
+SupplementaryGroups=msap1-data
+UMask=0007
+ExecStart=/usr/bin/msap1-settings
+Restart=on-failure
+RestartSec=2s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/data/mnc/settings /run/monutchee
+
+[Install]
+WantedBy=multi-user.target
