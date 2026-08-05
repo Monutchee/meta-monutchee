@@ -1,7 +1,7 @@
 [Unit]
 Description=MSAP1 FPGA AD7771 acquisition
-Requires=msap1-dfx-firmware-rpu-load.service
-After=msap1-dfx-firmware-rpu-load.service systemd-tmpfiles-setup.service
+Requires=msap1-settings.service msap1-dfx-firmware-rpu-load.service
+After=msap1-settings.service msap1-dfx-firmware-rpu-load.service systemd-tmpfiles-setup.service
 
 [Service]
 Type=notify
@@ -10,10 +10,11 @@ LogExtraFields=MNC_COMPONENT=fpga-acquisition
 StandardOutput=journal
 StandardError=journal
 Group=msap1-data
+SupplementaryGroups=msap1-settings
 UMask=0007
 NotifyAccess=main
 WatchdogSec=20s
-ExecStart=/usr/bin/msap1-fpga-acquisition --config /etc/monutchee/msap1/default/adc_config/msap1-sensor-board-5a.json --active-config /etc/monutchee/msap1/adc_config/active.json --waveform-directory /data/mnc/waveform
+ExecStart=/usr/bin/msap1-fpga-acquisition --waveform-directory /data/mnc/waveform
 Restart=on-failure
 RestartSec=2
 
