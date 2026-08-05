@@ -57,8 +57,8 @@
 - Install the canonical factory settings directly from the selected APU source
   at `${S}/config/settings/factory-defaults.json`; never maintain a recipe-local
   duplicate. `msap1-settings` owns `/data/mnc/settings` and must start before
-  acquisition and Web. Packaging must preserve active settings, drafts,
-  revisions, and secrets across image updates.
+  acquisition and Web. Packaging must preserve active settings and secrets
+  across image updates. Do not create draft or revision storage.
 - Use neutral MSAP1 sensor-board identifiers in packaged profile IDs,
   filenames, services, recipes, tests, and documentation. Do not introduce
   third-party vendor or product branding into this repository.
