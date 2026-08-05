@@ -8,6 +8,10 @@ S = "${WORKDIR}"
 
 inherit systemd
 
+# systemd-fsck invokes the filesystem-specific checker before data.mount.
+# The persistent partition is VFAT, so fsck.vfat must be present in the image.
+RDEPENDS:${PN} += "dosfstools"
+
 SYSTEMD_SERVICE:${PN} = "data.mount"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 

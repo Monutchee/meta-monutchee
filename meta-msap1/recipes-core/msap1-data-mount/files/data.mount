@@ -1,10 +1,12 @@
 [Unit]
 Description=Mount the MSAP1 persistent-data SD card
+Requires=systemd-fsck@dev-sda1.service
+After=systemd-fsck@dev-sda1.service
 
 [Mount]
 What=/dev/sda1
 Where=/data
-Type=vfat
+Type=ext4
 Options=rw,nosuid,nodev,noexec,uid=root,gid=msap1-data,dmask=0007,fmask=0117
 TimeoutSec=30s
 
