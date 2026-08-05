@@ -57,8 +57,8 @@ UTC build time.
 
 `msap1-image` includes the `msap1_meter_dma` and `msap1_waveform_dma` kernel
 modules plus `msap1-apu-app`. The package installs the `mnc` diagnostic CLI
-with Bash completion and enables the acquisition, web-backend, and product
-service-manager units. `msap1-fpga-acquisition.service` owns both DMAengine
+with Bash completion and enables the settings, acquisition, web-backend, and
+product service-manager units. `msap1-fpga-acquisition.service` owns both DMAengine
 channels, commits fixed 256-byte PL meter records to the SQLite WAL stream at
 `/data/mnc/meter/record-stream.sqlite3`, and retains 128 MiB of raw waveform
 history. Completed triggered waveform files are written below persistent
@@ -77,11 +77,12 @@ one-shot execution. R5 firmware loading completes next, and acquisition starts
 only after both R5 cores and their RPMsg endpoints have been brought up. This
 ordering prevents service retries from reloading an already active PL design.
 
-The installed complete ADC profiles use schema version 3. They default to the
-physical ADC and also carry nominal raw-simulator frequency, RMS amplitude,
-and phase settings. Runtime source selection is persisted only after the APU,
-RPU, and PL readback transaction succeeds; schema-version-2 user profiles are
-accepted as physical-source configurations for migration.
+The canonical factory settings are installed directly from the selected APU
+source as `/usr/share/monutchee/msap1/settings/factory-defaults.json`.
+`msap1-settings` validates and initializes `/data/mnc/settings`, then owns all
+active, draft, revision, and secret persistence. The layer defines only users,
+permissions, service ordering, and directory creation; it does not duplicate
+product default values or migrate legacy `/etc` ADC profiles.
 
 The image keeps systemd-journald as the single product log store. MSAP1
 configures persistent storage with a 32 MiB maximum and seven-day retention.
