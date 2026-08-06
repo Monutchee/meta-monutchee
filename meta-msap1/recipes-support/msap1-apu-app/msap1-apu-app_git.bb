@@ -10,7 +10,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=86d3f3a95c324c9479bd8986968f4327"
 #   local_inst - build the local working tree directly, including uncommitted edits
 MSAP1_APU_APP_SRC ?= "cloud"
 MSAP1_APU_APP_GIT_BRANCH ?= "main"
-MSAP1_APU_APP_LOCAL_DIR ?= "${TOPDIR}/../../MSAP1_APU"
+MSAP1_APU_APP_LOCAL_DIR ?= "${TOPDIR}/../../applications/MSAP1_APU"
 
 MSAP1_APU_APP_REPO_cloud = "gitsm://github.com/Monutchee/MSAP1_APU.git;protocol=https;branch=${MSAP1_APU_APP_GIT_BRANCH};name=msap1-apu-app;destsuffix=git"
 MSAP1_APU_APP_REPO_local = "gitsm://${MSAP1_APU_APP_LOCAL_DIR};protocol=file;branch=${MSAP1_APU_APP_GIT_BRANCH};name=msap1-apu-app;destsuffix=git"
