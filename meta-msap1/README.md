@@ -157,7 +157,7 @@ MSAP1_WEB_SRC = "cloud"      # selected GitHub branch
 MSAP1_WEB_SRC = "local"      # committed local checkout
 MSAP1_WEB_SRC = "local_inst" # live checkout, including uncommitted edits
 MSAP1_WEB_GIT_BRANCH = "main"
-MSAP1_WEB_LOCAL_DIR = "${TOPDIR}/../../MSAP1_WEB"
+MSAP1_WEB_LOCAL_DIR = "${TOPDIR}/../../applications/MSAP1_WEB"
 ```
 
 The recipe fetches dependencies from the layer's `npm-shrinkwrap.json` before
