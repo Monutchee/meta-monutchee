@@ -55,8 +55,8 @@ The six-character value is the display form of the BitBake `do_rootfs` task
 hash. `/etc/mncos-image-info` stores the full hash and the same human-readable
 UTC build time.
 
-`msap1-image` includes the `msap1_meter_dma` and `msap1_waveform_dma` kernel
-modules plus `msap1-apu-app`. The package installs the `mnc` diagnostic CLI
+`msap1-image` includes the `msap1_dma` kernel module (one shared DMA
+transport core serving both acquisition devices) plus `msap1-apu-app`. The package installs the `mnc` diagnostic CLI
 with Bash completion and enables the settings, acquisition, web-backend, and
 product service-manager units. `msap1-fpga-acquisition.service` owns both DMAengine
 channels, commits fixed 256-byte PL meter records to the SQLite WAL stream at
