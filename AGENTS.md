@@ -39,18 +39,20 @@
 - The hardware workflow consumes a bitstream-inclusive `MSAP1_PL.xsa` and both
   R5 firmware applications. Keep PL, RPU, APU, and layer revisions traceable in
   target-test records.
-- Linux owns the meter and waveform AXI DMA channels through product-specific
-  DMAengine misc drivers. The `gen-machineconf` YAML merges
+- Linux owns the meter and waveform AXI DMA channels through the single
+  `msap1-dma` DMAengine misc module: one shared transport core plus one
+  personality per compatible. The `gen-machineconf` YAML merges
   `msap1-meter-dma.dtsi` and `msap1-fabric-clock.dtsi` into `pl.dtso`; keep
   both consumers and the nominal 100 MHz PL0 assignment atomic with the
   matching FPGA overlay and do not append DTS text in the firmware recipe.
-- The waveform consumer exposes `/dev/msap1-waveform` and uses a 64-period
-  coherent transport ring of 32,832-byte blocks. It reserves the active DMA
-  period, reports kernel-ring overruns separately, and never returns a period
-  while DMA may be overwriting it. Long pre-trigger history and `.mncwf`
-  storage under `/data/mnc/waveform` belongs to the APU daemon, not the kernel
-  driver or a reserved DDR carveout. nginx may serve completed captures only
-  through WebEngine-authenticated protected routes.
+- Both consumers (`/dev/msap1-meter`, 4 x 256-byte records;
+  `/dev/msap1-waveform`, 64 x 32,832-byte blocks) share the core's transport
+  rules: the active DMA period is reserved, kernel-ring overruns are reported
+  separately through the shared transport-status ioctl, and a period is never
+  returned while DMA may be overwriting it. Long pre-trigger history and
+  `.mncwf` storage under `/data/mnc/waveform` belongs to the APU daemon, not
+  the kernel driver or a reserved DDR carveout. nginx may serve completed
+  captures only through WebEngine-authenticated protected routes.
 - AD7771 SPI, capture, conversion, and processing register nodes remain
   unavailable to Linux because R5 core 0 owns them. DMA buffers come from
   Linux DMA/CMA; do not add fixed meter reserved memory.
