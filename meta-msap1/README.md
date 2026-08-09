@@ -59,9 +59,9 @@ UTC build time.
 transport core serving both acquisition devices) plus `msap1-apu-app`. The package installs the `mnc` diagnostic CLI
 with Bash completion and enables the settings, acquisition, web-backend, and
 product service-manager units. `msap1-fpga-acquisition.service` owns both DMAengine
-channels, commits fixed 256-byte PL meter records to the SQLite WAL stream at
-`/data/mnc/meter/record-stream.sqlite3`, and retains 128 MiB of raw waveform
-history. Completed triggered waveform files are written below persistent
+channels, publishes typed latest meter snapshots for IPC consumers, and
+retains 128 MiB of raw waveform history. Latest snapshots are intentionally
+lossy and do not provide historian durability. Completed triggered waveform files are written below persistent
 storage at `/data/mnc/waveform`. R5 core 0 owns
 AD7771 SPI, reset/synchronization, capture and meter configuration; RPMsg
 carries configuration/control/health only and never carries waveform data.

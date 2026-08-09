@@ -29,8 +29,8 @@
  *
  * With the shared core's safe-window accounting, a deeper ring is safe
  * again, and 4 records buys real robustness: the 3-record safe window
- * tolerates ~600 ms of consumer stall (eMMC fsync spikes in the daemon's
- * SQLite WAL commit path) at the cost of first-record latency of
+ * tolerates ~600 ms of consumer stall (for example, transient userspace
+ * scheduling latency) at the cost of first-record latency of
  * 4 x cadence (~800 ms at the default window) after capture start.  Both
  * figures scale with the configured RMS window.
  */
