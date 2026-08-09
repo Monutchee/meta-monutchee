@@ -1,5 +1,5 @@
 SUMMARY = "MSAP1 APU application"
-DESCRIPTION = "Builds the durable meter acquisition daemon, service manager, mnc diagnostic CLI, and authenticated MSAP1 web backend."
+DESCRIPTION = "Builds the meter acquisition daemon, service manager, mnc diagnostic CLI, and authenticated MSAP1 web backend."
 HOMEPAGE = "https://github.com/Monutchee/MSAP1_APU"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=86d3f3a95c324c9479bd8986968f4327"
@@ -34,8 +34,8 @@ PV = "${@'1.0+local' if d.getVar('MSAP1_APU_APP_SRC') == 'local_inst' else '1.0+
 
 S = "${WORKDIR}/git"
 
-DEPENDS:append = " boost openssl sqlite3 systemd"
-RDEPENDS:${PN}:append = " boost-system libsqlite3 worker-user nginx openssl-bin libsystemd msap1-web msap1-dfx-firmware ${PN}-bash-completion"
+DEPENDS:append = " boost openssl systemd"
+RDEPENDS:${PN}:append = " boost-system worker-user nginx openssl-bin libsystemd msap1-web msap1-dfx-firmware ${PN}-bash-completion"
 
 inherit bash-completion cmake externalsrc pkgconfig systemd useradd
 
