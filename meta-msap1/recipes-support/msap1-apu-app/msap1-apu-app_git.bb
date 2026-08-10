@@ -20,6 +20,8 @@ SRC_URI = "${@d.getVar('MSAP1_APU_APP_REPO_' + (d.getVar('MSAP1_APU_APP_SRC') or
 FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 SRC_URI:append = " \
     file://msap1-fpga-acquisition.service \
+    file://msap1-meter-stream.service \
+    file://msap1-meter-historian.service \
     file://msap1-settings.service \
     file://msap1-service-manager.service \
     file://msap1-web-backend.service \
@@ -34,14 +36,16 @@ PV = "${@'1.0+local' if d.getVar('MSAP1_APU_APP_SRC') == 'local_inst' else '1.0+
 
 S = "${WORKDIR}/git"
 
-DEPENDS:append = " boost openssl systemd"
-RDEPENDS:${PN}:append = " boost-system worker-user nginx openssl-bin libsystemd msap1-web msap1-dfx-firmware ${PN}-bash-completion"
+DEPENDS:append = " boost openssl sqlite3 systemd"
+RDEPENDS:${PN}:append = " boost-system sqlite3 worker-user nginx openssl-bin libsystemd msap1-web msap1-dfx-firmware ${PN}-bash-completion"
 
 inherit bash-completion cmake externalsrc pkgconfig systemd useradd
 
 USERADD_PACKAGES = "${PN}"
 GROUPADD_PARAM:${PN} = "--system msap1-data; --system msap1-settings"
-USERADD_PARAM:${PN} = "--system --home /nonexistent --no-create-home --shell /sbin/nologin --gid msap1-settings --groups msap1-data msap1-settings"
+USERADD_PARAM:${PN} = "--system --home /nonexistent --no-create-home --shell /sbin/nologin --gid msap1-settings --groups msap1-data msap1-settings; \
+    --system --home /nonexistent --no-create-home --shell /sbin/nologin --gid msap1-data msap1-stream; \
+    --system --home /nonexistent --no-create-home --shell /sbin/nologin --gid msap1-data msap1-historian"
 
 # Keep the external source tree clean: CMake configures and builds in WORKDIR.
 EXTERNALSRC = "${@d.getVar('MSAP1_APU_APP_LOCAL_DIR') if d.getVar('MSAP1_APU_APP_SRC') == 'local_inst' else ''}"
@@ -53,7 +57,7 @@ EXTRA_OECMAKE = " \
     -DMNC_LOGGING_REQUIRE_SYSTEMD=ON \
 "
 
-SYSTEMD_SERVICE:${PN} = "msap1-settings.service msap1-fpga-acquisition.service msap1-web-backend.service msap1-service-manager.service"
+SYSTEMD_SERVICE:${PN} = "msap1-settings.service msap1-meter-stream.service msap1-meter-historian.service msap1-fpga-acquisition.service msap1-web-backend.service msap1-service-manager.service"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 
 # EXTERNALSRC/local_inst bypasses fetch/unpack checksums. Include the APU-owned
@@ -65,6 +69,10 @@ do_install:append() {
     install -d ${D}${systemd_system_unitdir}
     install -m 0644 ${WORKDIR}/msap1-fpga-acquisition.service \
         ${D}${systemd_system_unitdir}/msap1-fpga-acquisition.service
+    install -m 0644 ${WORKDIR}/msap1-meter-stream.service \
+        ${D}${systemd_system_unitdir}/msap1-meter-stream.service
+    install -m 0644 ${WORKDIR}/msap1-meter-historian.service \
+        ${D}${systemd_system_unitdir}/msap1-meter-historian.service
     install -m 0644 ${WORKDIR}/msap1-settings.service \
         ${D}${systemd_system_unitdir}/msap1-settings.service
     install -m 0644 ${WORKDIR}/msap1-service-manager.service \
@@ -101,6 +109,8 @@ do_install:append() {
 
 FILES:${PN}:append = " \
     ${systemd_system_unitdir}/msap1-fpga-acquisition.service \
+    ${systemd_system_unitdir}/msap1-meter-stream.service \
+    ${systemd_system_unitdir}/msap1-meter-historian.service \
     ${systemd_system_unitdir}/msap1-settings.service \
     ${systemd_system_unitdir}/msap1-service-manager.service \
     ${systemd_system_unitdir}/msap1-web-backend.service \

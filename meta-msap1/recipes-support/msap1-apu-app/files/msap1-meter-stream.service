@@ -1,0 +1,29 @@
+[Unit]
+Description=MSAP1 durable meter record stream
+Requires=msap1-settings.service
+After=msap1-settings.service data.mount systemd-tmpfiles-setup.service
+RequiresMountsFor=/data/mnc/database/meter-stream
+
+[Service]
+Type=notify
+SyslogIdentifier=msap1-meter-stream
+LogExtraFields=MNC_COMPONENT=meter-stream
+StandardOutput=journal
+StandardError=journal
+NotifyAccess=main
+WatchdogSec=20s
+User=msap1-stream
+Group=msap1-data
+SupplementaryGroups=msap1-settings
+UMask=0007
+ExecStart=/usr/bin/msap1-meter-stream
+Restart=on-failure
+RestartSec=2s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/data/mnc/database/meter-stream /run/monutchee
+
+[Install]
+WantedBy=multi-user.target

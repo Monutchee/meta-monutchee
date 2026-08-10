@@ -1,0 +1,29 @@
+[Unit]
+Description=MSAP1 meter historian
+Requires=msap1-settings.service msap1-meter-stream.service
+After=msap1-settings.service msap1-meter-stream.service data.mount systemd-tmpfiles-setup.service
+RequiresMountsFor=/data/mnc/database/meter-historian
+
+[Service]
+Type=notify
+SyslogIdentifier=msap1-meter-historian
+LogExtraFields=MNC_COMPONENT=meter-historian
+StandardOutput=journal
+StandardError=journal
+NotifyAccess=main
+WatchdogSec=20s
+User=msap1-historian
+Group=msap1-data
+SupplementaryGroups=msap1-settings
+UMask=0007
+ExecStart=/usr/bin/msap1-meter-historian
+Restart=on-failure
+RestartSec=2s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/data/mnc/database/meter-historian /run/monutchee
+
+[Install]
+WantedBy=multi-user.target

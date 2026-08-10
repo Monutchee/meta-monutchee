@@ -17,11 +17,13 @@
 - `msap1-image` installs the meter and waveform DMA kernel modules,
   `msap1-apu-app`, its settings, acquisition, web, and product service-manager
   units, the MSAP1 DFX firmware, and supporting packages.
-- The acquisition daemon durably commits every validated PL meter record to
-  `/data/mnc/meter/record-stream.sqlite3` before publishing typed latest
-  values. Keep the SQLite runtime dependency and persistent-data tmpfiles
-  entry together; storage failure must stop acquisition rather than silently
-  lose accepted records.
+- `msap1-meter-stream` durably commits every validated PL meter record below
+  `/data/mnc/database/meter-stream` before acquisition publishes typed latest
+  values. `msap1-meter-historian` consumes an independently acknowledged
+  cursor and stores typed projections below `/data/mnc/database/meter-historian`.
+  Keep SQLite, both units, and their separately owned persistent directories
+  together; spool failure must stop acquisition rather than silently lose an
+  accepted record.
 - Product daemons use the framed Boost.Asio Unix-stream transport and
   `mnc::Service` readiness/watchdog lifecycle. `msap1-service-manager` orders
   and audits units through systemd sd-bus; it must not replace systemd PID
