@@ -23,6 +23,13 @@ SRC_URI = "${@d.getVar('MSAP1_WEB_REPO_' + (d.getVar('MSAP1_WEB_SRC') or 'cloud'
            npmsw://${MSAP1_WEB_LOCKFILE};dev=1"
 SRCREV_msap1-web ?= "${AUTOREV}"
 
+# BitBake's generic fetch checksum list tracks only file:// entries.  npmsw
+# reads this local lockfile to expand the npm dependency URLs, so include it
+# explicitly in do_fetch's signature.  Otherwise a newly added dependency can
+# invalidate do_unpack without rerunning do_fetch, leaving its tarball absent
+# from the offline download cache.
+do_fetch[file-checksums] += " ${MSAP1_WEB_LOCKFILE}:True"
+
 PV = "${@'0.1.0+local' if d.getVar('MSAP1_WEB_SRC') == 'local_inst' else '0.1.0+git' + (d.getVar('SRCPV') or '')}"
 S = "${WORKDIR}/git"
 

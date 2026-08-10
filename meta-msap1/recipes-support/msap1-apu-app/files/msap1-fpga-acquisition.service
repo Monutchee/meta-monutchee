@@ -1,7 +1,7 @@
 [Unit]
 Description=MSAP1 FPGA AD7771 acquisition
-Requires=msap1-settings.service msap1-dfx-firmware-rpu-load.service
-After=msap1-settings.service msap1-dfx-firmware-rpu-load.service systemd-tmpfiles-setup.service
+Requires=msap1-settings.service msap1-meter-stream.service msap1-dfx-firmware-rpu-load.service
+After=msap1-settings.service msap1-meter-stream.service msap1-dfx-firmware-rpu-load.service systemd-tmpfiles-setup.service
 
 [Service]
 Type=notify
