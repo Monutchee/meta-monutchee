@@ -6,7 +6,7 @@ web stack:
 
 - `backend` → `${bindir}/backend`, started by `beast-backend.service` (enabled at boot)
 - `nginx.target.conf` → `/opt/monutchee/mncos/conf/webserver/nginx.conf` + the web root
-- the `worker`-owned `conf/webserver` and `runtime/webserver/ssl` dirs, plus a
+- the `mnc-web`-owned `conf/webserver` and `runtime/webserver/ssl` dirs, plus a
   per-device self-signed TLS cert generated on first boot
 
 The backend **owns nginx's lifecycle** (it starts/stops/reloads it via
@@ -60,4 +60,4 @@ WEBENGINE_GIT_BRANCH ?= "feature/new_glaze_install_method"
 - Glaze is packaged separately by `recipes-support/glaze/glaze_7.9.0.bb`. The
   upstream webengine CMake project uses `find_package(glaze CONFIG REQUIRED)`,
   so all source downloads happen in Yocto's fetch phase.
-- `DEPENDS = boost glaze openssl`; `RDEPENDS = worker-user nginx openssl-bin`.
+- `DEPENDS = boost glaze openssl`; `RDEPENDS = mnc-users nginx openssl-bin`.

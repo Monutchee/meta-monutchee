@@ -43,7 +43,7 @@ MNCOS_LIB_INSTALL = " \
 MNCOS_APP_INSTALL = " \
     wireguard-tools \
     nginx \
-    worker-user \
+    mnc-users \
     openssh \
     htop \
     tar \

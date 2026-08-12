@@ -12,12 +12,12 @@ StandardOutput=journal
 StandardError=journal
 NotifyAccess=main
 WatchdogSec=20s
-User=worker
+User=mnc-web
 Group=mnc-settings
 # The authenticated Developer log API reads the system journal through
 # libsystemd. systemd-journal grants read-only journal access; mnc-data
 # continues to grant access to acquisition IPC runtime objects.
-SupplementaryGroups=worker mnc-data systemd-journal
+SupplementaryGroups=mnc-web mnc-data systemd-journal
 UMask=0007
 
 AmbientCapabilities=CAP_NET_BIND_SERVICE
