@@ -15,12 +15,18 @@ USERADD_PACKAGES = "${PN}"
 # Repeat the shared groups defensively so the account can be constructed in
 # this recipe's isolated sysroot. At image install time useradd.bbclass keeps
 # an existing group instead of recreating it.
-GROUPADD_PARAM:${PN} = "--system msap1-data; --system msap1-settings; --system systemd-journal"
+#
+# The gids must match msap1-apu-app exactly. Whichever recipe is installed
+# first is the one that creates the group, so leaving them unpinned here would
+# let install order decide the numbers and reintroduce the /data ownership
+# drift that pinning them there was meant to end. systemd-journal is a distro
+# group and stays unpinned.
+GROUPADD_PARAM:${PN} = "--system --gid 780 mnc-data; --system --gid 781 mnc-settings; --system systemd-journal"
 USERADD_PARAM:${PN} = " \
     --create-home \
     --home-dir /var/lib/debugai \
     --shell /usr/bin/mnc-ssh-gateway \
-    --groups msap1-data,msap1-settings,systemd-journal \
+    --groups mnc-data,mnc-settings,systemd-journal \
     --password '\$6\$mncdebugai\$uAytevGe0YCxUwm.TphDELwLvq7Ks8bCgEw5E1x0U6Bn0FcFGkLYqRzyjgWrFAGiU2ZpSHIJnzGth7uXEUoq2/' \
     debugai \
 "

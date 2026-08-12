@@ -50,14 +50,20 @@ USERADD_PACKAGES = "${PN}"
 # adding a service user or an RDEPENDS silently renumbers the existing ones and
 # every file already on /data becomes unreadable to its owning daemon.
 #
-# 780-789 is reserved for MSAP1 service identities. It sits well clear of the
+# 780-789 is reserved for MNC service identities. It sits well clear of the
 # dynamic band that systemd's own users (systemd-network, -resolve, -timesync)
 # are drawn from, so a distro update cannot collide with it.
 # Never recycle or renumber an id in this block - only append.
-GROUPADD_PARAM:${PN} = "--system --gid 780 msap1-data; --system --gid 781 msap1-settings"
-USERADD_PARAM:${PN} = "--system --uid 781 --home /nonexistent --no-create-home --shell /sbin/nologin --gid msap1-settings --groups msap1-data msap1-settings; \
-    --system --uid 782 --home /nonexistent --no-create-home --shell /sbin/nologin --gid msap1-data msap1-stream; \
-    --system --uid 783 --home /nonexistent --no-create-home --shell /sbin/nologin --gid msap1-data msap1-historian"
+#
+# The names carry the vendor prefix rather than a product one: these identities
+# own state on /data, so they outlive any single product generation, and msap1
+# is only the first. Keeping them on the same `mnc` namespace as /data/mnc, the
+# mnc CLI and the mnc:: libraries means the next product needs no rename here,
+# while still keeping the names distinct in the global passwd/group namespace.
+GROUPADD_PARAM:${PN} = "--system --gid 780 mnc-data; --system --gid 781 mnc-settings"
+USERADD_PARAM:${PN} = "--system --uid 781 --home /nonexistent --no-create-home --shell /sbin/nologin --gid mnc-settings --groups mnc-data mnc-settings; \
+    --system --uid 782 --home /nonexistent --no-create-home --shell /sbin/nologin --gid mnc-data mnc-stream; \
+    --system --uid 783 --home /nonexistent --no-create-home --shell /sbin/nologin --gid mnc-data mnc-historian"
 
 # Keep the external source tree clean: CMake configures and builds in WORKDIR.
 EXTERNALSRC = "${@d.getVar('MSAP1_APU_APP_LOCAL_DIR') if d.getVar('MSAP1_APU_APP_SRC') == 'local_inst' else ''}"

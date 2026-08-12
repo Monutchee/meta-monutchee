@@ -94,7 +94,7 @@ reset cannot silently expose a damaged partition to the settings, meter-record,
 or waveform services. An unrepairable filesystem prevents `data.mount` and its
 dependent services from starting instead of falling back to non-persistent root
 storage. Files on the ext4 filesystem are non-executable and writable by the
-existing `msap1-data` service group.
+existing `mnc-data` service group.
 
 The APU services and PL/RPU firmware loaders add structured component metadata,
 and `mnc log` presents their combined timestamp-ordered lifecycle. The
