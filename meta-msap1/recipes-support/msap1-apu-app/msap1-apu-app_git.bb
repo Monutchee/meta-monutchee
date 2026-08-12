@@ -37,27 +37,13 @@ PV = "${@'1.0+local' if d.getVar('MSAP1_APU_APP_SRC') == 'local_inst' else '1.0+
 S = "${WORKDIR}/git"
 
 DEPENDS:append = " boost openssl sqlite3 systemd"
-RDEPENDS:${PN}:append = " boost-system sqlite3 worker-user nginx openssl-bin libsystemd msap1-web msap1-dfx-firmware ${PN}-bash-completion"
+# mnc-users owns every account the units below run as (mnc-settings, mnc-stream,
+# mnc-historian, mnc-web) and their groups. This recipe deliberately declares no
+# accounts of its own: the ids are pinned in one place, and a second declaration
+# here could only drift from it. See meta-mncos/conf/include/mnc-identities.inc.
+RDEPENDS:${PN}:append = " boost-system sqlite3 mnc-users nginx openssl-bin libsystemd msap1-web msap1-dfx-firmware ${PN}-bash-completion"
 
-inherit bash-completion cmake externalsrc pkgconfig systemd useradd
-
-USERADD_PACKAGES = "${PN}"
-
-# The identities below own state on /data, which is a persistent SD card that
-# outlives any rootfs. Their numeric IDs are therefore part of the on-disk
-# format and MUST be pinned: with a bare "--system" the ids are allocated at
-# rootfs-assembly time by counting down from 999 in package-install order, so
-# adding a service user or an RDEPENDS silently renumbers the existing ones and
-# every file already on /data becomes unreadable to its owning daemon.
-#
-# 780-789 is reserved for MSAP1 service identities. It sits well clear of the
-# dynamic band that systemd's own users (systemd-network, -resolve, -timesync)
-# are drawn from, so a distro update cannot collide with it.
-# Never recycle or renumber an id in this block - only append.
-GROUPADD_PARAM:${PN} = "--system --gid 780 msap1-data; --system --gid 781 msap1-settings"
-USERADD_PARAM:${PN} = "--system --uid 781 --home /nonexistent --no-create-home --shell /sbin/nologin --gid msap1-settings --groups msap1-data msap1-settings; \
-    --system --uid 782 --home /nonexistent --no-create-home --shell /sbin/nologin --gid msap1-data msap1-stream; \
-    --system --uid 783 --home /nonexistent --no-create-home --shell /sbin/nologin --gid msap1-data msap1-historian"
+inherit bash-completion cmake externalsrc pkgconfig systemd
 
 # Keep the external source tree clean: CMake configures and builds in WORKDIR.
 EXTERNALSRC = "${@d.getVar('MSAP1_APU_APP_LOCAL_DIR') if d.getVar('MSAP1_APU_APP_SRC') == 'local_inst' else ''}"

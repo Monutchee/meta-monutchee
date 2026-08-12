@@ -30,7 +30,7 @@ PV = "1.0+git${SRCPV}"
 S = "${WORKDIR}/git/backend"
 
 DEPENDS = "boost glaze openssl"
-RDEPENDS:${PN} = "worker-user nginx openssl-bin"
+RDEPENDS:${PN} = "mnc-users nginx openssl-bin"
 
 inherit cmake systemd
 
@@ -73,7 +73,7 @@ FILES:${PN} += " \
     ${WEBENGINE_INSTALL_ROOT}/runtime/webserver \
 "
 
-# Ownership + per-device TLS cert must happen on the device (where `worker` exists
+# Ownership + per-device TLS cert must happen on the device (where `mnc-web` exists
 # and we want a unique key), so run on first boot, not at rootfs-assembly time.
 pkg_postinst_ontarget:${PN}() {
     set -e
@@ -83,9 +83,9 @@ pkg_postinst_ontarget:${PN}() {
             -keyout "$SSLDIR/server.key" -out "$SSLDIR/server.crt" \
             -subj "/CN=mncos" -addext "subjectAltName=DNS:mncos"
     fi
-    # worker owns the config dir (so NginxController can write listen.conf there)
-    # and the ssl dir + key (so the worker-run nginx can read the cert).
-    chown worker:worker ${WEBENGINE_INSTALL_ROOT}/conf/webserver
-    chown -R worker:worker "$SSLDIR"
+    # mnc-web owns the config dir (so NginxController can write listen.conf there)
+    # and the ssl dir + key (so the mnc-web-run nginx can read the cert).
+    chown mnc-web:mnc-web ${WEBENGINE_INSTALL_ROOT}/conf/webserver
+    chown -R mnc-web:mnc-web "$SSLDIR"
     chmod 600 "$SSLDIR/server.key"
 }

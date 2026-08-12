@@ -9,8 +9,8 @@ SyslogIdentifier=msap1-fpga-acquisition
 LogExtraFields=MNC_COMPONENT=fpga-acquisition
 StandardOutput=journal
 StandardError=journal
-Group=msap1-data
-SupplementaryGroups=msap1-settings
+Group=mnc-data
+SupplementaryGroups=mnc-settings
 UMask=0007
 NotifyAccess=main
 WatchdogSec=20s
