@@ -28,6 +28,12 @@
   `mnc::Service` readiness/watchdog lifecycle. `msap1-service-manager` orders
   and audits units through systemd sd-bus; it must not replace systemd PID
   ownership or restart limits.
+- `msap1-modbus-server` is an unprivileged protocol gateway that reads typed
+  latest snapshots through acquisition IPC. Keep transport-neutral Modbus
+  framing in `mnc::modbus`, the static product register contract in
+  `msap1::modbus`, and grant only `CAP_NET_BIND_SERVICE` for TCP port 502.
+  Serial access is provided through the standard `dialout` group; the gateway
+  must never open DMA, RPMsg, or meter database files directly.
 - MSAP1 uses persistent journald as its only log store, with product retention
   policy under `meta-msap1`. Preserve structured component metadata on the APU
   and firmware-loader services; do not create a second log database.
