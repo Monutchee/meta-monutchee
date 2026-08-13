@@ -146,6 +146,28 @@ them automatically.
 The generator does not create component repositories, XSA files, RPU firmware,
 or generated machine configuration.
 
+## Generated Modbus register documentation
+
+The `msap1-modbus-register-doc` recipe runs the target-built
+`modbus-map-dump --format json` executable under Yocto's QEMU wrapper and
+renders the authoritative register map as a single-sheet Excel workbook:
+
+```text
+build/export/docs/msap1_modbus_registers.xlsx
+```
+
+The document is generated automatically by `msap1-image` and `populate_sdk`,
+or independently with:
+
+```sh
+bitbake msap1-modbus-register-doc
+```
+
+The workbook contains the hexadecimal and decimal register range, data type,
+function code, access type, and fully qualified meter attribute for every
+exported register definition. The Python generator uses only the standard
+library; it does not maintain a second Modbus table in the Yocto layer.
+
 ## Web interface source selection
 
 `msap1-web` builds the React/Vite frontend into `/usr/share/msap1-web`; Node.js

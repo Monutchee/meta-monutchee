@@ -28,3 +28,8 @@ IMAGE_CLASSES:append = " export-tftpboot-file"
 JTAG_LOADER_TCL = "${XILINX_ADDON_LAYERDIR}/recipes-core/images/files/load-jtag-image.tcl"
 JTAG_LOADER_FORCE_JTAG_BOOT = "1"
 do_copy_tftpboot[file-checksums] += "${JTAG_LOADER_TCL}:True"
+
+# Generate build-time product documentation without installing the workbook
+# into the target root filesystem.
+do_build[depends] += "msap1-modbus-register-doc:do_export_docs"
+do_populate_sdk[depends] += "msap1-modbus-register-doc:do_export_docs"
