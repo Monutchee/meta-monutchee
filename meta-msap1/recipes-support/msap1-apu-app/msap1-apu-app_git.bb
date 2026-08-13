@@ -1,5 +1,5 @@
 SUMMARY = "MSAP1 APU application"
-DESCRIPTION = "Builds the meter acquisition daemon, service manager, mnc diagnostic CLI, and authenticated MSAP1 web backend."
+DESCRIPTION = "Builds MSAP1 meter services, protocol gateways, the mnc diagnostic CLI, and authenticated web backend."
 HOMEPAGE = "https://github.com/Monutchee/MSAP1_APU"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=86d3f3a95c324c9479bd8986968f4327"
@@ -24,6 +24,7 @@ SRC_URI:append = " \
     file://msap1-meter-historian.service \
     file://msap1-settings.service \
     file://msap1-service-manager.service \
+    file://msap1-modbus-server.service \
     file://msap1-web-backend.service \
     file://msap1-web-tls-setup \
     file://msap1-nginx.conf \
@@ -38,7 +39,7 @@ S = "${WORKDIR}/git"
 
 DEPENDS:append = " boost openssl sqlite3 systemd"
 # mnc-users owns every account the units below run as (mnc-settings, mnc-stream,
-# mnc-historian, mnc-web) and their groups. This recipe deliberately declares no
+# mnc-historian, mnc-web, mnc-modbus) and their groups. This recipe deliberately declares no
 # accounts of its own: the ids are pinned in one place, and a second declaration
 # here could only drift from it. See meta-mncos/conf/include/mnc-identities.inc.
 RDEPENDS:${PN}:append = " boost-system sqlite3 mnc-users nginx openssl-bin libsystemd msap1-web msap1-dfx-firmware ${PN}-bash-completion"
@@ -55,7 +56,7 @@ EXTRA_OECMAKE = " \
     -DMNC_LOGGING_REQUIRE_SYSTEMD=ON \
 "
 
-SYSTEMD_SERVICE:${PN} = "msap1-settings.service msap1-meter-stream.service msap1-meter-historian.service msap1-fpga-acquisition.service msap1-web-backend.service msap1-service-manager.service"
+SYSTEMD_SERVICE:${PN} = "msap1-settings.service msap1-meter-stream.service msap1-meter-historian.service msap1-fpga-acquisition.service msap1-modbus-server.service msap1-web-backend.service msap1-service-manager.service"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 
 # EXTERNALSRC/local_inst bypasses fetch/unpack checksums. Include the APU-owned
@@ -75,6 +76,8 @@ do_install:append() {
         ${D}${systemd_system_unitdir}/msap1-settings.service
     install -m 0644 ${WORKDIR}/msap1-service-manager.service \
         ${D}${systemd_system_unitdir}/msap1-service-manager.service
+    install -m 0644 ${WORKDIR}/msap1-modbus-server.service \
+        ${D}${systemd_system_unitdir}/msap1-modbus-server.service
     install -m 0644 ${WORKDIR}/msap1-web-backend.service \
         ${D}${systemd_system_unitdir}/msap1-web-backend.service
 
@@ -111,6 +114,7 @@ FILES:${PN}:append = " \
     ${systemd_system_unitdir}/msap1-meter-historian.service \
     ${systemd_system_unitdir}/msap1-settings.service \
     ${systemd_system_unitdir}/msap1-service-manager.service \
+    ${systemd_system_unitdir}/msap1-modbus-server.service \
     ${systemd_system_unitdir}/msap1-web-backend.service \
     ${libexecdir}/msap1-web-tls-setup \
     ${sysconfdir}/monutchee/msap1/nginx.conf \

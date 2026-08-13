@@ -43,6 +43,7 @@ MNC_UID_STREAM    = "782"
 MNC_UID_HISTORIAN = "783"
 MNC_GID_WEB       = "784"
 MNC_UID_WEB       = "784"
+MNC_UID_MODBUS    = "785"
 
 # Shared shape for every MNC service account: no login, no home directory.
 MNC_SYSTEM_ACCOUNT = "--system --home /nonexistent --no-create-home --shell /sbin/nologin"
@@ -50,6 +51,7 @@ MNC_SYSTEM_ACCOUNT = "--system --home /nonexistent --no-create-home --shell /sbi
 # mnc-data     - shared access to acquisition IPC objects and /data subtrees
 # mnc-settings - the settings authority; also gates mutation over its socket
 # mnc-web      - the network-facing web/proxy identity
+# mnc-modbus   - the field-protocol identity; reads acquisition/settings IPC
 MNC_GROUPADD_SHARED = "--system --gid ${MNC_GID_DATA} mnc-data; \
     --system --gid ${MNC_GID_SETTINGS} mnc-settings; \
     --system --gid ${MNC_GID_WEB} mnc-web"
@@ -60,4 +62,5 @@ MNC_GROUPADD_SHARED = "--system --gid ${MNC_GID_DATA} mnc-data; \
 MNC_USERADD_SHARED = "${MNC_SYSTEM_ACCOUNT} --uid ${MNC_UID_SETTINGS} --gid mnc-settings --groups mnc-data mnc-settings; \
     ${MNC_SYSTEM_ACCOUNT} --uid ${MNC_UID_STREAM} --gid mnc-data mnc-stream; \
     ${MNC_SYSTEM_ACCOUNT} --uid ${MNC_UID_HISTORIAN} --gid mnc-data mnc-historian; \
-    ${MNC_SYSTEM_ACCOUNT} --uid ${MNC_UID_WEB} --gid mnc-web mnc-web"
+    ${MNC_SYSTEM_ACCOUNT} --uid ${MNC_UID_WEB} --gid mnc-web mnc-web; \
+    ${MNC_SYSTEM_ACCOUNT} --uid ${MNC_UID_MODBUS} --gid mnc-data mnc-modbus"
