@@ -34,6 +34,10 @@
   `msap1::modbus`, and grant only `CAP_NET_BIND_SERVICE` for TCP port 502.
   Serial access is provided through the standard `dialout` group; the gateway
   must never open DMA, RPMsg, or meter database files directly.
+- `msap1-modbus-register-doc` runs the APU's authoritative target-built
+  `modbus-map-dump` under QEMU and exports a single-sheet Excel register map to
+  `export/docs`. Keep the workbook generator in the product layer and do not
+  duplicate register definitions in Yocto metadata.
 - MSAP1 uses persistent journald as its only log store, with product retention
   policy under `meta-msap1`. Preserve structured component metadata on the APU
   and firmware-loader services; do not create a second log database.
