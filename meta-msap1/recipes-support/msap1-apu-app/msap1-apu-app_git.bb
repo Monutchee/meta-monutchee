@@ -25,6 +25,7 @@ SRC_URI:append = " \
     file://msap1-settings.service \
     file://msap1-service-manager.service \
     file://msap1-modbus-server.service \
+    file://msap1-mqtt-publisher.service \
     file://msap1-web-backend.service \
     file://msap1-web-tls-setup \
     file://msap1-nginx.conf \
@@ -37,12 +38,12 @@ PV = "${@'1.0+local' if d.getVar('MSAP1_APU_APP_SRC') == 'local_inst' else '1.0+
 
 S = "${WORKDIR}/git"
 
-DEPENDS:append = " boost openssl sqlite3 systemd"
+DEPENDS:append = " boost openssl paho-mqtt-cpp sqlite3 systemd"
 # mnc-users owns every account the units below run as (mnc-settings, mnc-stream,
-# mnc-historian, mnc-web, mnc-modbus) and their groups. This recipe deliberately declares no
+# mnc-historian, mnc-web, mnc-modbus, mnc-mqtt) and their groups. This recipe deliberately declares no
 # accounts of its own: the ids are pinned in one place, and a second declaration
 # here could only drift from it. See meta-mncos/conf/include/mnc-identities.inc.
-RDEPENDS:${PN}:append = " boost-system sqlite3 mnc-users nginx openssl-bin libsystemd msap1-web msap1-dfx-firmware ${PN}-bash-completion"
+RDEPENDS:${PN}:append = " boost-system ca-certificates sqlite3 mnc-users nginx openssl-bin libsystemd msap1-web msap1-dfx-firmware ${PN}-bash-completion"
 
 inherit bash-completion cmake externalsrc pkgconfig systemd
 
@@ -78,6 +79,10 @@ do_install:append() {
         ${D}${systemd_system_unitdir}/msap1-service-manager.service
     install -m 0644 ${WORKDIR}/msap1-modbus-server.service \
         ${D}${systemd_system_unitdir}/msap1-modbus-server.service
+    # Installed but intentionally omitted from SYSTEMD_SERVICE: the product
+    # service manager starts it only when active settings enable MQTT.
+    install -m 0644 ${WORKDIR}/msap1-mqtt-publisher.service \
+        ${D}${systemd_system_unitdir}/msap1-mqtt-publisher.service
     install -m 0644 ${WORKDIR}/msap1-web-backend.service \
         ${D}${systemd_system_unitdir}/msap1-web-backend.service
 
@@ -123,6 +128,7 @@ FILES:${PN}:append = " \
     ${systemd_system_unitdir}/msap1-settings.service \
     ${systemd_system_unitdir}/msap1-service-manager.service \
     ${systemd_system_unitdir}/msap1-modbus-server.service \
+    ${systemd_system_unitdir}/msap1-mqtt-publisher.service \
     ${systemd_system_unitdir}/msap1-web-backend.service \
     ${libexecdir}/msap1-web-tls-setup \
     ${sysconfdir}/monutchee/msap1/nginx.conf \
