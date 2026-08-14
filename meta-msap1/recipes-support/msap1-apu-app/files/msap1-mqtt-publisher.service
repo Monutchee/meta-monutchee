@@ -17,6 +17,7 @@ Group=mnc-data
 SupplementaryGroups=mnc-settings
 UMask=0077
 ExecStart=/usr/bin/msap1-mqtt-publisher
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=2s
 
