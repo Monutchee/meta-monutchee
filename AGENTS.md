@@ -34,6 +34,11 @@
   `msap1::modbus`, and grant only `CAP_NET_BIND_SERVICE` for TCP port 502.
   Serial access is provided through the standard `dialout` group; the gateway
   must never open DMA, RPMsg, or meter database files directly.
+- `msap1-mqtt-publisher` is an optional unprivileged latest-snapshot publisher.
+  Keep it disabled unless active product settings enable MQTT; broker failure
+  degrades only MQTT and must never stop acquisition. Passwords and private-key
+  passphrases stay in the settings secret store, while TLS assets are exposed
+  to the publisher only as protected runtime files.
 - `msap1-modbus-register-doc` runs the APU's authoritative target-built
   `modbus-map-dump` under QEMU and exports a single-sheet Excel register map to
   `export/docs`. Keep the workbook generator in the product layer and do not
