@@ -28,13 +28,17 @@
  * 200 ms result cadence — and was shrunk to 2 records as a workaround.
  *
  * With the shared core's safe-window accounting, a deeper ring is safe
- * again, and 4 records buys real robustness: the 3-record safe window
- * tolerates ~600 ms of consumer stall (for example, transient userspace
- * scheduling latency) at the cost of first-record latency of
- * 4 x cadence (~800 ms at the default window) after capture start.  Both
- * figures scale with the configured RMS window.
+ * again.  The depth only trades first-record latency after capture start
+ * (ring x cadence, from the first-callback behaviour above) against consumer
+ * stall tolerance (ring - 1 periods); it adds NO steady-state latency, as
+ * completed periods wake the reader immediately.  A 4-record ring's ~600 ms
+ * tolerance proved too small in the field: a slow-storage episode stalled
+ * the acquisition daemon's synchronous publish long enough to overrun the
+ * ring once per aggregate window for 40 minutes.  8 records tolerates
+ * ~1.4 s of consumer stall for ~1.6 s of first-record latency at the
+ * default window; both figures scale with the configured RMS window.
  */
-#define MSAP1_METER_RING_RECORDS 4U
+#define MSAP1_METER_RING_RECORDS 8U
 
 /**
  * Meter transport personality.
