@@ -23,6 +23,36 @@
  *  4. Transport loss is counted, never silent.  Userspace distinguishes
  *     kernel-side loss (overrun_blocks) from PL-side loss (payload sequence
  *     gaps) via %MSAP1_DMA_IOC_TRANSPORT_STATUS.
+ *  5. Period availability is observed in the ring, never inferred from
+ *     completion callbacks.  See "Why markers" below.
+ *
+ * Why markers
+ * -----------
+ * This core used to advance an absolute period counter by one per cyclic
+ * completion callback.  That is not a valid model of hardware progress:
+ * the Xilinx AXI DMA driver invokes the cyclic callback from a tasklet,
+ * once per interrupt rather than once per completed period, and
+ * tasklet_schedule() is idempotent — two periods that complete close
+ * together yield a single callback.  The counter then under-counts, and
+ * because every bound in this file derived from it (safe window, catch-up,
+ * overrun) the loss was invisible: read() handed out a slot the DMA had
+ * already overwritten while overrun_blocks stayed zero.
+ *
+ * That is exactly what the meter stream hits.  Its two producers emit a
+ * record back to back once per 150/180-cycle aggregation window (the 15th
+ * basic record and the aggregate that folds it), so one interrupt covered
+ * two periods once per window, forever, phase-locked.  Residue cannot
+ * substitute for the counter either: xilinx_dma_get_residue() sums
+ * (control - status) over the descriptor segments, and nothing resets a
+ * segment's status between laps of a cyclic transfer, so residue collapses
+ * to zero after the first lap.
+ *
+ * So the consumer stamps a marker into the tail of every period it takes,
+ * and treats a period as complete only once that marker is gone.  The DMA
+ * writes a period in ascending address order, so the tail lands last: a
+ * partially written period still holds its marker and is correctly withheld.
+ * Detection is then a property of the data that actually arrived, immune to
+ * interrupt coalescing, and callbacks are demoted to wake-ups.
  */
 
 #include <linux/atomic.h>
@@ -67,58 +97,164 @@ static u32 msap1_dma_usable_periods(const struct msap1_dma_variant *variant)
 	return variant->ring_periods - 1U;
 }
 
-/**
- * msap1_dma_oldest_safe() - first period index still outside the DMA's reach.
- * @produced: absolute completed-period count.
- * @usable:   consumer-visible ring capacity from msap1_dma_usable_periods().
- *
- * Periods older than the returned index either never existed (early after
- * open()) or sit in the ring slot the cyclic DMA has already reclaimed.
- *
- * Return: absolute index of the oldest period a reader may still copy.
+/*
+ * Completion marker stamped into the tail of every period the consumer
+ * takes.  Four words carrying a fixed signature plus the absolute period
+ * that will next land in the slot: the DMA overwriting the slot with any
+ * payload clears it, and the odds of real payload reproducing all sixteen
+ * bytes are negligible even for the waveform stream, whose periods are raw
+ * samples with no reserved fields.
  */
-static u64 msap1_dma_oldest_safe(u64 produced, u32 usable)
+#define MSAP1_DMA_MARKER_WORDS 4
+#define MSAP1_DMA_MARKER_BYTES (MSAP1_DMA_MARKER_WORDS * sizeof(u32))
+
+static void msap1_dma_build_marker(u64 period, u32 marker[])
 {
-	return produced > usable ? produced - usable : 0U;
+	marker[0] = 0x5041534du;			/* "MSAP" */
+	marker[1] = 0x4c415453u;			/* "STAL" */
+	marker[2] = (u32)period;
+	marker[3] = (u32)(period >> 32);
 }
 
 /**
- * msap1_dma_catch_up() - clamp a lagging consumer back into the safe window.
- * @mfile:       consumer state to adjust.
- * @oldest_safe: current lower bound of the safe window.
+ * msap1_dma_period_at() - ring address of an absolute period.
+ * @mdev:   transport device.
+ * @period: absolute period index.
  *
- * Every period skipped over is genuine kernel-transport loss and is added to
- * the handle's overrun counter (design rule 4 above).
+ * Return: pointer to the period's slot in the cyclic ring.
  */
-static void msap1_dma_catch_up(struct msap1_dma_file *mfile, u64 oldest_safe)
+static void *msap1_dma_period_at(struct msap1_dma_device *mdev, u64 period)
 {
-	if (mfile->consumed < oldest_safe) {
-		mfile->overrun_periods += oldest_safe - mfile->consumed;
-		mfile->consumed = oldest_safe;
+	const struct msap1_dma_variant *variant = mdev->variant;
+	size_t index = period % variant->ring_periods;
+
+	return mdev->ring + index * variant->period_bytes;
+}
+
+static void *msap1_dma_marker_at(struct msap1_dma_device *mdev, u64 period)
+{
+	return msap1_dma_period_at(mdev, period) +
+	       mdev->variant->period_bytes - MSAP1_DMA_MARKER_BYTES;
+}
+
+/**
+ * msap1_dma_mark_pending() - declare a slot empty until @period arrives.
+ * @mdev:   transport device.
+ * @period: absolute period the slot will receive next.
+ *
+ * Called on the ring at open() and on each slot as it is consumed.  The
+ * marker names the period the reader expects next in that slot, so a slot
+ * left over from the previous lap can never be mistaken for a fresh one.
+ */
+static void msap1_dma_mark_pending(struct msap1_dma_device *mdev, u64 period)
+{
+	u32 marker[MSAP1_DMA_MARKER_WORDS];
+
+	msap1_dma_build_marker(period, marker);
+	memcpy(msap1_dma_marker_at(mdev, period), marker, sizeof(marker));
+}
+
+/**
+ * msap1_dma_period_ready() - has the DMA finished writing this period?
+ * @mdev:   transport device.
+ * @period: absolute period index.
+ *
+ * Return: true once the period's tail no longer holds the marker the
+ * consumer stamped there, i.e. once the DMA has written the slot through to
+ * its final byte.
+ */
+static bool msap1_dma_period_ready(struct msap1_dma_device *mdev, u64 period)
+{
+	u32 marker[MSAP1_DMA_MARKER_WORDS];
+	bool ready;
+
+	msap1_dma_build_marker(period, marker);
+	ready = memcmp(msap1_dma_marker_at(mdev, period), marker,
+		       sizeof(marker)) != 0;
+	if (ready) {
+		/*
+		 * Order the payload read after the marker read, so a period
+		 * observed complete is copied out complete.
+		 */
+		dma_rmb();
 	}
+	return ready;
+}
+
+/**
+ * msap1_dma_ready_ahead() - completed periods waiting from @from onwards.
+ * @mdev: transport device.
+ * @from: first absolute period to test.
+ *
+ * Return: number of consecutive completed periods, at most ring_periods.
+ */
+static u32 msap1_dma_ready_ahead(struct msap1_dma_device *mdev, u64 from)
+{
+	u32 ready = 0;
+
+	while (ready < mdev->variant->ring_periods &&
+	       msap1_dma_period_ready(mdev, from + ready))
+		ready++;
+	return ready;
+}
+
+/**
+ * msap1_dma_skip_incomplete() - step over a period the DMA never finished.
+ * @mfile: consumer state.
+ *
+ * The engine fills periods in order, so a later period being complete while
+ * the next one to consume still holds its marker proves that period will
+ * never complete: the producer ended the packet before the period was full
+ * (a short packet is a PL framing fault) and the descriptor was closed early.
+ * Blocking on it would stall the stream permanently, so count it as
+ * transport loss and move on (design rule 4) — the marker scheme turns what
+ * used to be a silently delivered half-record into counted loss.
+ *
+ * Return: true when a period was skipped.
+ */
+static bool msap1_dma_skip_incomplete(struct msap1_dma_file *mfile)
+{
+	struct msap1_dma_device *mdev = mfile->mdev;
+
+	if (msap1_dma_period_ready(mdev, mfile->consumed) ||
+	    !msap1_dma_period_ready(mdev, mfile->consumed + 1))
+		return false;
+
+	msap1_dma_mark_pending(mdev,
+			       mfile->consumed + mdev->variant->ring_periods);
+	mfile->overrun_periods++;
+	mfile->consumed++;
+	return true;
+}
+
+/**
+ * msap1_dma_advance() - drop any unfinishable periods ahead of the consumer.
+ * @mfile: consumer state.
+ *
+ * Bounded by the ring size: beyond that the scan would be chasing the
+ * producer rather than clearing a gap.
+ */
+static void msap1_dma_advance(struct msap1_dma_file *mfile)
+{
+	u32 bound = mfile->mdev->variant->ring_periods;
+
+	while (bound-- && msap1_dma_skip_incomplete(mfile))
+		;
 }
 
 /**
  * msap1_dma_period_complete() - cyclic DMA completion callback.
  * @parameter: the &struct msap1_dma_device that armed the transaction.
  *
- * Runs in the DMA driver's tasklet context on every completed period.
- *
- * The Xilinx AXI DMA driver first invokes a cyclic callback only after the
- * final descriptor in the ring completes.  That first callback therefore
- * represents one complete ring, not one completed period; subsequent
- * callbacks represent one additional completed period each.  Jumping
- * @produced to ring_periods on the first callback keeps it aligned with the
- * hardware's absolute period count, so that produced %% ring_periods always
- * identifies the period the DMA is currently writing.
+ * A wake-up only.  The callback rate is not the period rate (see "Why
+ * markers" at the top of this file), so nothing here may be used for
+ * accounting; @callbacks exists purely as a diagnostic.
  */
 static void msap1_dma_period_complete(void *parameter)
 {
 	struct msap1_dma_device *mdev = parameter;
 
-	if (atomic64_cmpxchg(&mdev->produced, 0,
-			     mdev->variant->ring_periods) != 0)
-		atomic64_inc(&mdev->produced);
+	atomic64_inc(&mdev->callbacks);
 	wake_up_interruptible(&mdev->wait);
 }
 
@@ -151,6 +287,7 @@ static int msap1_dma_open(struct inode *inode, struct file *file)
 		.direction = DMA_DEV_TO_MEM,
 	};
 	dma_cookie_t cookie;
+	u64 period;
 	int error;
 
 	if (atomic_cmpxchg(&mdev->opened, 0, 1) != 0)
@@ -168,8 +305,15 @@ static int msap1_dma_open(struct inode *inode, struct file *file)
 	}
 	mfile->mdev = mdev;
 
-	atomic64_set(&mdev->produced, 0);
+	atomic64_set(&mdev->callbacks, 0);
 	memset(mdev->ring, 0, msap1_dma_ring_bytes(variant));
+	/*
+	 * Mark every slot empty before the DMA is armed: slot N awaits period
+	 * N on the first lap, so read() blocks until real data lands rather
+	 * than handing out the zeroed ring.
+	 */
+	for (period = 0; period < variant->ring_periods; period++)
+		msap1_dma_mark_pending(mdev, period);
 
 	error = dmaengine_slave_config(mdev->rx, &configuration);
 	if (error)
@@ -244,15 +388,14 @@ static int msap1_dma_release(struct inode *inode, struct file *file)
  *          used, so short buffers cannot split a record across reads.
  * @offset: unused (the transport is a stream; llseek is a no-op).
  *
- * The first read() of a handle performs phase synchronization: at the first
- * callback, period zero is already the active DMA destination again (see
- * msap1_dma_period_complete()), so consumption begins at period one rather
- * than exposing a period that is being overwritten.  This one startup
- * discard is deliberate phase alignment, not a transport overrun; only
- * periods missed beyond it are counted against the handle.
+ * Availability is read out of the ring itself: a period is delivered once
+ * its completion marker is gone (see "Why markers" at the top of this
+ * file).  No phase alignment is needed at startup — the ring is stamped
+ * before the DMA is armed, so period zero is delivered when, and only when,
+ * the hardware has actually written it.
  *
- * The safe window is re-evaluated before every single copy because this
- * task may be descheduled between copies for longer than a producer cadence.
+ * The marker is re-tested before every single copy because this task may be
+ * descheduled between copies for longer than a producer cadence.
  *
  * Return: bytes copied (a whole number of periods), 0 on shutdown, -EINVAL
  * for a sub-period @count, -EAGAIN when O_NONBLOCK finds no data, or another
@@ -265,11 +408,9 @@ static ssize_t msap1_dma_read(struct file *file, char __user *buffer,
 	struct msap1_dma_device *mdev = mfile->mdev;
 	const struct msap1_dma_variant *variant = mdev->variant;
 	const u32 usable = msap1_dma_usable_periods(variant);
-	u64 produced;
-	u64 oldest_safe;
 	size_t requested;
-	size_t available;
 	size_t copied = 0;
+	u32 ready;
 	int error;
 
 	requested = count / variant->period_bytes;
@@ -278,13 +419,15 @@ static ssize_t msap1_dma_read(struct file *file, char __user *buffer,
 	requested = min_t(size_t, requested, usable);
 
 	for (;;) {
-		produced = atomic64_read(&mdev->produced);
-		if (produced != mfile->consumed)
+		msap1_dma_advance(mfile);
+		ready = msap1_dma_ready_ahead(mdev, mfile->consumed);
+		if (ready)
 			break;
 		if (file->f_flags & O_NONBLOCK)
 			return -EAGAIN;
 		error = wait_event_interruptible(mdev->wait,
-			atomic64_read(&mdev->produced) != mfile->consumed ||
+			msap1_dma_period_ready(mdev, mfile->consumed) ||
+			msap1_dma_period_ready(mdev, mfile->consumed + 1) ||
 			atomic_read(&mdev->opened) == 0);
 		if (error)
 			return error;
@@ -292,43 +435,34 @@ static ssize_t msap1_dma_read(struct file *file, char __user *buffer,
 			return 0;
 	}
 
-	oldest_safe = msap1_dma_oldest_safe(produced, usable);
-	if (!mfile->synchronized) {
-		/*
-		 * Startup: skip period zero (already the active DMA target
-		 * again), then count only periods genuinely missed because
-		 * userspace did not run until later callbacks.
-		 */
-		if (oldest_safe > 1U)
-			mfile->overrun_periods += oldest_safe - 1U;
-		mfile->consumed = oldest_safe;
-		mfile->synchronized = true;
-	} else {
-		msap1_dma_catch_up(mfile, oldest_safe);
-	}
+	/*
+	 * A completely fresh ring means the producer wrote at least a whole
+	 * ring since the last read, so the period under the write pointer was
+	 * overwritten before it could be delivered (design rule 4).  Count one
+	 * period: the marker scheme proves loss happened but not how much.
+	 */
+	if (ready == variant->ring_periods)
+		mfile->overrun_periods++;
 
-	available = min_t(u64, produced - mfile->consumed, requested);
-	while (available--) {
-		const void *period;
-		size_t index;
-
-		produced = atomic64_read(&mdev->produced);
-		msap1_dma_catch_up(mfile,
-				   msap1_dma_oldest_safe(produced, usable));
-		if (mfile->consumed >= produced)
-			break;
-
-		index = mfile->consumed % variant->ring_periods;
-		period = mdev->ring + index * variant->period_bytes;
+	while (copied / variant->period_bytes < requested &&
+	       msap1_dma_period_ready(mdev, mfile->consumed)) {
 		/*
 		 * Snapshot coherent DMA memory before copy_to_user(), which
-		 * may fault and sleep (design rule 3): with usable periods
-		 * retained behind the producer, this memcpy cannot be lapped.
+		 * may fault and sleep (design rule 3); the memcpy itself is
+		 * short enough that the producer cannot lap it at any
+		 * supported period rate.  A consumer slow enough to be lapped
+		 * across calls is caught by the all-fresh check above and by
+		 * the payload sequence numbers.
 		 */
-		memcpy(mfile->staging, period, variant->period_bytes);
+		memcpy(mfile->staging,
+		       msap1_dma_period_at(mdev, mfile->consumed),
+		       variant->period_bytes);
 		if (copy_to_user(buffer + copied, mfile->staging,
 				 variant->period_bytes))
 			return copied ? (ssize_t)copied : -EFAULT;
+		/* Re-arm the slot for the period that lands there next lap. */
+		msap1_dma_mark_pending(mdev,
+				       mfile->consumed + variant->ring_periods);
 		copied += variant->period_bytes;
 		mfile->consumed++;
 	}
@@ -350,7 +484,12 @@ static __poll_t msap1_dma_poll(struct file *file, poll_table *wait)
 	__poll_t mask = 0;
 
 	poll_wait(file, &mdev->wait, wait);
-	if (atomic64_read(&mdev->produced) != mfile->consumed)
+	/*
+	 * A ready period behind the next one still means read() will return
+	 * data: it skips the unfinishable period first (msap1_dma_advance()).
+	 */
+	if (msap1_dma_period_ready(mdev, mfile->consumed) ||
+	    msap1_dma_period_ready(mdev, mfile->consumed + 1))
 		mask |= EPOLLIN | EPOLLRDNORM;
 	return mask;
 }
@@ -375,7 +514,13 @@ static long msap1_dma_ioctl(struct file *file, unsigned int command,
 	struct msap1_dma_transport_status status;
 
 	if (command == MSAP1_DMA_IOC_TRANSPORT_STATUS) {
-		status.produced_blocks = atomic64_read(&mdev->produced);
+		/*
+		 * Report what the ring proves the DMA has written, not the
+		 * completion-callback count, which coalesces (see "Why
+		 * markers").
+		 */
+		status.produced_blocks = mfile->consumed +
+			msap1_dma_ready_ahead(mdev, mfile->consumed);
 		status.consumed_blocks = mfile->consumed;
 		status.overrun_blocks = mfile->overrun_periods;
 		status.ring_blocks = mdev->variant->ring_periods;

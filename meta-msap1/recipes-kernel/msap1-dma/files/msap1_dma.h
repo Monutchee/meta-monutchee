@@ -14,10 +14,10 @@
  *                                     (msap1_dma_waveform.c,
  *                                      /dev/msap1-waveform)
  *
- * The core owns the parts that are hard to get right twice: the Xilinx
- * cyclic-callback phase correction, the safe-window arithmetic that keeps
- * the active DMA period out of userspace, overrun accounting and the
- * staging copy in read().  Variants stay declarative and small.
+ * The core owns the parts that are hard to get right twice: per-period
+ * completion detection, the safe-window arithmetic that keeps the active
+ * DMA period out of userspace, overrun accounting and the staging copy in
+ * read().  Variants stay declarative and small.
  */
 #ifndef MSAP1_DMA_H
 #define MSAP1_DMA_H
@@ -46,9 +46,6 @@ struct msap1_dma_file;
  * @ring_periods:   cyclic ring capacity in periods.  Must be at least 2;
  *                  one period is always reserved for the active DMA write,
  *                  so userspace lag tolerance is @ring_periods - 1 periods.
- *                  Mind the Xilinx first-callback behaviour when sizing:
- *                  userspace sees nothing until a full ring has completed
- *                  once (see msap1_dma_period_complete()).
  * @needs_registers: true when the device-tree node carries an AXI-Lite
  *                  register bank to ioremap into msap1_dma_device.registers.
  * @arm:            start the PL-side producer.  Called in open() strictly
@@ -88,11 +85,14 @@ struct msap1_dma_variant {
  * @ring_dma:  bus address of @ring.
  * @registers: AXI-Lite register bank, or NULL when the variant has none.
  * @misc:      character-device registration (mode 0660, dynamic minor).
- * @wait:      wakes readers and pollers on every completed period.
- * @produced:  absolute count of periods the DMA has completed since open().
- *             Kept aligned with the hardware period position so that
- *             @produced %% @variant->ring_periods is the period the DMA is
- *             currently writing.
+ * @wait:      wakes readers and pollers on completion interrupts.
+ * @callbacks: cyclic completion callbacks observed since open().  This is a
+ *             DIAGNOSTIC ONLY and deliberately not used for accounting: the
+ *             vendor driver invokes the cyclic callback once per interrupt,
+ *             and coalesces (tasklet_schedule() is idempotent), so it
+ *             under-counts whenever two periods complete close together.
+ *             Period availability comes from the ring markers instead
+ *             (see msap1_dma_period_ready()).
  * @opened:    single-open guard; concurrent opens fail with -EBUSY because
  *             each open would re-arm the one underlying DMA channel.
  */
@@ -105,7 +105,7 @@ struct msap1_dma_device {
 	void __iomem *registers;
 	struct miscdevice misc;
 	wait_queue_head_t wait;
-	atomic64_t produced;
+	atomic64_t callbacks;
 	atomic_t opened;
 };
 
@@ -121,16 +121,12 @@ struct msap1_dma_device {
  *                   memcpy()d here before copy_to_user(), which may fault
  *                   and sleep; copying directly out of the live ring would
  *                   let the producer overwrite the period mid-copy.
- * @synchronized:    set once the first read() has aligned @consumed with the
- *                   ring phase left behind by the Xilinx first-callback
- *                   behaviour (see msap1_dma_read()).
  */
 struct msap1_dma_file {
 	struct msap1_dma_device *mdev;
 	u64 consumed;
 	u64 overrun_periods;
 	void *staging;
-	bool synchronized;
 };
 
 /**
