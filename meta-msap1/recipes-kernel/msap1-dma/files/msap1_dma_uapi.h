@@ -53,24 +53,34 @@ struct msap1_dma_correlation {
  * open(); "block" is the historical UAPI name for one DMA period (one MTR1
  * record on the meter device, one WFM1 block on the waveform device).
  *
- * @produced_blocks: periods the DMA engine has completed since open().
+ * @produced_blocks: periods the DMA engine has completed since open(), as
+ *                   observed in the ring itself (completion markers), not
+ *                   inferred from completion callbacks.
  * @consumed_blocks: periods this file handle has delivered to userspace.
  * @overrun_blocks:  periods lost in the kernel transport because userspace
- *                   fell more than one ring behind the producer.  PL-side
+ *                   fell a whole ring behind the producer, or because a
+ *                   period was left unfinishable by a short packet.  PL-side
  *                   loss is not included; compare payload sequence numbers
- *                   to detect it.  The initial phase-synchronization discard
- *                   after open() is deliberately not counted.
+ *                   to detect it.
  * @ring_blocks:     ring capacity in periods.  Userspace can consume at most
  *                   @ring_blocks - 1 completed periods per revolution; one
  *                   period is always reserved for the active DMA write.
- * @reserved:        always zero; pads the structure to 32 bytes.
+ * @callbacks:       cyclic completion callbacks the driver has received.
+ *                   DIAGNOSTIC ONLY, never used for accounting: the Xilinx
+ *                   AXI DMA driver delivers at most one cyclic callback per
+ *                   tasklet run and the hardware's IOC is a latched status
+ *                   bit rather than a counter, so this lags the true period
+ *                   count whenever periods complete close together.
+ *                   @produced_blocks - @callbacks is exactly that deficit,
+ *                   and is the measurement that distinguishes callback
+ *                   coalescing from other transport faults.
  */
 struct msap1_dma_transport_status {
 	__u64 produced_blocks;
 	__u64 consumed_blocks;
 	__u64 overrun_blocks;
 	__u32 ring_blocks;
-	__u32 reserved;
+	__u32 callbacks;
 };
 
 /** Ioctl magic shared by both acquisition devices ('W' predates the merge). */

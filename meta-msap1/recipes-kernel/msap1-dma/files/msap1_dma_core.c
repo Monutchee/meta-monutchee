@@ -524,7 +524,12 @@ static long msap1_dma_ioctl(struct file *file, unsigned int command,
 		status.consumed_blocks = mfile->consumed;
 		status.overrun_blocks = mfile->overrun_periods;
 		status.ring_blocks = mdev->variant->ring_periods;
-		status.reserved = 0;
+		/*
+		 * Diagnostic: the gap between produced_blocks and this is the
+		 * callback deficit caused by completion coalescing.  Nothing
+		 * in the transport depends on it.
+		 */
+		status.callbacks = (__u32)atomic64_read(&mdev->callbacks);
 		if (copy_to_user((void __user *)argument, &status,
 				 sizeof(status)))
 			return -EFAULT;
