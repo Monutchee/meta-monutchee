@@ -21,24 +21,33 @@
 /**
  * Ring depth in records.
  *
+ * Depth buys consumer-stall tolerance (ring - 1 periods) and, since the
+ * completion markers landed, costs nothing else.
+ *
  * Sizing history: the Xilinx AXI DMAengine driver does not raise a cyclic
  * callback until the final hardware descriptor of the ring has completed
- * once (see msap1_dma_period_complete()).  An early 64-record ring therefore
- * delayed the first record by one full ring revolution — 12.8 seconds at the
- * 200 ms result cadence — and was shrunk to 2 records as a workaround.
+ * once.  While the core derived period availability from that callback, a
+ * deep ring blacked out the stream for one full revolution after capture
+ * start — 12.8 s at 64 records and the 200 ms cadence — which is why an
+ * early 64-record ring was shrunk to 2, then grown back only as far as 8.
  *
- * With the shared core's safe-window accounting, a deeper ring is safe
- * again.  The depth only trades first-record latency after capture start
- * (ring x cadence, from the first-callback behaviour above) against consumer
- * stall tolerance (ring - 1 periods); it adds NO steady-state latency, as
- * completed periods wake the reader immediately.  A 4-record ring's ~600 ms
- * tolerance proved too small in the field: a slow-storage episode stalled
- * the acquisition daemon's synchronous publish long enough to overrun the
- * ring once per aggregate window for 40 minutes.  8 records tolerates
- * ~1.4 s of consumer stall for ~1.6 s of first-record latency at the
- * default window; both figures scale with the configured RMS window.
+ * That coupling is gone: availability now comes from the ring's completion
+ * markers (see msap1_dma_period_ready()), so a period is visible as soon as
+ * the DMA has written it, whatever the depth and whatever the callback
+ * does.  Startup latency is one period plus the consumer's poll interval at
+ * any depth; steady-state latency was never depth-dependent.
+ *
+ * Depth therefore answers one question only: how long may the consumer
+ * stall before data is lost.  A 4-record ring's ~600 ms proved too small in
+ * the field (a slow-storage episode stalled the daemon's synchronous
+ * publish and overran the ring once per aggregate window for 40 minutes),
+ * and 8 records' ~1.4 s is not much better.  64 records tolerates ~12.6 s
+ * at the default window for 16 KiB of coherent memory, and matches the
+ * waveform ring.  Deeper is possible but starts to mask a chronically slow
+ * consumer: overrun_blocks is the early warning, and it should stay able to
+ * fire.  All figures scale with the configured RMS window.
  */
-#define MSAP1_METER_RING_RECORDS 8U
+#define MSAP1_METER_RING_RECORDS 64U
 
 /**
  * Meter transport personality.
