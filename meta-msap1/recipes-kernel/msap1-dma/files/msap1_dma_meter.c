@@ -42,10 +42,11 @@
  * the field (a slow-storage episode stalled the daemon's synchronous
  * publish and overran the ring once per aggregate window for 40 minutes),
  * and 8 records' ~1.4 s is not much better.  64 records tolerates ~12.6 s
- * at the default window for 16 KiB of coherent memory, and matches the
- * waveform ring.  Deeper is possible but starts to mask a chronically slow
- * consumer: overrun_blocks is the early warning, and it should stay able to
- * fire.  All figures scale with the configured RMS window.
+ * at the default window for 16 KiB of coherent memory.  Deeper is possible
+ * (the device-tree "monutchee,ring-blocks" property overrides this default)
+ * but starts to mask a chronically slow consumer: overrun_blocks is the
+ * early warning, and it should stay able to fire.  All figures scale with
+ * the configured RMS window.
  */
 #define MSAP1_METER_RING_RECORDS 64U
 

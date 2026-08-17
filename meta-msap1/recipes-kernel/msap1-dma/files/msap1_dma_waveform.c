@@ -24,15 +24,23 @@
 #define MSAP1_WAVEFORM_BLOCK_BYTES 32832U
 
 /**
- * Ring depth in blocks (~2 MiB of coherent memory).
+ * Default ring depth in blocks (~8 MiB of coherent memory); the device-tree
+ * "monutchee,ring-blocks" property overrides it without a driver rebuild.
  *
- * At the 32 kframe/s base rate one block completes every 32 ms, so the
- * 63-block safe window gives the daemon ~2 s of stall tolerance; ~0.5 s
- * remains at the 128 kframe/s maximum rate.  The Xilinx first-callback
- * behaviour (see msap1_dma_period_complete()) delays the first readable
- * block by one ring revolution after arming.
+ * Depth buys consumer-stall tolerance only: availability comes from the
+ * ring's completion markers (see msap1_dma_period_ready()), so the first
+ * block is readable as soon as the DMA writes it, at any depth.  Block
+ * cadence is rate-dependent — 32 ms at the 32 kframe/s base rate, 8 ms at
+ * the 128 kframe/s maximum — so 255 usable blocks tolerate ~8.2 s and
+ * ~2.0 s of daemon stall respectively.
+ *
+ * Sizing history: 64 blocks was chosen against the base rate (~2 s) and
+ * silently shrank to 0.512 s when deployments moved to 128 kframe/s.  In
+ * the field (2026-08-17) that lost ~49 blocks per overrun event during
+ * capture sessions, so the default now provides the intended ~2 s at the
+ * maximum rate instead of the base rate.
  */
-#define MSAP1_WAVEFORM_RING_BLOCKS 64U
+#define MSAP1_WAVEFORM_RING_BLOCKS 256U
 
 /*
  * AXI-Lite register bank of the waveform peripheral.
