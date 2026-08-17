@@ -43,9 +43,11 @@ struct msap1_dma_file;
  * @period_bytes:   size of one DMA period.  This is the unit of read():
  *                  one MTR1 record or one WFM1 block, fixed by the PL
  *                  packetizer format.
- * @ring_periods:   cyclic ring capacity in periods.  Must be at least 2;
- *                  one period is always reserved for the active DMA write,
- *                  so userspace lag tolerance is @ring_periods - 1 periods.
+ * @ring_periods:   default cyclic ring capacity in periods, used when the
+ *                  device-tree node carries no "monutchee,ring-blocks"
+ *                  property.  Must be at least 2; one period is always
+ *                  reserved for the active DMA write, so userspace lag
+ *                  tolerance is the effective depth minus 1 periods.
  * @needs_registers: true when the device-tree node carries an AXI-Lite
  *                  register bank to ioremap into msap1_dma_device.registers.
  * @arm:            start the PL-side producer.  Called in open() strictly
@@ -77,12 +79,16 @@ struct msap1_dma_variant {
  * armed in open() and torn down in release(); the file lifetime is the DMA
  * lifetime.
  *
- * @dev:       backing platform device.
- * @variant:   personality selected by the device-tree compatible.
- * @rx:        AXI DMA S2MM channel ("rx" in the device tree).
- * @ring:      coherent cyclic DMA ring of
- *             @variant->ring_periods * @variant->period_bytes bytes.
- * @ring_dma:  bus address of @ring.
+ * @dev:          backing platform device.
+ * @variant:      personality selected by the device-tree compatible.
+ * @ring_periods: effective cyclic ring depth: the node's
+ *                "monutchee,ring-blocks" property when present, otherwise
+ *                @variant->ring_periods.  Fixed at probe; everything in the
+ *                core sizes against this, never the variant default.
+ * @rx:           AXI DMA S2MM channel ("rx" in the device tree).
+ * @ring:         coherent cyclic DMA ring of
+ *                @ring_periods * @variant->period_bytes bytes.
+ * @ring_dma:     bus address of @ring.
  * @registers: AXI-Lite register bank, or NULL when the variant has none.
  * @misc:      character-device registration (mode 0660, dynamic minor).
  * @wait:      wakes readers and pollers on completion interrupts.
@@ -99,6 +105,7 @@ struct msap1_dma_variant {
 struct msap1_dma_device {
 	struct device *dev;
 	const struct msap1_dma_variant *variant;
+	u32 ring_periods;
 	struct dma_chan *rx;
 	void *ring;
 	dma_addr_t ring_dma;
@@ -130,14 +137,14 @@ struct msap1_dma_file {
 };
 
 /**
- * msap1_dma_ring_bytes() - total size of a variant's cyclic DMA ring.
- * @variant: variant to size.
+ * msap1_dma_ring_bytes() - total size of a device's cyclic DMA ring.
+ * @mdev: device to size; its effective ring depth is fixed at probe.
  *
  * Return: ring size in bytes.
  */
-static inline u32 msap1_dma_ring_bytes(const struct msap1_dma_variant *variant)
+static inline u32 msap1_dma_ring_bytes(const struct msap1_dma_device *mdev)
 {
-	return variant->period_bytes * variant->ring_periods;
+	return mdev->variant->period_bytes * mdev->ring_periods;
 }
 
 extern const struct msap1_dma_variant msap1_dma_meter_variant;

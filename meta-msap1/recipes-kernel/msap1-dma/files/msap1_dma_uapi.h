@@ -57,12 +57,18 @@ struct msap1_dma_correlation {
  *                   observed in the ring itself (completion markers), not
  *                   inferred from completion callbacks.
  * @consumed_blocks: periods this file handle has delivered to userspace.
- * @overrun_blocks:  periods lost in the kernel transport because userspace
- *                   fell a whole ring behind the producer, or because a
- *                   period was left unfinishable by a short packet.  PL-side
- *                   loss is not included; compare payload sequence numbers
- *                   to detect it.
- * @ring_blocks:     ring capacity in periods.  Userspace can consume at most
+ * @overrun_blocks:  kernel-transport loss EVENTS, not lost periods.  A
+ *                   period left unfinishable by a short packet counts one
+ *                   (exact), but userspace falling a whole ring behind the
+ *                   producer also counts one however many periods the lap
+ *                   actually destroyed — the markers prove loss happened,
+ *                   not how much (observed in the field: ~49 blocks lost
+ *                   per increment, 2026-08-17).  Derive true loss from
+ *                   payload sequence numbers; PL-side loss is likewise not
+ *                   included and detected the same way.
+ * @ring_blocks:     effective ring capacity in periods (the device-tree
+ *                   "monutchee,ring-blocks" property when present, else the
+ *                   driver default).  Userspace can consume at most
  *                   @ring_blocks - 1 completed periods per revolution; one
  *                   period is always reserved for the active DMA write.
  * @callbacks:       cyclic completion callbacks the driver has received.

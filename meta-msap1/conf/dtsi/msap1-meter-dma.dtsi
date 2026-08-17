@@ -1,5 +1,5 @@
 /* MSAP1 Linux meter-result DMA ownership. */
-&MeterLogic_Meter_DMA_Meter_data_DMA {
+&MeterLogic_Meter_DMA_Meter_data_AXI_grp_Meter_data_DMA {
 	clocks = <&zynqmp_clk 0x47>,
 		 <&zynqmp_clk 0x47>,
 		 <&zynqmp_clk 0x47>;
@@ -12,7 +12,7 @@
 };
 
 /* Independent raw-waveform SG/S2MM channel on GIC SPI 90. */
-&MeterLogic_Meter_DMA_Waveform_DMA {
+&MeterLogic_Meter_DMA_Waveform_AXI_grp_Waveform_DMA {
 	clocks = <&zynqmp_clk 0x47>,
 		 <&zynqmp_clk 0x47>,
 		 <&zynqmp_clk 0x47>;
@@ -36,7 +36,7 @@
 &amba_pl {
 	msap1_meter_dma: meter-acquisition {
 		compatible = "monutchee,msap1-meter-dma";
-		dmas = <&MeterLogic_Meter_DMA_Meter_data_DMA 1>;
+		dmas = <&MeterLogic_Meter_DMA_Meter_data_AXI_grp_Meter_data_DMA 1>;
 		dma-names = "rx";
 		status = "okay";
 	};
@@ -45,12 +45,18 @@
 	 * The driver owns both the waveform DMA channel and the small AXI-Lite
 	 * register bank used to atomically correlate CLOCK_TAI with PL tick and
 	 * frame sequence. Raw history remains in daemon-owned DDR.
+	 *
+	 * Ring depth is stated here rather than left to the driver default:
+	 * 256 32832-byte blocks (~8 MiB coherent) give the daemon ~2 s of
+	 * stall tolerance at 128 kSPS, where the previous 64-block ring gave
+	 * only 0.512 s and was lapped in the field.
 	 */
 	msap1_waveform_dma: waveform-acquisition@b0070000 {
 		compatible = "monutchee,msap1-waveform-dma";
 		reg = <0x0 0xb0070000 0x0 0x10000>;
-		dmas = <&MeterLogic_Meter_DMA_Waveform_DMA 1>;
+		dmas = <&MeterLogic_Meter_DMA_Waveform_AXI_grp_Waveform_DMA 1>;
 		dma-names = "rx";
+		monutchee,ring-blocks = <256>;
 		status = "okay";
 	};
 };

@@ -84,7 +84,7 @@ static_assert(sizeof(struct msap1_dma_transport_status) == 32);
 
 /**
  * msap1_dma_usable_periods() - consumer-visible ring capacity.
- * @variant: variant describing the ring geometry.
+ * @mdev: transport device; its effective ring depth is fixed at probe.
  *
  * One period is reserved for the DMA engine's active write position (design
  * rule 2 above).
@@ -92,9 +92,9 @@ static_assert(sizeof(struct msap1_dma_transport_status) == 32);
  * Return: number of completed periods a reader may lag behind the producer
  * without loss.
  */
-static u32 msap1_dma_usable_periods(const struct msap1_dma_variant *variant)
+static u32 msap1_dma_usable_periods(const struct msap1_dma_device *mdev)
 {
-	return variant->ring_periods - 1U;
+	return mdev->ring_periods - 1U;
 }
 
 /*
@@ -125,10 +125,9 @@ static void msap1_dma_build_marker(u64 period, u32 marker[])
  */
 static void *msap1_dma_period_at(struct msap1_dma_device *mdev, u64 period)
 {
-	const struct msap1_dma_variant *variant = mdev->variant;
-	size_t index = period % variant->ring_periods;
+	size_t index = period % mdev->ring_periods;
 
-	return mdev->ring + index * variant->period_bytes;
+	return mdev->ring + index * mdev->variant->period_bytes;
 }
 
 static void *msap1_dma_marker_at(struct msap1_dma_device *mdev, u64 period)
@@ -192,7 +191,7 @@ static u32 msap1_dma_ready_ahead(struct msap1_dma_device *mdev, u64 from)
 {
 	u32 ready = 0;
 
-	while (ready < mdev->variant->ring_periods &&
+	while (ready < mdev->ring_periods &&
 	       msap1_dma_period_ready(mdev, from + ready))
 		ready++;
 	return ready;
@@ -221,7 +220,7 @@ static bool msap1_dma_skip_incomplete(struct msap1_dma_file *mfile)
 		return false;
 
 	msap1_dma_mark_pending(mdev,
-			       mfile->consumed + mdev->variant->ring_periods);
+			       mfile->consumed + mdev->ring_periods);
 	mfile->overrun_periods++;
 	mfile->consumed++;
 	return true;
@@ -236,7 +235,7 @@ static bool msap1_dma_skip_incomplete(struct msap1_dma_file *mfile)
  */
 static void msap1_dma_advance(struct msap1_dma_file *mfile)
 {
-	u32 bound = mfile->mdev->variant->ring_periods;
+	u32 bound = mfile->mdev->ring_periods;
 
 	while (bound-- && msap1_dma_skip_incomplete(mfile))
 		;
@@ -306,20 +305,20 @@ static int msap1_dma_open(struct inode *inode, struct file *file)
 	mfile->mdev = mdev;
 
 	atomic64_set(&mdev->callbacks, 0);
-	memset(mdev->ring, 0, msap1_dma_ring_bytes(variant));
+	memset(mdev->ring, 0, msap1_dma_ring_bytes(mdev));
 	/*
 	 * Mark every slot empty before the DMA is armed: slot N awaits period
 	 * N on the first lap, so read() blocks until real data lands rather
 	 * than handing out the zeroed ring.
 	 */
-	for (period = 0; period < variant->ring_periods; period++)
+	for (period = 0; period < mdev->ring_periods; period++)
 		msap1_dma_mark_pending(mdev, period);
 
 	error = dmaengine_slave_config(mdev->rx, &configuration);
 	if (error)
 		goto free_staging;
 	descriptor = dmaengine_prep_dma_cyclic(mdev->rx, mdev->ring_dma,
-		msap1_dma_ring_bytes(variant), variant->period_bytes,
+		msap1_dma_ring_bytes(mdev), variant->period_bytes,
 		DMA_DEV_TO_MEM, DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
 	if (!descriptor) {
 		error = -EIO;
@@ -407,7 +406,7 @@ static ssize_t msap1_dma_read(struct file *file, char __user *buffer,
 	struct msap1_dma_file *mfile = file->private_data;
 	struct msap1_dma_device *mdev = mfile->mdev;
 	const struct msap1_dma_variant *variant = mdev->variant;
-	const u32 usable = msap1_dma_usable_periods(variant);
+	const u32 usable = msap1_dma_usable_periods(mdev);
 	size_t requested;
 	size_t copied = 0;
 	u32 ready;
@@ -441,7 +440,7 @@ static ssize_t msap1_dma_read(struct file *file, char __user *buffer,
 	 * overwritten before it could be delivered (design rule 4).  Count one
 	 * period: the marker scheme proves loss happened but not how much.
 	 */
-	if (ready == variant->ring_periods)
+	if (ready == mdev->ring_periods)
 		mfile->overrun_periods++;
 
 	while (copied / variant->period_bytes < requested &&
@@ -462,7 +461,7 @@ static ssize_t msap1_dma_read(struct file *file, char __user *buffer,
 			return copied ? (ssize_t)copied : -EFAULT;
 		/* Re-arm the slot for the period that lands there next lap. */
 		msap1_dma_mark_pending(mdev,
-				       mfile->consumed + variant->ring_periods);
+				       mfile->consumed + mdev->ring_periods);
 		copied += variant->period_bytes;
 		mfile->consumed++;
 	}
@@ -523,7 +522,7 @@ static long msap1_dma_ioctl(struct file *file, unsigned int command,
 			msap1_dma_ready_ahead(mdev, mfile->consumed);
 		status.consumed_blocks = mfile->consumed;
 		status.overrun_blocks = mfile->overrun_periods;
-		status.ring_blocks = mdev->variant->ring_periods;
+		status.ring_blocks = mdev->ring_periods;
 		/*
 		 * Diagnostic: the gap between produced_blocks and this is the
 		 * callback deficit caused by completion coalescing.  Nothing
@@ -578,6 +577,20 @@ static int msap1_dma_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	mdev->dev = dev;
 	mdev->variant = variant;
+	/*
+	 * Ring depth is a deployment decision (it converts directly into
+	 * consumer-stall tolerance at the deployed sample rate), so the device
+	 * tree may override the variant default without a driver rebuild.
+	 * The upper bound only guards against a typo'd property exhausting
+	 * CMA; it is far above any depth a real deployment would choose.
+	 */
+	mdev->ring_periods = variant->ring_periods;
+	device_property_read_u32(dev, "monutchee,ring-blocks",
+				 &mdev->ring_periods);
+	if (mdev->ring_periods < 2U || mdev->ring_periods > 4096U)
+		return dev_err_probe(dev, -EINVAL,
+			"monutchee,ring-blocks %u is outside 2..4096\n",
+			mdev->ring_periods);
 	init_waitqueue_head(&mdev->wait);
 	atomic_set(&mdev->opened, 0);
 
@@ -594,7 +607,7 @@ static int msap1_dma_probe(struct platform_device *pdev)
 		return dev_err_probe(dev, PTR_ERR(mdev->rx),
 			"failed to request %s AXI DMA S2MM channel\n",
 			variant->device_name);
-	mdev->ring = dmam_alloc_coherent(dev, msap1_dma_ring_bytes(variant),
+	mdev->ring = dmam_alloc_coherent(dev, msap1_dma_ring_bytes(mdev),
 		&mdev->ring_dma, GFP_KERNEL);
 	if (!mdev->ring)
 		return -ENOMEM;
@@ -609,9 +622,9 @@ static int msap1_dma_probe(struct platform_device *pdev)
 		return dev_err_probe(dev, error,
 			"failed to register %s device\n", variant->device_name);
 	platform_set_drvdata(pdev, mdev);
-	dev_info(dev, "registered /dev/%s (%u x %u-byte DMA periods)\n",
-		 variant->device_name, variant->ring_periods,
-		 variant->period_bytes);
+	dev_info(dev, "registered /dev/%s (%u x %u-byte DMA periods, %u KiB ring)\n",
+		 variant->device_name, mdev->ring_periods,
+		 variant->period_bytes, msap1_dma_ring_bytes(mdev) / 1024U);
 	return 0;
 }
 
