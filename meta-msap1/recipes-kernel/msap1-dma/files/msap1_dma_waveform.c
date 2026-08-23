@@ -55,6 +55,10 @@
 #define MSAP1_WAVEFORM_CONTROL_LATCH 0x2U
 #define MSAP1_WAVEFORM_LATCHED_TICK_LO 0x10U
 #define MSAP1_WAVEFORM_LATCHED_SEQUENCE_LO 0x18U
+#define MSAP1_WAVEFORM_TEN_MINUTE_TARGET_LO 0x40U
+#define MSAP1_WAVEFORM_TEN_MINUTE_CONTROL 0x48U
+#define MSAP1_WAVEFORM_TEN_MINUTE_VALID 0x1U
+#define MSAP1_WAVEFORM_TEN_MINUTE_COMMIT 0x2U
 
 /**
  * msap1_waveform_read_u64() - tear-free read of a 64-bit LO/HI register pair.
@@ -135,8 +139,36 @@ static long msap1_waveform_ioctl(struct msap1_dma_file *mfile,
 {
 	struct msap1_dma_device *mdev = mfile->mdev;
 	struct msap1_dma_correlation correlation;
+	struct msap1_dma_ten_minute_boundary boundary;
 	struct timespec64 before;
 	struct timespec64 after;
+	u32 control;
+
+	if (command == MSAP1_DMA_IOC_SET_TEN_MINUTE_BOUNDARY) {
+		if (copy_from_user(&boundary, (void __user *)argument,
+				   sizeof(boundary)))
+			return -EFAULT;
+		if (boundary.reserved != 0U || boundary.valid > 1U)
+			return -EINVAL;
+
+		writel(lower_32_bits(boundary.target_sample_index),
+		       mdev->registers + MSAP1_WAVEFORM_TEN_MINUTE_TARGET_LO);
+		writel(upper_32_bits(boundary.target_sample_index),
+		       mdev->registers + MSAP1_WAVEFORM_TEN_MINUTE_TARGET_LO + 4U);
+		control = boundary.valid ? MSAP1_WAVEFORM_TEN_MINUTE_VALID : 0U;
+		writel(control | MSAP1_WAVEFORM_TEN_MINUTE_COMMIT,
+		       mdev->registers + MSAP1_WAVEFORM_TEN_MINUTE_CONTROL);
+		control = readl(mdev->registers +
+				MSAP1_WAVEFORM_TEN_MINUTE_CONTROL);
+
+		if (msap1_waveform_read_u64(mdev->registers,
+				MSAP1_WAVEFORM_TEN_MINUTE_TARGET_LO) !=
+				boundary.target_sample_index ||
+		    !!(control & MSAP1_WAVEFORM_TEN_MINUTE_VALID) !=
+				!!boundary.valid)
+			return -EIO;
+		return 0;
+	}
 
 	if (command != MSAP1_DMA_IOC_CORRELATE)
 		return -ENOTTY;

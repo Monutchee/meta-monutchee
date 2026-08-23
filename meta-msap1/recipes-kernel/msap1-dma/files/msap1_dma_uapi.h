@@ -89,6 +89,25 @@ struct msap1_dma_transport_status {
 	__u32 callbacks;
 };
 
+/**
+ * struct msap1_dma_ten_minute_boundary - next UTC-aligned aggregation close.
+ *
+ * Userspace derives @target_sample_index from an atomic PL/CLOCK_TAI
+ * correlation and the next UTC ten-minute boundary.  The waveform register
+ * bank is also the system timebase-control bank, so this ioctl is intentionally
+ * exposed on /dev/msap1-waveform rather than the meter DMA device.
+ *
+ * @target_sample_index: first sample index at or after the desired UTC
+ *                       boundary.
+ * @valid:               one enables the target; zero invalidates it.
+ * @reserved:            must be zero.
+ */
+struct msap1_dma_ten_minute_boundary {
+	__u64 target_sample_index;
+	__u32 valid;
+	__u32 reserved;
+};
+
 /** Ioctl magic shared by both acquisition devices ('W' predates the merge). */
 #define MSAP1_DMA_IOC_MAGIC 'W'
 
@@ -108,5 +127,15 @@ struct msap1_dma_transport_status {
  */
 #define MSAP1_DMA_IOC_TRANSPORT_STATUS \
 	_IOR(MSAP1_DMA_IOC_MAGIC, 0x02, struct msap1_dma_transport_status)
+
+/**
+ * MSAP1_DMA_IOC_SET_TEN_MINUTE_BOUNDARY - program the next PL close target.
+ *
+ * Waveform device only.  The driver commits the 64-bit target atomically to
+ * PL and verifies the active readback before returning success.
+ */
+#define MSAP1_DMA_IOC_SET_TEN_MINUTE_BOUNDARY \
+	_IOW(MSAP1_DMA_IOC_MAGIC, 0x03, \
+	     struct msap1_dma_ten_minute_boundary)
 
 #endif /* MSAP1_DMA_UAPI_H */
