@@ -28,7 +28,7 @@
 	status = "disabled";
 };
 
-&MeterLogic_MeterCore_Wrapper {
+&MeterLogic_Data_Computation_MeterCore_Wrapper {
 	status = "disabled";
 };
 
