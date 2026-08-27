@@ -38,6 +38,12 @@
 		compatible = "monutchee,msap1-meter-dma";
 		dmas = <&MeterLogic_Meter_DMA_Meter_data_AXI_grp_Meter_data_DMA 1>;
 		dma-names = "rx";
+		/*
+		 * Harmonic spectra arrive as atomic 42-record bursts. 512 x 256-byte
+		 * periods (128 KiB coherent) absorb several families while userspace
+		 * completes one batched durable commit.
+		 */
+		monutchee,ring-blocks = <512>;
 		status = "okay";
 	};
 
