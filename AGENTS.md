@@ -62,8 +62,8 @@
   `msap1-meter-dma.dtsi` and `msap1-fabric-clock.dtsi` into `pl.dtso`; keep
   both consumers and the nominal 100 MHz PL0 assignment atomic with the
   matching FPGA overlay and do not append DTS text in the firmware recipe.
-- Both consumers (`/dev/msap1-meter`, 4 x 256-byte records;
-  `/dev/msap1-waveform`, 64 x 32,832-byte blocks) share the core's transport
+- Both consumers (`/dev/msap1-meter`, 512 x 256-byte records;
+  `/dev/msap1-waveform`, 256 x 32,832-byte blocks) share the core's transport
   rules: the active DMA period is reserved, kernel-ring overruns are reported
   separately through the shared transport-status ioctl, and a period is never
   returned while DMA may be overwriting it. Long pre-trigger history and
