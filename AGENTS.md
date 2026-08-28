@@ -85,6 +85,11 @@
   `local_inst` builds the adjacent APU working tree directly, including
   uncommitted edits; `local` fetches its committed Git state; `cloud` fetches
   the selected remote branch.
+- `msap1-web` treats `npm-shrinkwrap.json` as its complete dependency list.
+  `local_inst` must select the adjacent Web checkout's lockfile directly and
+  hash it into fetch/configure; committed `local` and `cloud` modes must use
+  the matching layer-pinned copy so their offline dependency inputs remain
+  reproducible.
 - The APU application carries `libs/openamp-helper` as a Git submodule. Keep
   the `cloud` and committed-`local` source modes on BitBake's `gitsm://`
   fetcher; initialize the submodule in the working tree used by `local_inst`.
