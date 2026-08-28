@@ -179,18 +179,32 @@ MSAP1_WEB_SRC = "cloud"      # selected GitHub branch
 MSAP1_WEB_SRC = "local"      # committed local checkout
 MSAP1_WEB_SRC = "local_inst" # live checkout, including uncommitted edits
 MSAP1_WEB_GIT_BRANCH = "main"
-MSAP1_WEB_LOCAL_DIR = "${TOPDIR}/../../applications/MSAP1_WEB"
+MSAP1_WEB_LOCAL_DIR = "${MSAP1_LAYERDIR}/../../../../applications/MSAP1_WEB"
 ```
 
-The recipe fetches dependencies from the layer's `npm-shrinkwrap.json` before
-the network-disabled compile task. Update the lockfile in `MSAP1_WEB` and its
-identical copy under `recipes-httpd/msap1-web/files/` together.
+The recipe fetches dependencies before the network-disabled compile task, with
+`npm-shrinkwrap.json` serving as the complete library list. In `local_inst`
+mode it reads the live `MSAP1_WEB` lockfile directly and includes that file in
+both the fetch and configure signatures. Adding, updating, or removing a
+dependency therefore refetches the required tarballs and regenerates the
+offline npm package cache automatically on the next build.
+
+The template derives the adjacent Web checkout from `MSAP1_LAYERDIR`, so this
+automatic mode also works when the Yocto build directory is outside the
+workspace. Override `MSAP1_WEB_LOCAL_DIR` only for a different checkout layout.
+
+Committed `local` and `cloud` builds remain reproducible and use the pinned
+lockfile under `recipes-httpd/msap1-web/files/`, because their Git source is not
+available when BitBake expands fetch URLs. Update that pinned copy with the Web
+repository lockfile when publishing a dependency change; configuration fails
+if the fetched source and pinned lockfile differ.
 
 In `local_inst` mode, `externalsrc` invalidates `do_compile` when the live
 checkout changes. Immediately before Vite runs, the recipe overlays the current
 frontend build configuration and complete `src/` and `public/` trees onto the
 offline npm package prepared by `do_configure`. Editing, adding, or removing a
-frontend source file therefore does not require a manual recipe clean.
+frontend source file therefore does not require a manual recipe clean, while a
+lockfile edit automatically reruns the dependency-fetch/configure path.
 
 The product web backend enables nginx on HTTP port 80 and HTTPS port 443. On
 first boot, `msap1-web-tls-setup` creates a per-device self-signed development

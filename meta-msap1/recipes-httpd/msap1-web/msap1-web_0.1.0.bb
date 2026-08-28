@@ -10,25 +10,30 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=86d3f3a95c324c9479bd8986968f4327"
 #   local_inst - build the local working tree directly, including uncommitted edits
 MSAP1_WEB_SRC ?= "cloud"
 MSAP1_WEB_GIT_BRANCH ?= "main"
-MSAP1_WEB_LOCAL_DIR ?= "${TOPDIR}/../../applications/MSAP1_WEB"
+MSAP1_WEB_LOCAL_DIR ?= "${MSAP1_LAYERDIR}/../../../../applications/MSAP1_WEB"
 
 MSAP1_WEB_REPO_cloud = "git://github.com/Monutchee/MSAP1_WEB.git;protocol=https;branch=${MSAP1_WEB_GIT_BRANCH};name=msap1-web;destsuffix=git"
 MSAP1_WEB_REPO_local = "git://${MSAP1_WEB_LOCAL_DIR};protocol=file;branch=${MSAP1_WEB_GIT_BRANCH};name=msap1-web;destsuffix=git"
 MSAP1_WEB_REPO_local_inst = ""
 
-# The layer copy is required at fetch time so BitBake can download every npm
-# dependency before tasks are placed in the network-disabled build sandbox.
-MSAP1_WEB_LOCKFILE = "${THISDIR}/files/npm-shrinkwrap.json"
+# npmsw needs a lockfile at fetch time, before a cloud/local Git checkout has
+# been unpacked. Those reproducible modes therefore use the layer-pinned copy.
+# local_inst already has its live checkout, so consume that lockfile directly:
+# a dependency edit then changes the fetch and configure task signatures
+# without requiring a second manual copy merely to build the working tree.
+MSAP1_WEB_LAYER_LOCKFILE = "${THISDIR}/files/npm-shrinkwrap.json"
+MSAP1_WEB_LOCAL_INST_LOCKFILE = "${MSAP1_WEB_LOCAL_DIR}/npm-shrinkwrap.json"
+MSAP1_WEB_LOCKFILE = "${@d.getVar('MSAP1_WEB_LOCAL_INST_LOCKFILE') if d.getVar('MSAP1_WEB_SRC') == 'local_inst' else d.getVar('MSAP1_WEB_LAYER_LOCKFILE')}"
 SRC_URI = "${@d.getVar('MSAP1_WEB_REPO_' + (d.getVar('MSAP1_WEB_SRC') or 'cloud'))} \
            npmsw://${MSAP1_WEB_LOCKFILE};dev=1"
 SRCREV_msap1-web ?= "${AUTOREV}"
 
-# BitBake's generic fetch checksum list tracks only file:// entries.  npmsw
-# reads this local lockfile to expand the npm dependency URLs, so include it
-# explicitly in do_fetch's signature.  Otherwise a newly added dependency can
-# invalidate do_unpack without rerunning do_fetch, leaving its tarball absent
-# from the offline download cache.
+# BitBake's generic fetch checksum list tracks only file:// entries. npmsw
+# reads this selected lockfile to expand the npm dependency URLs, so include it
+# explicitly in both signatures. This guarantees that a local_inst dependency
+# edit refetches its tarballs and regenerates npm's offline package cache.
 do_fetch[file-checksums] += " ${MSAP1_WEB_LOCKFILE}:True"
+do_configure[file-checksums] += " ${MSAP1_WEB_LOCKFILE}:True"
 
 PV = "${@'0.1.0+local' if d.getVar('MSAP1_WEB_SRC') == 'local_inst' else '0.1.0+git' + (d.getVar('SRCPV') or '')}"
 S = "${WORKDIR}/git"
@@ -48,11 +53,11 @@ python do_configure:prepend() {
     import os
 
     source_lock = os.path.join(d.getVar('S'), 'npm-shrinkwrap.json')
-    layer_lock = d.getVar('MSAP1_WEB_LOCKFILE')
+    fetch_lock = d.getVar('MSAP1_WEB_LOCKFILE')
     if not os.path.exists(source_lock):
         bb.fatal('MSAP1_WEB does not contain npm-shrinkwrap.json')
-    if not filecmp.cmp(source_lock, layer_lock, shallow=False):
-        bb.fatal('MSAP1_WEB npm-shrinkwrap.json differs from the meta-msap1 copy; update both together')
+    if not filecmp.cmp(source_lock, fetch_lock, shallow=False):
+        bb.fatal('MSAP1_WEB npm-shrinkwrap.json differs from the selected npmsw lockfile; update the meta-msap1 copy for cloud/local builds')
 }
 
 python do_compile:append() {
