@@ -5,8 +5,9 @@
 @@PROJECT_PREFIX@@ product layer for the AMD Kria KR260 Robotics Starter Kit.
 
 Shared Xilinx mechanics live in `meta-xilinx-addon`, `meta-zynqmp-addon`, and
-`meta-kria-addon`. This layer contains only the product build templates, image
-recipes, DFX firmware inputs, and production-flashing policy.
+`meta-kria-addon`; the vendor-neutral Station artifact contract lives in
+`meta-mnc-artifact`. This layer contains only the product build templates,
+image recipes, DFX firmware inputs, and production-flashing policy.
 
 The `@@PRODUCT@@` machine configuration is generated from the product XSA and
 SDT output. It is installed in the build directory by the Monutchee
