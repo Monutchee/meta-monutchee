@@ -37,10 +37,12 @@ R5 OpenAMP applications, and the standard KR260 board description
 ./make_yocto.sh
 ```
 
-The default image target is `msap1-image`. The optional production
-flashing target is `msap1-production-flash-image`.
+The default `msap1-image` target also builds and exports the Provisioning
+Station JTAG artifact, so `mnc yocto build` keeps
+`build/export/provision-image` synchronized with the main image. The optional
+production flashing target is `msap1-production-flash-image`.
 
-Build the self-contained Provisioning Station RAM-boot artifact with:
+To rebuild only the self-contained Provisioning Station RAM-boot artifact, use:
 
 ```bash
 MACHINE=msap1 bitbake msap1-jtag-image

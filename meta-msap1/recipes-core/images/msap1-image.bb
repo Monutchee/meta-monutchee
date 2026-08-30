@@ -31,5 +31,8 @@ do_copy_tftpboot[file-checksums] += "${JTAG_LOADER_TCL}:True"
 
 # Generate build-time product documentation without installing the workbook
 # into the target root filesystem.
-do_build[depends] += "msap1-modbus-register-doc:do_export_docs"
+do_build[depends] += " \
+    msap1-modbus-register-doc:do_export_docs \
+    msap1-jtag-image:do_export_provision_image \
+"
 do_populate_sdk[depends] += "msap1-modbus-register-doc:do_export_docs"
