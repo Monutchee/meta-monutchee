@@ -7,7 +7,10 @@ Recipes inherit `mnc-artifact`, provide the public manifest metadata, and
 implement `mnc_artifact_populate` to place regular payload files below
 `${MNC_ARTIFACT_STAGING_DIR}`. The class writes a deterministic `.tar.gz`
 archive through the standard Yocto deploy task and verifies it before it enters
-`${DEPLOY_DIR_IMAGE}`.
+`${DEPLOY_DIR_IMAGE}`. A separate, unstamped export task copies the versioned
+archive and recreates its stable link under
+`${TOPDIR}/export/provision-image`; recipes may override that location with
+`MNC_ARTIFACT_EXPORT_DIR`.
 
 The public format is defined by
 `schema/mnc-station-artifact-v2.schema.json`. Paths inside an archive are POSIX

@@ -46,12 +46,12 @@ Build the self-contained Provisioning Station RAM-boot artifact with:
 MACHINE=msap1 bitbake msap1-jtag-image
 ```
 
-The deploy directory receives a versioned archive plus the stable
-`msap1-jtag-image.tar.gz` link. The archive contains a v2 Station manifest,
-the Xilinx JTAG firmware and loader under `jtag/`, and the normal MSAP1 kernel,
-device tree, boot script, and initramfs under `tftp/`. The older flat
-`build/export/tftpboot` output remains available until the Station replaces
-the existing `mnc deploy` workflow.
+The deploy directory and `build/export/provision-image` each receive a
+versioned archive plus the stable `msap1-jtag-image.tar.gz` link. The archive
+contains a v2 Station manifest, the Xilinx JTAG firmware and loader under
+`jtag/`, and the normal MSAP1 kernel, device tree, boot script, and initramfs
+under `tftp/`. The older flat `build/export/tftpboot` output remains available
+until the Station replaces the existing `mnc deploy` workflow.
 
 The serial login banner and post-login MOTD identify the built image:
 

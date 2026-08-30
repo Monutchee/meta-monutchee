@@ -3,6 +3,7 @@ inherit deploy
 MNC_ARTIFACT_TOOL ?= "${MNC_ARTIFACT_LAYERDIR}/scripts/mnc-artifact.py"
 MNC_ARTIFACT_SCHEMA_FILE ?= "${MNC_ARTIFACT_LAYERDIR}/schema/mnc-station-artifact-v2.schema.json"
 MNC_ARTIFACT_STAGING_DIR ?= "${WORKDIR}/mnc-station-artifact"
+MNC_ARTIFACT_EXPORT_DIR ?= "${TOPDIR}/export/provision-image"
 
 MNC_ARTIFACT_NAME ?= "${PN}"
 MNC_ARTIFACT_VENDOR ?= ""
@@ -76,3 +77,38 @@ do_deploy[file-checksums] += " \
 "
 
 addtask deploy after do_compile before do_build
+
+# Keep a developer-facing copy outside tmp/deploy, matching the existing
+# export/tftpboot workflow.  Resolve the stable deploy link first so both the
+# versioned archive and a stable link can be reproduced when do_deploy comes
+# from sstate.
+do_export_provision_image() {
+    set -eu
+
+    source_latest="${DEPLOY_DIR_IMAGE}/${MNC_ARTIFACT_LATEST_NAME}"
+    if [ ! -e "${source_latest}" ]; then
+        bbfatal "Provisioning image deploy output is missing: ${source_latest}"
+    fi
+
+    source_archive="$(readlink -f "${source_latest}")"
+    deploy_dir="$(readlink -f "${DEPLOY_DIR_IMAGE}")"
+    case "${source_archive}" in
+        "${deploy_dir}"/*) ;;
+        *) bbfatal "Provisioning image deploy link escapes ${DEPLOY_DIR_IMAGE}: ${source_latest}" ;;
+    esac
+
+    archive_name="$(basename "${source_archive}")"
+    if [ "${archive_name}" = "${MNC_ARTIFACT_LATEST_NAME}" ]; then
+        bbfatal "Versioned provisioning image name collides with stable name: ${archive_name}"
+    fi
+
+    install -d "${MNC_ARTIFACT_EXPORT_DIR}"
+    install -m 0644 "${source_archive}" \
+        "${MNC_ARTIFACT_EXPORT_DIR}/${archive_name}"
+    ln -sfn "${archive_name}" \
+        "${MNC_ARTIFACT_EXPORT_DIR}/${MNC_ARTIFACT_LATEST_NAME}"
+}
+
+do_export_provision_image[nostamp] = "1"
+PSEUDO_IGNORE_PATHS .= ",${MNC_ARTIFACT_EXPORT_DIR}"
+addtask export_provision_image after do_deploy before do_build
