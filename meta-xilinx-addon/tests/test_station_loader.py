@@ -17,7 +17,7 @@ LOADER = (
 
 
 class StationLoaderTests(unittest.TestCase):
-    def test_target_id_scopes_every_processor_selection(self) -> None:
+    def test_stable_cable_identity_survives_a_stale_target_id(self) -> None:
         tclsh = shutil.which("tclsh")
         if tclsh is None:
             self.skipTest("tclsh is unavailable")
@@ -63,7 +63,7 @@ foreach command {{mwr rst mask_write stop dow con}} {{
 }}
 rename after tcl_after
 proc after {{args}} {{}}
-set argv [list tcp:127.0.0.1:3121 192.0.2.10 "" 11]
+set argv [list tcp:127.0.0.1:3121 192.0.2.10 "" 5 SERIAL-B 0]
 source {{{loader.as_posix()}}}
 puts "MNC_SELECTED_TARGETS:[join $::selected_targets ,]"
 """,

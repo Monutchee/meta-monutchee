@@ -80,7 +80,7 @@ mnc_artifact_populate() {
     if ! grep -q '@JTAG_LOADER_FORCE_JTAG_BOOT@' "${MNC_XILINX_JTAG_LOADER_TCL}"; then
         bbfatal "Station JTAG loader lacks the force-boot substitution token"
     fi
-    if ! grep -q 'MNC_STATION_TARGET_SELECTOR_V1' "${MNC_XILINX_JTAG_LOADER_TCL}"; then
+    if ! grep -q 'MNC_STATION_TARGET_SELECTOR_V2' "${MNC_XILINX_JTAG_LOADER_TCL}"; then
         bbfatal "Station JTAG loader lacks multi-device target selection"
     fi
     sed \

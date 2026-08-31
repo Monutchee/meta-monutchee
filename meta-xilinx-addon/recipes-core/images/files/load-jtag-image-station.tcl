@@ -2,9 +2,11 @@
 # Boot an MNCOS image through JTAG while a Provisioning Station serves the
 # sibling tftp/ directory. This script never stages or modifies the TFTP root.
 # MNC_STATION_TARGET_SELECTOR_V1
+# MNC_STATION_TARGET_SELECTOR_V2
 #
 # Usage:
-#   load-jtag-image.tcl <hw-server-url> <tftp-server-ipv4> [board-ipv4] [target-id]
+#   load-jtag-image.tcl <hw-server-url> <tftp-server-ipv4> [board-ipv4]
+#                       [target-id] [target-cable-serial] [target-device-index]
 #
 # Example:
 #   load-jtag-image.tcl tcp:127.0.0.1:3121 192.168.61.63
@@ -34,26 +36,49 @@ proc validate_hw_server_url {value} {
     }
 }
 
-proc initialize_target_selector {target_id} {
-    global TARGET_CABLE_CTX TARGET_CABLE_SERIAL TARGET_DEVICE_INDEX
+proc initialize_target_selector {target_id cable_serial device_index} {
+    global TARGET_ID TARGET_CABLE_CTX TARGET_CABLE_SERIAL TARGET_DEVICE_INDEX
 
-    if { $target_id eq "" } {
+    if { $target_id eq "" && $cable_serial eq "" } {
         return
     }
     set selected {}
     foreach target [targets -target-properties] {
-        if { [dict exists $target target_id] && [dict get $target target_id] eq $target_id &&
-             [dict exists $target name] && [string match -nocase "*PSU*" [dict get $target name]] } {
+        if { ![dict exists $target name] ||
+             ![string match -nocase "*PSU*" [dict get $target name]] } {
+            continue
+        }
+        if { $cable_serial ne "" } {
+            if { ![dict exists $target jtag_cable_serial] ||
+                 [dict get $target jtag_cable_serial] ne $cable_serial } {
+                continue
+            }
+            if { $device_index ne "" &&
+                 (![dict exists $target jtag_device_index] ||
+                  [dict get $target jtag_device_index] ne $device_index) } {
+                continue
+            }
+            lappend selected $target
+        } elseif { [dict exists $target target_id] &&
+                   [dict get $target target_id] eq $target_id } {
             lappend selected $target
         }
     }
     if { [llength $selected] != 1 } {
+        if { $cable_serial ne "" } {
+            set suffix ""
+            if { $device_index ne "" } {
+                set suffix ", device $device_index"
+            }
+            error "Expected one ZynqMP PSU target on JTAG cable $cable_serial$suffix, found [llength $selected]"
+        }
         error "XSDB target $target_id is not one ZynqMP PSU target; scan devices again"
     }
 
     set target [lindex $selected 0]
+    set TARGET_ID [dict get $target target_id]
     if { ![dict exists $target jtag_device_index] } {
-        error "XSDB target $target_id has no JTAG device index"
+        error "XSDB target $TARGET_ID has no JTAG device index"
     }
     set TARGET_DEVICE_INDEX [dict get $target jtag_device_index]
     if { [dict exists $target jtag_cable_serial] } {
@@ -63,14 +88,14 @@ proc initialize_target_selector {target_id} {
         set TARGET_CABLE_CTX [dict get $target jtag_cable_ctx]
     }
     if { $TARGET_CABLE_SERIAL eq "" && $TARGET_CABLE_CTX eq "" } {
-        error "XSDB target $target_id has no identifiable JTAG cable"
+        error "XSDB target $TARGET_ID has no identifiable JTAG cable"
     }
 
     set cable $TARGET_CABLE_SERIAL
     if { $cable eq "" } {
         set cable $TARGET_CABLE_CTX
     }
-    puts "Selected XSDB target $target_id on JTAG cable $cable, device $TARGET_DEVICE_INDEX"
+    puts "Selected XSDB target $TARGET_ID on JTAG cable $cable, device $TARGET_DEVICE_INDEX"
 }
 
 proc target_matches_selected_device {target} {
@@ -169,8 +194,8 @@ proc download_env_override {server_ip board_ip address} {
     file delete -force $path
 }
 
-if { [llength $argv] < 2 || [llength $argv] > 4 } {
-    error "Usage: load-jtag-image.tcl <hw-server-url> <tftp-server-ipv4> \[board-ipv4\] \[target-id\]"
+if { [llength $argv] < 2 || [llength $argv] > 6 } {
+    error "Usage: load-jtag-image.tcl <hw-server-url> <tftp-server-ipv4> \[board-ipv4\] \[target-id\] \[target-cable-serial\] \[target-device-index\]"
 }
 
 set HW_SERVER_URL [lindex $argv 0]
@@ -207,6 +232,21 @@ if { [llength $argv] > 3 } {
         error "XSDB target ID must be a positive decimal integer: $TARGET_ID"
     }
 }
+if { [llength $argv] > 4 } {
+    set TARGET_CABLE_SERIAL [lindex $argv 4]
+    if { $TARGET_CABLE_SERIAL eq "" || [regexp {[[:cntrl:]]} $TARGET_CABLE_SERIAL] } {
+        error "JTAG cable serial must be a non-empty single-line string"
+    }
+}
+if { [llength $argv] > 5 } {
+    set TARGET_DEVICE_INDEX [lindex $argv 5]
+    if { ![string is integer -strict $TARGET_DEVICE_INDEX] || $TARGET_DEVICE_INDEX < 0 } {
+        error "JTAG device index must be a non-negative decimal integer: $TARGET_DEVICE_INDEX"
+    }
+    if { $TARGET_CABLE_SERIAL eq "" } {
+        error "JTAG device index requires a target cable serial"
+    }
+}
 
 validate_hw_server_url $HW_SERVER_URL
 validate_ipv4 "TFTP server IP" $SERVER_IP
@@ -223,7 +263,7 @@ foreach name {Image system.dtb rootfs.cpio.gz.u-boot boot.scr} {
 
 puts "Connecting to the Xilinx hw_server at $HW_SERVER_URL"
 connect -url $HW_SERVER_URL
-initialize_target_selector $TARGET_ID
+initialize_target_selector $TARGET_ID $TARGET_CABLE_SERIAL $TARGET_DEVICE_INDEX
 
 if { [catch {pulse_board_srst} message] } {
     error $message
