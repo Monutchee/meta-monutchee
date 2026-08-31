@@ -3,6 +3,7 @@
 # sibling tftp/ directory. This script never stages or modifies the TFTP root.
 # MNC_STATION_TARGET_SELECTOR_V1
 # MNC_STATION_TARGET_SELECTOR_V2
+# MNC_STATION_TARGET_SELECTOR_V3
 #
 # Usage:
 #   load-jtag-image.tcl <hw-server-url> <tftp-server-ipv4> [board-ipv4]
@@ -44,7 +45,7 @@ proc initialize_target_selector {target_id cable_serial device_index} {
     }
     set selected {}
     set observed {}
-    for {set attempt 1} {$attempt <= 10} {incr attempt} {
+    for {set attempt 1} {$attempt <= 20} {incr attempt} {
         set selected {}
         set observed {}
         foreach target [targets -target-properties -nocase -filter {name =~ "*PSU*"}] {
@@ -85,8 +86,8 @@ proc initialize_target_selector {target_id cable_serial device_index} {
         if { [llength $selected] == 1 || [llength $selected] > 1 } {
             break
         }
-        if { $attempt < 10 } {
-            puts "Selected JTAG device is not visible yet; retrying target discovery ($attempt/10)"
+        if { $attempt < 20 } {
+            puts "Selected JTAG device is not visible yet; retrying target discovery ($attempt/20)"
             after 500
         }
     }
@@ -128,40 +129,144 @@ proc initialize_target_selector {target_id cable_serial device_index} {
     puts "Selected XSDB target $TARGET_ID on JTAG cable $cable, device $TARGET_DEVICE_INDEX"
 }
 
-proc target_matches_selected_device {target} {
+proc target_matches_selected_hardware {target scope} {
     global TARGET_CABLE_CTX TARGET_CABLE_SERIAL TARGET_DEVICE_INDEX
 
-    if { ![dict exists $target jtag_device_index] ||
-         [dict get $target jtag_device_index] ne $TARGET_DEVICE_INDEX } {
-        return 0
-    }
+    # ZynqMP exposes the PSU/APU through the ARM DAP and the PMU through a
+    # separate device in the same JTAG cable. Device scope is correct for PSU
+    # and A53 targets; cable scope is required for the MicroBlaze PMU target.
     if { $TARGET_CABLE_SERIAL ne "" } {
-        return [expr {[dict exists $target jtag_cable_serial] &&
-                      [dict get $target jtag_cable_serial] eq $TARGET_CABLE_SERIAL}]
+        set cable_matches [expr {
+            [dict exists $target jtag_cable_serial] &&
+            [dict get $target jtag_cable_serial] eq $TARGET_CABLE_SERIAL
+        }]
+    } else {
+        set cable_matches [expr {
+            [dict exists $target jtag_cable_ctx] &&
+            [dict get $target jtag_cable_ctx] eq $TARGET_CABLE_CTX
+        }]
     }
-    return [expr {[dict exists $target jtag_cable_ctx] &&
-                  [dict get $target jtag_cable_ctx] eq $TARGET_CABLE_CTX}]
+    if { !$cable_matches || $scope eq "cable" } {
+        return $cable_matches
+    }
+    return [expr {
+        [dict exists $target jtag_device_index] &&
+        [dict get $target jtag_device_index] eq $TARGET_DEVICE_INDEX
+    }]
 }
 
-proc select_target {name_pattern} {
+proc summarize_targets {target_list} {
+    set summaries {}
+    foreach target $target_list {
+        set target_id "?"
+        set target_name "?"
+        set cable_serial "?"
+        set device_index "?"
+        if { [dict exists $target target_id] } {
+            set target_id [dict get $target target_id]
+        }
+        if { [dict exists $target name] } {
+            set target_name [dict get $target name]
+        }
+        if { [dict exists $target jtag_cable_serial] } {
+            set cable_serial [dict get $target jtag_cable_serial]
+        }
+        if { [dict exists $target jtag_device_index] } {
+            set device_index [dict get $target jtag_device_index]
+        }
+        lappend summaries "id=$target_id,name=$target_name,cable=$cable_serial,device=$device_index"
+    }
+    if { [llength $summaries] == 0 } {
+        return "none"
+    }
+    return [join $summaries "; "]
+}
+
+proc select_target {name_pattern {scope "device"}} {
     global TARGET_ID
 
-    if { $TARGET_ID eq "" } {
-        targets -set -nocase -filter [format {name =~ "%s"} $name_pattern]
-        return
+    if { $scope ne "device" && $scope ne "cable" } {
+        error "Invalid target selection scope: $scope"
     }
+
     set matches {}
-    foreach target [targets -target-properties] {
-        if { [dict exists $target name] &&
-             [string match -nocase $name_pattern [dict get $target name]] &&
-             [target_matches_selected_device $target] } {
-            lappend matches $target
+    set observed {}
+    set query_error ""
+    for {set attempt 1} {$attempt <= 20} {incr attempt} {
+        set matches {}
+        set observed {}
+        set query_error ""
+        if { [catch {
+            set observed [targets -target-properties -nocase -filter \
+                [format {name =~ "%s"} $name_pattern]]
+        } message] } {
+            set query_error $message
+        } else {
+            foreach target $observed {
+                if { ![dict exists $target name] ||
+                     ![string match -nocase $name_pattern [dict get $target name]] } {
+                    continue
+                }
+                if { $TARGET_ID eq "" ||
+                     [target_matches_selected_hardware $target $scope] } {
+                    lappend matches $target
+                }
+            }
+            if { [llength $matches] == 1 } {
+                set selected_id [dict get [lindex $matches 0] target_id]
+                if { ![catch {targets $selected_id} message] } {
+                    return $selected_id
+                }
+                set query_error "could not select XSDB target $selected_id: $message"
+            }
+        }
+
+        if { $attempt < 20 } {
+            puts "Waiting for $name_pattern target on selected JTAG $scope ($attempt/20)"
+            after 500
         }
     }
-    if { [llength $matches] != 1 } {
-        error "Expected one $name_pattern target on selected JTAG device, found [llength $matches]"
+
+    set suffix ""
+    if { $query_error ne "" } {
+        set suffix "; last XSDB error: $query_error"
     }
-    targets [dict get [lindex $matches 0] target_id]
+    error "Expected one $name_pattern target on selected JTAG $scope, found [llength $matches] (available matching targets: [summarize_targets $observed])$suffix"
+}
+
+proc download_elf_with_retry {label name_pattern path {scope "device"}} {
+    set last_message ""
+    puts $label
+    for {set attempt 1} {$attempt <= 3} {incr attempt} {
+        select_target $name_pattern $scope
+        catch {stop}
+        if { ![catch {dow $path} message] } {
+            return
+        }
+        set last_message $message
+        if { $attempt < 3 } {
+            puts "$label failed; retrying download ($attempt/3): $message"
+            after 500
+        }
+    }
+    error "$label failed after 3 attempts: $last_message"
+}
+
+proc download_data_with_retry {label name_pattern path address {scope "device"}} {
+    set last_message ""
+    puts $label
+    for {set attempt 1} {$attempt <= 3} {incr attempt} {
+        select_target $name_pattern $scope
+        if { ![catch {dow -data $path $address} message] } {
+            return
+        }
+        set last_message $message
+        if { $attempt < 3 } {
+            puts "$label failed; retrying download ($attempt/3): $message"
+            after 500
+        }
+    }
+    error "$label failed after 3 attempts: $last_message"
 }
 
 proc parse_bool {label value} {
@@ -217,11 +322,14 @@ proc download_env_override {server_ip board_ip address} {
     puts -nonewline $channel "\x00"
     close $channel
 
-    if { [catch {dow -data $path $address} message] } {
-        file delete -force $path
-        error "Could not download JTAG environment override: $message"
-    }
+    set status [catch {
+        download_data_with_retry "Downloading JTAG environment override" \
+            "*A53*#0" $path $address
+    } message options]
     file delete -force $path
+    if { $status } {
+        return -options $options $message
+    }
 }
 
 if { [llength $argv] < 2 || [llength $argv] > 6 } {
@@ -316,38 +424,43 @@ select_target "*PSU*"
 mask_write 0xFFCA0038 0x1C0 0x1C0
 
 after 500
-puts "Downloading PMU firmware"
-select_target "*MicroBlaze PMU*"
-catch {stop}
-dow [file join $JTAG_DIR "pmufw.elf"]
+download_elf_with_retry "Downloading PMU firmware" "*MicroBlaze PMU*" \
+    [file join $JTAG_DIR "pmufw.elf"] cable
+select_target "*MicroBlaze PMU*" cable
 con
+after 500
 
 select_target "*A53*#0"
 puts "Resetting A53 processor group before FSBL"
 rst -cores -clear-registers
 after 500
 
-puts "Downloading FSBL"
-dow [file join $JTAG_DIR "fsbl.elf"]
+download_elf_with_retry "Downloading FSBL" "*A53*#0" \
+    [file join $JTAG_DIR "fsbl.elf"]
+select_target "*A53*#0"
 con
 after 4000
+select_target "*A53*#0"
 stop
 
-puts "Downloading TF-A"
-dow [file join $JTAG_DIR "tfa.elf"]
+download_elf_with_retry "Downloading TF-A" "*A53*#0" \
+    [file join $JTAG_DIR "tfa.elf"]
+select_target "*A53*#0"
 con
 after 500
+select_target "*A53*#0"
 stop
 
-dow -data [file join $TFTP_DIR "system.dtb"] 0x100000
+download_data_with_retry "Downloading system DTB" "*A53*#0" \
+    [file join $TFTP_DIR "system.dtb"] 0x100000
 after 500
 
 download_env_override $SERVER_IP $BOARD_IP $MNCOS_JTAG_ENV_ADDR
 mwr $MNCOS_JTAG_ENV_MAGIC_ADDR 0x49504f56
 mwr $MNCOS_JTAG_MAGIC_ADDR 0x4d4e4350
 
-puts "Downloading U-Boot"
-dow [file join $JTAG_DIR "u-boot.elf"]
+download_elf_with_retry "Downloading U-Boot" "*A53*#0" \
+    [file join $JTAG_DIR "u-boot.elf"]
 after 500
 
 puts "Starting automatic MNCOS TFTP boot"
@@ -359,4 +472,5 @@ if { $BOARD_IP eq "" } {
 } else {
     puts "  board:       $BOARD_IP (static)"
 }
+select_target "*A53*#0"
 con
