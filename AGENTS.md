@@ -4,6 +4,11 @@
 
 - This repository contains shared Monutchee distribution/Xilinx layers and
   product layers. Read `README.md` before changing layer structure.
+- Keep the Provisioning Station archive format, deterministic packaging, and
+  manifest schema in `meta-mnc-artifact`; it must remain vendor-neutral.
+- Keep XSDB/JTAG payload selection and the Station loader in
+  `meta-xilinx-addon`. Product identity and source-image selection belong in
+  the product layer.
 - MSAP1-specific image, firmware, recipe, and template policy belongs under
   `meta-msap1/`; read `meta-msap1/README.md` before changing that product.
 - Keep reusable ZynqMP, Kria, and distribution behavior in the appropriate
@@ -120,6 +125,11 @@ bitbake msap1-image
   inspect the generated `build/conf/dts/msap1/pl-overlay-full/pl.dtso`.
 - Do not edit files under `build/tmp`, `build/sstate-cache`, downloads, or other
   generated build output to fix a recipe.
+- `msap1-jtag-image` is the Station-facing RAM-boot artifact target. Its
+  `manifest.json` must cover every regular payload file, and the legacy flat
+  TFTP export must remain functional until its consumers are migrated.
+- Station artifacts remain unsigned in BitBake. Signing keys and
+  `manifest.sig` belong to a protected release pipeline, never a layer recipe.
 
 ## Maintaining this file
 

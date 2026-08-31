@@ -61,6 +61,7 @@ class CreateXilinxProductLayerTests(unittest.TestCase):
             self.assertNotIn("__PRODUCT__", all_text)
             self.assertIn('COMPATIBLE_MACHINE = "^test-product$"', all_text)
             self.assertIn("TestProduct_PL.bit", all_text)
+            self.assertIn("meta-monutchee/meta-mnc-artifact", all_text)
             self.assertTrue(
                 (layer / "recipes-support/test-product-production-flasher/files/mncos-flash-emmc").stat().st_mode
                 & 0o111

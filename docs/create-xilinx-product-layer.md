@@ -61,6 +61,8 @@ python3 scripts/create-xilinx-product-layer.py \
 This creates `meta-msap1` with:
 
 - `conf/layer.conf` and a `conf/templates/default` build template.
+- A build-layer dependency on the vendor-neutral `meta-mnc-artifact` contract
+  used by Xilinx Station artifact recipes.
 - `msap1-image` and `msap1-production-flash-image` targets.
 - A `msap1-dfx-firmware` recipe expecting `MSAP1_PL.bit`, `pl.dtso`,
   `R5c0.elf`, and `R5c1.elf` from the workspace-generated artifacts.
