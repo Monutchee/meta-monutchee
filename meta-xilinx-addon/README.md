@@ -37,5 +37,8 @@ MNC_XILINX_JTAG_FORCE_JTAG_BOOT = "1"
 ```
 
 The Station loader accepts `<hw-server-url> <tftp-server-ipv4>
-[board-ipv4]`, resolves every artifact path relative to its own location, and
-expects the Station to serve the archive's `tftp/` directory directly.
+[board-ipv4] [xsdb-target-id]`, resolves every artifact path relative to its
+own location, and expects the Station to serve the archive's `tftp/` directory
+directly. When a target ID is supplied, every PSU, PMU, and A53 operation is
+scoped to that target's JTAG cable and device index so multiple attached boards
+can be queued safely by the Station.
