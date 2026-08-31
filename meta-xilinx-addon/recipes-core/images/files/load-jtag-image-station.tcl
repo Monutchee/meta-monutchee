@@ -43,36 +43,66 @@ proc initialize_target_selector {target_id cable_serial device_index} {
         return
     }
     set selected {}
-    foreach target [targets -target-properties] {
-        if { ![dict exists $target name] ||
-             ![string match -nocase "*PSU*" [dict get $target name]] } {
-            continue
+    set observed {}
+    for {set attempt 1} {$attempt <= 10} {incr attempt} {
+        set selected {}
+        set observed {}
+        foreach target [targets -target-properties -nocase -filter {name =~ "*PSU*"}] {
+            if { ![dict exists $target name] ||
+                 ![string match -nocase "*PSU*" [dict get $target name]] } {
+                continue
+            }
+            set observed_id "?"
+            set observed_serial "?"
+            set observed_index "?"
+            if { [dict exists $target target_id] } {
+                set observed_id [dict get $target target_id]
+            }
+            if { [dict exists $target jtag_cable_serial] } {
+                set observed_serial [dict get $target jtag_cable_serial]
+            }
+            if { [dict exists $target jtag_device_index] } {
+                set observed_index [dict get $target jtag_device_index]
+            }
+            lappend observed "id=$observed_id,cable=$observed_serial,device=$observed_index"
+
+            if { $cable_serial ne "" } {
+                if { ![dict exists $target jtag_cable_serial] ||
+                     [dict get $target jtag_cable_serial] ne $cable_serial } {
+                    continue
+                }
+                if { $device_index ne "" &&
+                     (![dict exists $target jtag_device_index] ||
+                      [dict get $target jtag_device_index] ne $device_index) } {
+                    continue
+                }
+                lappend selected $target
+            } elseif { [dict exists $target target_id] &&
+                       [dict get $target target_id] eq $target_id } {
+                lappend selected $target
+            }
         }
-        if { $cable_serial ne "" } {
-            if { ![dict exists $target jtag_cable_serial] ||
-                 [dict get $target jtag_cable_serial] ne $cable_serial } {
-                continue
-            }
-            if { $device_index ne "" &&
-                 (![dict exists $target jtag_device_index] ||
-                  [dict get $target jtag_device_index] ne $device_index) } {
-                continue
-            }
-            lappend selected $target
-        } elseif { [dict exists $target target_id] &&
-                   [dict get $target target_id] eq $target_id } {
-            lappend selected $target
+        if { [llength $selected] == 1 || [llength $selected] > 1 } {
+            break
+        }
+        if { $attempt < 10 } {
+            puts "Selected JTAG device is not visible yet; retrying target discovery ($attempt/10)"
+            after 500
         }
     }
     if { [llength $selected] != 1 } {
+        set available "none"
+        if { [llength $observed] > 0 } {
+            set available [join $observed "; "]
+        }
         if { $cable_serial ne "" } {
             set suffix ""
             if { $device_index ne "" } {
                 set suffix ", device $device_index"
             }
-            error "Expected one ZynqMP PSU target on JTAG cable $cable_serial$suffix, found [llength $selected]"
+            error "Expected one ZynqMP PSU target on JTAG cable $cable_serial$suffix, found [llength $selected] (available PSU targets: $available)"
         }
-        error "XSDB target $target_id is not one ZynqMP PSU target; scan devices again"
+        error "XSDB target $target_id is not one ZynqMP PSU target (available PSU targets: $available); scan devices again"
     }
 
     set target [lindex $selected 0]

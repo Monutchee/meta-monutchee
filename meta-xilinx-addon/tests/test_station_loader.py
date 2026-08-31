@@ -46,10 +46,15 @@ set ::target_properties [list \\
     [dict create target_id 12 name {{MicroBlaze PMU}} jtag_device_index 0 jtag_device_name xczu4ev jtag_cable_ctx cable-b jtag_cable_serial SERIAL-B] \\
     [dict create target_id 13 name {{Cortex-A53 #0}} jtag_device_index 0 jtag_device_name xczu4ev jtag_cable_ctx cable-b jtag_cable_serial SERIAL-B]]
 set ::selected_targets {{}}
+set ::target_property_queries 0
 proc connect {{args}} {{}}
 proc disconnect {{args}} {{}}
 proc targets {{args}} {{
     if {{[lsearch -exact $args -target-properties] >= 0}} {{
+        incr ::target_property_queries
+        if {{$::target_property_queries == 1}} {{
+            return {{}}
+        }}
         return $::target_properties
     }}
     if {{[llength $args] == 1 && [string is integer -strict [lindex $args 0]]}} {{
@@ -71,11 +76,16 @@ puts "MNC_SELECTED_TARGETS:[join $::selected_targets ,]"
             )
             result = subprocess.run(
                 [tclsh, str(harness)],
-                check=True,
+                check=False,
                 capture_output=True,
                 text=True,
             )
+            self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("MNC_SELECTED_TARGETS:11,11,12,13", result.stdout)
+            self.assertIn(
+                "Selected JTAG device is not visible yet; retrying target discovery",
+                result.stdout,
+            )
 
     def test_station_loader_never_uses_legacy_tftp_root(self) -> None:
         source = LOADER.read_text(encoding="utf-8")
