@@ -1,0 +1,36 @@
+[Unit]
+Description=MSAP1 reliable meter-data sender
+Requires=msap1-settings.service msap1-meter-historian.service
+Wants=network-online.target
+After=network-online.target msap1-settings.service msap1-meter-historian.service data.mount systemd-tmpfiles-setup.service
+RequiresMountsFor=/data/mnc/data-sender
+
+[Service]
+Type=notify
+SyslogIdentifier=msap1-data-sender
+LogExtraFields=MNC_COMPONENT=data-sender
+StandardOutput=journal
+StandardError=journal
+NotifyAccess=main
+WatchdogSec=20s
+User=mnc-data-sender
+Group=mnc-data
+SupplementaryGroups=mnc-settings
+UMask=0077
+ExecStart=/usr/bin/msap1-data-sender
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=2s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/data/mnc/data-sender /run/monutchee/data-sender
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

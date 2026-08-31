@@ -45,6 +45,7 @@ MNC_GID_WEB       = "784"
 MNC_UID_WEB       = "784"
 MNC_UID_MODBUS    = "785"
 MNC_UID_MQTT      = "786"
+MNC_UID_DATA_SENDER = "787"
 
 # Shared shape for every MNC service account: no login, no home directory.
 MNC_SYSTEM_ACCOUNT = "--system --home /nonexistent --no-create-home --shell /sbin/nologin"
@@ -54,6 +55,7 @@ MNC_SYSTEM_ACCOUNT = "--system --home /nonexistent --no-create-home --shell /sbi
 # mnc-web      - the network-facing web/proxy identity
 # mnc-modbus   - the field-protocol identity; reads acquisition/settings IPC
 # mnc-mqtt     - the outbound MQTT publisher; reads snapshots/settings IPC
+# mnc-data-sender - outbound historian exporter; owns its durable outbox
 MNC_GROUPADD_SHARED = "--system --gid ${MNC_GID_DATA} mnc-data; \
     --system --gid ${MNC_GID_SETTINGS} mnc-settings; \
     --system --gid ${MNC_GID_WEB} mnc-web"
@@ -66,4 +68,5 @@ MNC_USERADD_SHARED = "${MNC_SYSTEM_ACCOUNT} --uid ${MNC_UID_SETTINGS} --gid mnc-
     ${MNC_SYSTEM_ACCOUNT} --uid ${MNC_UID_HISTORIAN} --gid mnc-data mnc-historian; \
     ${MNC_SYSTEM_ACCOUNT} --uid ${MNC_UID_WEB} --gid mnc-web mnc-web; \
     ${MNC_SYSTEM_ACCOUNT} --uid ${MNC_UID_MODBUS} --gid mnc-data mnc-modbus; \
-    ${MNC_SYSTEM_ACCOUNT} --uid ${MNC_UID_MQTT} --gid mnc-data --groups mnc-settings mnc-mqtt"
+    ${MNC_SYSTEM_ACCOUNT} --uid ${MNC_UID_MQTT} --gid mnc-data --groups mnc-settings mnc-mqtt; \
+    ${MNC_SYSTEM_ACCOUNT} --uid ${MNC_UID_DATA_SENDER} --gid mnc-data --groups mnc-settings mnc-data-sender"

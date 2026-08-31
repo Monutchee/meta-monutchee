@@ -22,6 +22,7 @@ SRC_URI:append = " \
     file://msap1-fpga-acquisition.service \
     file://msap1-meter-stream.service \
     file://msap1-meter-historian.service \
+    file://msap1-data-sender.service \
     file://msap1-settings.service \
     file://msap1-service-manager.service \
     file://msap1-modbus-server.service \
@@ -38,12 +39,13 @@ PV = "${@'1.0+local' if d.getVar('MSAP1_APU_APP_SRC') == 'local_inst' else '1.0+
 
 S = "${WORKDIR}/git"
 
-DEPENDS:append = " boost openssl paho-mqtt-cpp sqlite3 systemd"
+DEPENDS:append = " boost curl openssl paho-mqtt-cpp sqlite3 systemd"
 # mnc-users owns every account the units below run as (mnc-settings, mnc-stream,
-# mnc-historian, mnc-web, mnc-modbus, mnc-mqtt) and their groups. This recipe deliberately declares no
+# mnc-historian, mnc-web, mnc-modbus, mnc-mqtt, mnc-data-sender) and their
+# groups. This recipe deliberately declares no
 # accounts of its own: the ids are pinned in one place, and a second declaration
 # here could only drift from it. See meta-mncos/conf/include/mnc-identities.inc.
-RDEPENDS:${PN}:append = " boost-system ca-certificates sqlite3 mnc-users nginx openssl-bin libsystemd msap1-web msap1-dfx-firmware ${PN}-bash-completion"
+RDEPENDS:${PN}:append = " boost-system ca-certificates libcurl libssh2 sqlite3 mnc-users nginx openssl-bin libsystemd msap1-web msap1-dfx-firmware ${PN}-bash-completion"
 
 inherit bash-completion cmake externalsrc pkgconfig systemd
 
@@ -54,10 +56,11 @@ EXTERNALSRC_BUILD = "${WORKDIR}/build"
 EXTRA_OECMAKE = " \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_TESTING=OFF \
+    -DMNC_DATA_SENDER_REQUIRE_CURL=ON \
     -DMNC_LOGGING_REQUIRE_SYSTEMD=ON \
 "
 
-SYSTEMD_SERVICE:${PN} = "msap1-settings.service msap1-meter-stream.service msap1-meter-historian.service msap1-fpga-acquisition.service msap1-modbus-server.service msap1-web-backend.service msap1-service-manager.service"
+SYSTEMD_SERVICE:${PN} = "msap1-settings.service msap1-meter-stream.service msap1-meter-historian.service msap1-data-sender.service msap1-fpga-acquisition.service msap1-modbus-server.service msap1-web-backend.service msap1-service-manager.service"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 
 # EXTERNALSRC/local_inst bypasses fetch/unpack checksums. Include the APU-owned
@@ -73,6 +76,8 @@ do_install:append() {
         ${D}${systemd_system_unitdir}/msap1-meter-stream.service
     install -m 0644 ${WORKDIR}/msap1-meter-historian.service \
         ${D}${systemd_system_unitdir}/msap1-meter-historian.service
+    install -m 0644 ${WORKDIR}/msap1-data-sender.service \
+        ${D}${systemd_system_unitdir}/msap1-data-sender.service
     install -m 0644 ${WORKDIR}/msap1-settings.service \
         ${D}${systemd_system_unitdir}/msap1-settings.service
     install -m 0644 ${WORKDIR}/msap1-service-manager.service \
@@ -125,6 +130,7 @@ FILES:${PN}:append = " \
     ${systemd_system_unitdir}/msap1-fpga-acquisition.service \
     ${systemd_system_unitdir}/msap1-meter-stream.service \
     ${systemd_system_unitdir}/msap1-meter-historian.service \
+    ${systemd_system_unitdir}/msap1-data-sender.service \
     ${systemd_system_unitdir}/msap1-settings.service \
     ${systemd_system_unitdir}/msap1-service-manager.service \
     ${systemd_system_unitdir}/msap1-modbus-server.service \

@@ -1,7 +1,7 @@
 SUMMARY = "MNC service users and groups"
 DESCRIPTION = "Creates every system account that MNC software runs as, or that \
 owns MNC state: mnc-data, mnc-settings, mnc-stream, mnc-historian, mnc-web, \
-mnc-modbus and mnc-mqtt. \
+mnc-modbus, mnc-mqtt and mnc-data-sender. \
 Provided at the OS level so the accounts exist independently of any one \
 application package, and so their pinned uid/gid values are declared in exactly \
 one place. Consumers add this to RDEPENDS rather than declaring accounts \
