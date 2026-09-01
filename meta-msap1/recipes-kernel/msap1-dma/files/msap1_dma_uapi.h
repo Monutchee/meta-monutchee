@@ -108,6 +108,58 @@ struct msap1_dma_ten_minute_boundary {
 	__u32 reserved;
 };
 
+/**
+ * struct msap1_dma_frequency_10s_boundary - one UTC ten-second interval.
+ *
+ * Userspace writes the complete input tuple and the driver commits it to the
+ * PL shadow register bank atomically.  The observer accepts one active and one
+ * queued tuple, so the next interval may be installed while the current one
+ * is still being measured.  Observer state and counters are populated by the
+ * driver after the commit and are outputs only.
+ *
+ * @start_sample_index:          inclusive interval start in the free-running
+ *                               conversion sample domain.
+ * @end_sample_index:            exclusive interval end in that domain.
+ * @utc_start_nanoseconds:       UTC start, aligned to a ten-second boundary.
+ * @utc_end_nanoseconds:         UTC end; exactly ten seconds after start.
+ * @utc_uncertainty_nanoseconds: combined UTC/correlation uncertainty bound.
+ * @measured_sample_rate_millihz: rate used to map UTC into sample indices.
+ * @boundary_generation:        non-zero userspace sequence for this tuple.
+ * @profile:                    nominal Hz in bits 7:0, reference channel in
+ *                               15:8, filter profile in 23:16 and calibration
+ *                               profile in 31:24.
+ * @flags:                      bit 0 boundary-valid, bit 1 UTC-synchronized;
+ *                               bit 2 cancels active/queued tuples and must be
+ *                               used alone with an otherwise-zero input tuple.
+ * @observer_status:            live PL observer state after the commit.
+ * @completed_count:            intervals serialized by the observer.
+ * @dropped_count:              overwritten/undeliverable interval count.
+ * @overflow_count:             crossing-storage overflow count.
+ * @discontinuity_count:        observed conversion discontinuity count.
+ * @reserved:                   must be zero.
+ */
+struct msap1_dma_frequency_10s_boundary {
+	__u64 start_sample_index;
+	__u64 end_sample_index;
+	__u64 utc_start_nanoseconds;
+	__u64 utc_end_nanoseconds;
+	__u64 utc_uncertainty_nanoseconds;
+	__u32 measured_sample_rate_millihz;
+	__u32 boundary_generation;
+	__u32 profile;
+	__u32 flags;
+	__u32 observer_status;
+	__u32 completed_count;
+	__u32 dropped_count;
+	__u32 overflow_count;
+	__u32 discontinuity_count;
+	__u32 reserved;
+};
+
+#define MSAP1_DMA_FREQUENCY_10S_BOUNDARY_VALID (1U << 0)
+#define MSAP1_DMA_FREQUENCY_10S_TIME_SYNCHRONIZED (1U << 1)
+#define MSAP1_DMA_FREQUENCY_10S_CANCEL (1U << 2)
+
 /** Ioctl magic shared by both acquisition devices ('W' predates the merge). */
 #define MSAP1_DMA_IOC_MAGIC 'W'
 
@@ -137,5 +189,15 @@ struct msap1_dma_ten_minute_boundary {
 #define MSAP1_DMA_IOC_SET_TEN_MINUTE_BOUNDARY \
 	_IOW(MSAP1_DMA_IOC_MAGIC, 0x03, \
 	     struct msap1_dma_ten_minute_boundary)
+
+/**
+ * MSAP1_DMA_IOC_SET_FREQUENCY_10S_BOUNDARY - commit one coherent interval.
+ *
+ * Waveform device only.  The driver verifies every writable register and the
+ * PL update-toggle readback before returning the live observer counters.
+ */
+#define MSAP1_DMA_IOC_SET_FREQUENCY_10S_BOUNDARY \
+	_IOWR(MSAP1_DMA_IOC_MAGIC, 0x04, \
+	      struct msap1_dma_frequency_10s_boundary)
 
 #endif /* MSAP1_DMA_UAPI_H */

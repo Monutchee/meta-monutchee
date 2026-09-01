@@ -82,6 +82,7 @@
 static_assert(sizeof(struct msap1_dma_correlation) == 32);
 static_assert(sizeof(struct msap1_dma_transport_status) == 32);
 static_assert(sizeof(struct msap1_dma_ten_minute_boundary) == 16);
+static_assert(sizeof(struct msap1_dma_frequency_10s_boundary) == 80);
 
 /**
  * msap1_dma_usable_periods() - consumer-visible ring capacity.
