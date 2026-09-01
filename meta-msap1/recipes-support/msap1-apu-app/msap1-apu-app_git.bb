@@ -117,13 +117,16 @@ do_install:append() {
     install -m 0644 ${WORKDIR}/60-msap1-journal.conf \
         ${D}${sysconfdir}/systemd/journald.conf.d/60-msap1-journal.conf
 
-    # The documentation recipe runs the target-built exporter under QEMU so
-    # its workbook always describes the exact register table compiled into
-    # this APU build.  /sysroot-only is staged for dependent recipes but is
-    # excluded from target packages by OpenEmbedded's package class.
+    # Documentation recipes run target-built exporters under QEMU so their
+    # outputs describe the exact contracts compiled into this APU build.
+    # /sysroot-only is staged for dependent recipes but excluded from target
+    # packages by OpenEmbedded's package class.
     install -d ${D}/sysroot-only${bindir}
     install -m 0755 ${D}${bindir}/modbus-map-dump \
         ${D}/sysroot-only${bindir}/modbus-map-dump
+    install -m 0755 \
+        ${B}/apps/MeterCore/Tools/openapi-dump/msap1-openapi-dump \
+        ${D}/sysroot-only${bindir}/msap1-openapi-dump
 }
 
 FILES:${PN}:append = " \

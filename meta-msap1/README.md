@@ -179,27 +179,51 @@ them automatically.
 The generator does not create component repositories, XSA files, RPU firmware,
 or generated machine configuration.
 
-## Generated Modbus register documentation
+## Generated product API documentation
 
 The `msap1-modbus-register-doc` recipe runs the target-built
 `modbus-map-dump --format json` executable under Yocto's QEMU wrapper and
-renders the authoritative register map as a single-sheet Excel workbook:
+renders the authoritative register map as a single-sheet Excel workbook. The
+parallel `msap1-openapi-doc` recipe runs the target-built
+`msap1-openapi-dump` validator/exporter under QEMU and writes the complete
+OpenAPI 3.1 contract. The developer-facing build outputs are:
 
 ```text
 build/export/docs/msap1_modbus_registers.xlsx
+build/export/docs/msap1_api.yaml
 ```
 
-The document is generated automatically by `msap1-image` and `populate_sdk`,
-or independently with:
+Both documents are generated automatically by `msap1-image` and
+`populate_sdk`, or independently with:
 
 ```sh
-bitbake msap1-modbus-register-doc
+bitbake msap1-modbus-register-doc msap1-openapi-doc
 ```
 
 The workbook contains the hexadecimal and decimal register range, data type,
 function code, access type, and fully qualified meter attribute for every
 exported register definition. The Python generator uses only the standard
 library; it does not maintain a second Modbus table in the Yocto layer.
+
+The two recipes also package immutable copies in the product image:
+
+```text
+/usr/share/monutchee/msap1/docs/msap1_modbus_registers.xlsx
+/usr/share/monutchee/msap1/docs/msap1_api.yaml
+```
+
+`msap1-openapi-dump` itself is staged only under the APU recipe's
+`/sysroot-only` area, so it is available to QEMU during the build but absent
+from the root filesystem. The Web backend only downloads the packaged files;
+it never generates either document at runtime.
+
+When adding an HTTP operation, add its method, path, role, handler, and summary
+to the APU `route_table`, then attach its named Glaze request/response DTOs,
+parameters, status responses, content types, and examples in that route
+module's `document_*_routes()` function. The route table is consumed by both
+WebEngine registration and the OpenAPI adapter, so a method/path is declared
+once; contract validation fails the build when any imported route lacks a
+success response or has incomplete or conflicting metadata.
 
 ## Web interface source selection
 

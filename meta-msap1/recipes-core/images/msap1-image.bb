@@ -13,6 +13,8 @@ MSAP1_ENABLE_DEBUGAI ?= "0"
 IMAGE_INSTALL:append = " \
     msap1-apu-app \
     msap1-web \
+    msap1-openapi-doc \
+    msap1-modbus-register-doc \
     msap1-dma \
     dfx-mgr \
     msap1-dfx-firmware \
@@ -29,10 +31,13 @@ JTAG_LOADER_TCL = "${XILINX_ADDON_LAYERDIR}/recipes-core/images/files/load-jtag-
 JTAG_LOADER_FORCE_JTAG_BOOT = "1"
 do_copy_tftpboot[file-checksums] += "${JTAG_LOADER_TCL}:True"
 
-# Generate build-time product documentation without installing the workbook
-# into the target root filesystem.
+# Export the same immutable product documentation installed in the rootfs.
 do_build[depends] += " \
+    msap1-openapi-doc:do_export_docs \
     msap1-modbus-register-doc:do_export_docs \
     msap1-jtag-image:do_export_provision_image \
 "
-do_populate_sdk[depends] += "msap1-modbus-register-doc:do_export_docs"
+do_populate_sdk[depends] += " \
+    msap1-openapi-doc:do_export_docs \
+    msap1-modbus-register-doc:do_export_docs \
+"
