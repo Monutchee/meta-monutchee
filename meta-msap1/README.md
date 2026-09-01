@@ -72,8 +72,9 @@ UTC build time.
 
 `msap1-image` includes the `msap1_dma` kernel module (one shared DMA
 transport core serving both acquisition devices) plus `msap1-apu-app`. The package installs the `mnc` diagnostic CLI
-with Bash completion and enables the settings, acquisition, web-backend, and
-product service-manager units. `msap1-fpga-acquisition.service` owns both DMAengine
+with Bash completion and enables the settings, acquisition, historian,
+Data Sender, web-backend, and product service-manager units.
+`msap1-fpga-acquisition.service` owns both DMAengine
 channels, publishes typed latest meter snapshots for IPC consumers, and
 retains 128 MiB of raw waveform history. Latest snapshots are intentionally
 lossy and do not provide historian durability. Completed triggered waveform files are written below persistent
@@ -98,6 +99,23 @@ source as `/usr/share/monutchee/msap1/settings/factory-defaults.json`.
 active settings document and separate secret persistence. The layer defines only users,
 permissions, service ordering, and directory creation; it does not duplicate
 product default values or migrate legacy `/etc` ADC profiles.
+
+M19 installs `msap1-data-sender` as the append-only UID 787 identity with the
+`mnc-data` primary group and only the `mnc-settings` supplementary access needed
+for runtime credential resolution. Tmpfiles creates
+`/run/monutchee/data-sender` mode 0750 and `/data/mnc/data-sender` mode 0700,
+including recursive ownership repair for upgrades. The systemd unit requires
+the settings and historian services plus `/data`, restricts writable paths to
+those two directories, limits address families to Unix/IPv4/IPv6, and enables
+watchdog/restart hardening.
+
+The APU recipe builds the production transport adapter against libcurl and
+requires target curl with libssh2. The image carries `curl`, `libcurl4`,
+`libssh2-1`, and CA certificates so HTTP, HTTPS, FTP, and SFTP are available.
+Generated-file downloads are streamed through the authenticated Web backend;
+the layer deliberately installs no nginx alias or directory listing for the
+Data Sender state directory. Schema-v5 factory settings continue to be
+installed directly from the APU source rather than duplicated in a recipe.
 
 The image keeps systemd-journald as the single product log store. MSAP1
 configures persistent storage with a 32 MiB maximum and seven-day retention.

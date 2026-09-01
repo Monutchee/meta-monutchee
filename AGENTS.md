@@ -44,6 +44,17 @@
   degrades only MQTT and must never stop acquisition. Passwords and private-key
   passphrases stay in the settings secret store, while TLS assets are exposed
   to the publisher only as protected runtime files.
+- `msap1-data-sender` is the always-installed M19 historian export service.
+  Keep its append-only numeric identity stable, its primary data-group and
+  supplementary settings-group access minimal, and its persistent/runtime
+  directories owned through restrictive tmpfiles rules. The unit must require
+  settings, historian, `/data`, and network-online ordering without making
+  acquisition depend on outbound delivery health.
+- Build the Data Sender transport adapter with libcurl and keep target curl's
+  HTTP, HTTPS, FTP, and SFTP protocols enabled through libssh2. Retain CA
+  certificates. Generated files remain behind authenticated, manifest-
+  authorized backend streaming; never package an unauthenticated nginx alias
+  or raw listing for `/data/mnc/data-sender`.
 - `msap1-modbus-register-doc` runs the APU's authoritative target-built
   `modbus-map-dump` under QEMU and exports a single-sheet Excel register map to
   `export/docs`. Keep the workbook generator in the product layer and do not
