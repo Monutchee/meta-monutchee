@@ -503,7 +503,7 @@ static __poll_t msap1_dma_poll(struct file *file, poll_table *wait)
  *
  * %MSAP1_DMA_IOC_TRANSPORT_STATUS is answered here for every variant so
  * both devices expose identical transport diagnostics.  Anything else goes
- * to the variant hook (the waveform correlation latch lives there).
+ * to an optional variant hook; variants without one return -ENOTTY.
  *
  * Return: 0 on success, -ENOTTY for unknown requests, or a negative errno.
  */

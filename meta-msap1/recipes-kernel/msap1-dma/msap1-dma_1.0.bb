@@ -1,7 +1,7 @@
 SUMMARY = "MSAP1 PL acquisition DMAengine consumers"
 DESCRIPTION = "One kernel module with a shared AXI DMA S2MM transport core \
 exposing PL meter result records through /dev/msap1-meter and raw waveform \
-blocks with PL time correlation through /dev/msap1-waveform."
+blocks through /dev/msap1-waveform."
 LICENSE = "GPL-2.0-only"
 LIC_FILES_CHKSUM = "file://COPYING;md5=53cbd03cc56142008ba1bda05f2ecea2"
 

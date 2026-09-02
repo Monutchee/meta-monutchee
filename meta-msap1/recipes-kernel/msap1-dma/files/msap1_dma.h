@@ -5,7 +5,7 @@
  *
  * The module drives two PL AXI DMA S2MM streams with one shared transport
  * core (msap1_dma_core.c).  Everything device-specific — period geometry,
- * register-bank access and extra ioctls — lives behind one variant
+ * register-bank access and producer lifecycle — lives behind one variant
  * descriptor per compatible string:
  *
  *   "monutchee,msap1-meter-dma"    -> msap1_dma_meter_variant
@@ -56,7 +56,7 @@ struct msap1_dma_file;
  *                  open().
  * @disarm:         stop the PL-side producer.  Called in release() and at
  *                  driver remove, strictly before terminating the DMA.
- * @ioctl:          variant-specific ioctls.  The core handles
+ * @ioctl:          optional variant-specific ioctls.  The core handles
  *                  %MSAP1_DMA_IOC_TRANSPORT_STATUS itself and delegates
  *                  every other request here; return -ENOTTY for unknown
  *                  requests.

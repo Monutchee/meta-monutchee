@@ -16,6 +16,9 @@ IMAGE_INSTALL:append = " \
     msap1-openapi-doc \
     msap1-modbus-register-doc \
     msap1-dma \
+    meter-time \
+    linuxptp \
+    meter-time-sync \
     dfx-mgr \
     msap1-dfx-firmware \
     lmsensors-config-kria-fancontrol \

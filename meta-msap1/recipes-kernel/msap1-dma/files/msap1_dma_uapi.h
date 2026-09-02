@@ -11,8 +11,9 @@
  *    A read() size smaller than one period fails with -EINVAL.
  *  - poll()/select() signal EPOLLIN when at least one completed period is
  *    available.
- *  - The ioctls below report transport health and, on the waveform device,
- *    correlate the PL timebase with CLOCK_TAI.
+ *  - The transport-status ioctl below reports DMA health. Historical time
+ *    ioctl numbers remain declared for source compatibility but both DMA
+ *    devices return -ENOTTY; new software uses /dev/meter-time.
  *
  * ABI stability: the structure layouts and ioctl request numbers predate the
  * consolidation of the meter and waveform drivers into one module and are
@@ -28,10 +29,8 @@
 /**
  * struct msap1_dma_correlation - one atomic PL/TAI timebase correlation.
  *
- * Produced by %MSAP1_DMA_IOC_CORRELATE.  The driver reads CLOCK_TAI, latches
- * the PL tick counter and frame sequence with a single register write, then
- * reads CLOCK_TAI again.  Userspace derives the correlation midpoint and its
- * uncertainty from the two bracketing timestamps.
+ * Legacy layout retained so old clients still compile. The DMA driver no
+ * longer implements this operation; use the neutral meter-time UAPI.
  *
  * @tai_before_nanoseconds: CLOCK_TAI immediately before the PL latch write.
  * @tai_after_nanoseconds:  CLOCK_TAI immediately after the latched values
@@ -92,10 +91,8 @@ struct msap1_dma_transport_status {
 /**
  * struct msap1_dma_ten_minute_boundary - next UTC-aligned aggregation close.
  *
- * Userspace derives @target_sample_index from an atomic PL/CLOCK_TAI
- * correlation and the next UTC ten-minute boundary.  The waveform register
- * bank is also the system timebase-control bank, so this ioctl is intentionally
- * exposed on /dev/msap1-waveform rather than the meter DMA device.
+ * Legacy layout retained so old clients still compile. Time scheduling is no
+ * longer coupled to the waveform register bank.
  *
  * @target_sample_index: first sample index at or after the desired UTC
  *                       boundary.
@@ -111,11 +108,8 @@ struct msap1_dma_ten_minute_boundary {
 /**
  * struct msap1_dma_frequency_10s_boundary - one UTC ten-second interval.
  *
- * Userspace writes the complete input tuple and the driver commits it to the
- * PL shadow register bank atomically.  The observer accepts one active and one
- * queued tuple, so the next interval may be installed while the current one
- * is still being measured.  Observer state and counters are populated by the
- * driver after the commit and are outputs only.
+ * Legacy layout retained so old clients still compile. The dedicated
+ * /dev/meter-time endpoint owns the current interval-control ABI.
  *
  * @start_sample_index:          inclusive interval start in the free-running
  *                               conversion sample domain.
@@ -166,8 +160,8 @@ struct msap1_dma_frequency_10s_boundary {
 /**
  * MSAP1_DMA_IOC_CORRELATE - latch and return one PL/TAI correlation sample.
  *
- * Waveform device only; the meter device returns -ENOTTY because only the
- * waveform PL peripheral exposes the latch register bank.
+ * Reserved legacy request. Both DMA devices return -ENOTTY; use
+ * METER_TIME_IOC_CORRELATE on /dev/meter-time.
  */
 #define MSAP1_DMA_IOC_CORRELATE \
 	_IOR(MSAP1_DMA_IOC_MAGIC, 0x01, struct msap1_dma_correlation)
@@ -183,8 +177,7 @@ struct msap1_dma_frequency_10s_boundary {
 /**
  * MSAP1_DMA_IOC_SET_TEN_MINUTE_BOUNDARY - program the next PL close target.
  *
- * Waveform device only.  The driver commits the 64-bit target atomically to
- * PL and verifies the active readback before returning success.
+ * Reserved legacy request. Both DMA devices return -ENOTTY.
  */
 #define MSAP1_DMA_IOC_SET_TEN_MINUTE_BOUNDARY \
 	_IOW(MSAP1_DMA_IOC_MAGIC, 0x03, \
@@ -193,8 +186,7 @@ struct msap1_dma_frequency_10s_boundary {
 /**
  * MSAP1_DMA_IOC_SET_FREQUENCY_10S_BOUNDARY - commit one coherent interval.
  *
- * Waveform device only.  The driver verifies every writable register and the
- * PL update-toggle readback before returning the live observer counters.
+ * Reserved legacy request. Both DMA devices return -ENOTTY.
  */
 #define MSAP1_DMA_IOC_SET_FREQUENCY_10S_BOUNDARY \
 	_IOWR(MSAP1_DMA_IOC_MAGIC, 0x04, \
