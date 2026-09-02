@@ -1,2 +1,3 @@
 KERNEL=="msap1-meter", GROUP="mnc-data", MODE="0660"
 KERNEL=="msap1-waveform", GROUP="mnc-data", MODE="0660"
+KERNEL=="meter-time", GROUP="mnc-data", MODE="0660"

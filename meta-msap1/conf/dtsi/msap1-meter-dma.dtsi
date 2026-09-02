@@ -48,9 +48,9 @@
 	};
 
 	/*
-	 * The driver owns both the waveform DMA channel and the small AXI-Lite
-	 * register bank used to atomically correlate CLOCK_TAI with PL tick and
-	 * frame sequence. Raw history remains in daemon-owned DDR.
+	 * The driver owns the waveform DMA channel and its stream-control bank.
+	 * Time correlation is intentionally isolated in meter-time-control below.
+	 * Raw history remains in daemon-owned DDR.
 	 *
 	 * Ring depth is stated here rather than left to the driver default:
 	 * 256 32832-byte blocks (~8 MiB coherent) give the daemon ~2 s of
@@ -63,6 +63,12 @@
 		dmas = <&MeterLogic_Meter_DMA_Waveform_AXI_grp_Waveform_DMA 1>;
 		dma-names = "rx";
 		monutchee,ring-blocks = <256>;
+		status = "okay";
+	};
+
+	meter_time_control: meter-time-control@b00a0000 {
+		compatible = "monutchee,meter-time-control";
+		reg = <0x0 0xb00a0000 0x0 0x10000>;
 		status = "okay";
 	};
 };

@@ -36,6 +36,12 @@ do_compile() {
         --output ${MODBUS_REGISTER_WORKBOOK}
 }
 
+do_install() {
+    install -d ${D}${datadir}/monutchee/msap1/docs
+    install -m 0644 ${MODBUS_REGISTER_WORKBOOK} \
+        ${D}${datadir}/monutchee/msap1/docs/${MACHINE}_modbus_registers.xlsx
+}
+
 do_export_docs() {
     install -d ${MODBUS_DOCUMENT_EXPORT_DIR}
     install -m 0644 ${MODBUS_REGISTER_WORKBOOK} \
@@ -49,4 +55,4 @@ do_export_docs[nostamp] = "1"
 PSEUDO_IGNORE_PATHS .= ",${MODBUS_DOCUMENT_EXPORT_DIR}"
 addtask export_docs after do_compile before do_build
 
-ALLOW_EMPTY:${PN} = "1"
+FILES:${PN} = "${datadir}/monutchee/msap1/docs/${MACHINE}_modbus_registers.xlsx"

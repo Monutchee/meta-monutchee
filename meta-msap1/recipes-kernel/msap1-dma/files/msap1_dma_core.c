@@ -82,6 +82,7 @@
 static_assert(sizeof(struct msap1_dma_correlation) == 32);
 static_assert(sizeof(struct msap1_dma_transport_status) == 32);
 static_assert(sizeof(struct msap1_dma_ten_minute_boundary) == 16);
+static_assert(sizeof(struct msap1_dma_frequency_10s_boundary) == 80);
 
 /**
  * msap1_dma_usable_periods() - consumer-visible ring capacity.
@@ -502,7 +503,7 @@ static __poll_t msap1_dma_poll(struct file *file, poll_table *wait)
  *
  * %MSAP1_DMA_IOC_TRANSPORT_STATUS is answered here for every variant so
  * both devices expose identical transport diagnostics.  Anything else goes
- * to the variant hook (the waveform correlation latch lives there).
+ * to an optional variant hook; variants without one return -ENOTTY.
  *
  * Return: 0 on success, -ENOTTY for unknown requests, or a negative errno.
  */
