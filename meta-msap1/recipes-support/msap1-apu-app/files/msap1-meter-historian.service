@@ -6,6 +6,7 @@ RequiresMountsFor=/data/mnc/database/meter-historian
 
 [Service]
 Type=notify
+Nice=5
 SyslogIdentifier=msap1-meter-historian
 LogExtraFields=MNC_COMPONENT=meter-historian
 StandardOutput=journal

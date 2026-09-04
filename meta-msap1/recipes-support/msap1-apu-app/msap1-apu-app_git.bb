@@ -39,7 +39,9 @@ PV = "${@'1.0+local' if d.getVar('MSAP1_APU_APP_SRC') == 'local_inst' else '1.0+
 
 S = "${WORKDIR}/git"
 
-DEPENDS:append = " boost curl openssl paho-mqtt-cpp sqlite3 systemd"
+# MNCWF v5 links the target sysroot's libzstd. Keep dependency resolution in
+# BitBake; the cross build must never download code through CMake.
+DEPENDS:append = " boost curl openssl paho-mqtt-cpp sqlite3 systemd zstd"
 # mnc-users owns every account the units below run as (mnc-settings, mnc-stream,
 # mnc-historian, mnc-web, mnc-modbus, mnc-mqtt, mnc-data-sender) and their
 # groups. This recipe deliberately declares no

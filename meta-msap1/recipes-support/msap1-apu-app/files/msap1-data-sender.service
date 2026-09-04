@@ -2,11 +2,14 @@
 Description=MSAP1 reliable meter-data sender
 Requires=msap1-settings.service msap1-meter-historian.service
 Wants=network-online.target
-After=network-online.target msap1-settings.service msap1-meter-historian.service data.mount systemd-tmpfiles-setup.service
+# Local generation, status IPC, and the durable outbox are usable before the
+# network is online; remote delivery has its own retry and backoff policy.
+After=msap1-settings.service msap1-meter-historian.service data.mount systemd-tmpfiles-setup.service
 RequiresMountsFor=/data/mnc/data-sender
 
 [Service]
 Type=notify
+Nice=5
 SyslogIdentifier=msap1-data-sender
 LogExtraFields=MNC_COMPONENT=data-sender
 StandardOutput=journal

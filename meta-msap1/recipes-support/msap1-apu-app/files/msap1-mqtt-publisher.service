@@ -6,6 +6,7 @@ Wants=network-online.target
 
 [Service]
 Type=notify
+Nice=5
 SyslogIdentifier=msap1-mqtt-publisher
 LogExtraFields=MNC_COMPONENT=mqtt-publisher
 StandardOutput=journal
