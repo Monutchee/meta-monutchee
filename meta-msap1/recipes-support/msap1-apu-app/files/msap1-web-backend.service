@@ -1,7 +1,7 @@
 [Unit]
 Description=MSAP1 authenticated web backend and nginx supervisor
-Wants=msap1-settings.service msap1-fpga-acquisition.service msap1-meter-historian.service
-After=network.target systemd-tmpfiles-setup.service msap1-settings.service msap1-meter-historian.service
+Wants=msap1-settings.service msap1-fpga-acquisition.service msap1-meter-historian.service msap1-waveform-converter.service
+After=network.target systemd-tmpfiles-setup.service msap1-settings.service msap1-meter-historian.service msap1-waveform-converter.service
 Conflicts=nginx.service
 
 [Service]

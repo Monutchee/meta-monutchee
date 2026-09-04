@@ -109,6 +109,14 @@ the settings and historian services plus `/data`, restricts writable paths to
 those two directories, limits address families to Unix/IPv4/IPv6, and enables
 watchdog/restart hardening.
 
+Waveform post-conversion runs as the append-only UID/GID 788
+`mnc-converter` identity. It receives read-only source access through
+`mnc-data`, exposes its mode-0660 AF_UNIX endpoint to `mnc-web`, and alone owns
+the mode-0700 `/data/mnc/waveform-exports` cache. The hardened service permits
+only AF_UNIX sockets and writes only its cache and runtime socket directories;
+the Web backend treats it as optional so native MNCWF download remains
+available if conversion is unhealthy.
+
 The APU recipe builds the production transport adapter against libcurl and
 requires target curl with libssh2. The image carries `curl`, `libcurl4`,
 `libssh2-1`, and CA certificates so HTTP, HTTPS, FTP, and SFTP are available.

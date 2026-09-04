@@ -28,6 +28,7 @@ SRC_URI:append = " \
     file://msap1-modbus-server.service \
     file://msap1-mqtt-publisher.service \
     file://msap1-web-backend.service \
+    file://msap1-waveform-converter.service \
     file://msap1-web-tls-setup \
     file://msap1-nginx.conf \
     file://msap1-runtime.conf \
@@ -41,13 +42,14 @@ S = "${WORKDIR}/git"
 
 # MNCWF v5 links the target sysroot's libzstd. Keep dependency resolution in
 # BitBake; the cross build must never download code through CMake.
-DEPENDS:append = " boost curl openssl paho-mqtt-cpp sqlite3 systemd zstd"
+DEPENDS:append = " boost curl openssl paho-mqtt-cpp sqlite3 systemd zlib zstd"
 # mnc-users owns every account the units below run as (mnc-settings, mnc-stream,
-# mnc-historian, mnc-web, mnc-modbus, mnc-mqtt, mnc-data-sender) and their
+# mnc-historian, mnc-web, mnc-modbus, mnc-mqtt, mnc-data-sender,
+# mnc-converter) and their
 # groups. This recipe deliberately declares no
 # accounts of its own: the ids are pinned in one place, and a second declaration
 # here could only drift from it. See meta-mncos/conf/include/mnc-identities.inc.
-RDEPENDS:${PN}:append = " boost-system ca-certificates libcurl libssh2 sqlite3 mnc-users nginx openssl-bin libsystemd msap1-web msap1-dfx-firmware ${PN}-bash-completion"
+RDEPENDS:${PN}:append = " boost-system ca-certificates libcurl libssh2 sqlite3 zlib mnc-users nginx openssl-bin libsystemd msap1-web msap1-dfx-firmware ${PN}-bash-completion"
 
 inherit bash-completion cmake externalsrc pkgconfig systemd
 
@@ -62,7 +64,7 @@ EXTRA_OECMAKE = " \
     -DMNC_LOGGING_REQUIRE_SYSTEMD=ON \
 "
 
-SYSTEMD_SERVICE:${PN} = "msap1-settings.service msap1-meter-stream.service msap1-meter-historian.service msap1-data-sender.service msap1-fpga-acquisition.service msap1-modbus-server.service msap1-web-backend.service msap1-service-manager.service"
+SYSTEMD_SERVICE:${PN} = "msap1-settings.service msap1-meter-stream.service msap1-meter-historian.service msap1-data-sender.service msap1-fpga-acquisition.service msap1-waveform-converter.service msap1-modbus-server.service msap1-web-backend.service msap1-service-manager.service"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 
 # EXTERNALSRC/local_inst bypasses fetch/unpack checksums. Include the APU-owned
@@ -92,6 +94,8 @@ do_install:append() {
         ${D}${systemd_system_unitdir}/msap1-mqtt-publisher.service
     install -m 0644 ${WORKDIR}/msap1-web-backend.service \
         ${D}${systemd_system_unitdir}/msap1-web-backend.service
+    install -m 0644 ${WORKDIR}/msap1-waveform-converter.service \
+        ${D}${systemd_system_unitdir}/msap1-waveform-converter.service
 
     install -d ${D}${libexecdir}
     install -m 0755 ${WORKDIR}/msap1-web-tls-setup \
@@ -141,10 +145,12 @@ FILES:${PN}:append = " \
     ${systemd_system_unitdir}/msap1-modbus-server.service \
     ${systemd_system_unitdir}/msap1-mqtt-publisher.service \
     ${systemd_system_unitdir}/msap1-web-backend.service \
+    ${systemd_system_unitdir}/msap1-waveform-converter.service \
     ${libexecdir}/msap1-web-tls-setup \
     ${sysconfdir}/monutchee/msap1/nginx.conf \
     ${datadir}/monutchee/msap1/settings/factory-defaults.json \
     ${sysconfdir}/udev/rules.d/70-msap1-meter.rules \
     ${nonarch_libdir}/tmpfiles.d/msap1-runtime.conf \
     ${sysconfdir}/systemd/journald.conf.d/60-msap1-journal.conf \
+    ${datadir}/licenses/mnc-waveform/NOTICE \
 "
