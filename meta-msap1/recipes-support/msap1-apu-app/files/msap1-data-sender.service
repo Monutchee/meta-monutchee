@@ -7,6 +7,7 @@ RequiresMountsFor=/data/mnc/data-sender
 
 [Service]
 Type=notify
+Nice=5
 SyslogIdentifier=msap1-data-sender
 LogExtraFields=MNC_COMPONENT=data-sender
 StandardOutput=journal

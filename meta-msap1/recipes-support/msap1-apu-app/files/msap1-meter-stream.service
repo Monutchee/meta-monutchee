@@ -6,6 +6,7 @@ RequiresMountsFor=/data/mnc/database/meter-stream
 
 [Service]
 Type=notify
+Nice=-5
 SyslogIdentifier=msap1-meter-stream
 LogExtraFields=MNC_COMPONENT=meter-stream
 StandardOutput=journal

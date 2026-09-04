@@ -5,6 +5,7 @@ After=msap1-settings.service msap1-meter-stream.service msap1-dfx-firmware-rpu-l
 
 [Service]
 Type=notify
+Nice=-10
 SyslogIdentifier=msap1-fpga-acquisition
 LogExtraFields=MNC_COMPONENT=fpga-acquisition
 StandardOutput=journal

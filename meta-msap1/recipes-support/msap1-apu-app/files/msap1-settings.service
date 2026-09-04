@@ -5,6 +5,7 @@ RequiresMountsFor=/data/mnc/settings
 
 [Service]
 Type=notify
+Nice=0
 SyslogIdentifier=msap1-settings
 LogExtraFields=MNC_COMPONENT=settings
 StandardOutput=journal

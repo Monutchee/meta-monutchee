@@ -5,6 +5,7 @@ After=network.target msap1-settings.service msap1-fpga-acquisition.service syste
 
 [Service]
 Type=notify
+Nice=0
 SyslogIdentifier=msap1-modbus-server
 LogExtraFields=MNC_COMPONENT=modbus
 StandardOutput=journal

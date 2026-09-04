@@ -5,6 +5,7 @@ After=dbus.service systemd-tmpfiles-setup.service msap1-settings.service
 
 [Service]
 Type=notify
+Nice=0
 SyslogIdentifier=msap1-service-manager
 LogExtraFields=MNC_COMPONENT=service-manager
 StandardOutput=journal

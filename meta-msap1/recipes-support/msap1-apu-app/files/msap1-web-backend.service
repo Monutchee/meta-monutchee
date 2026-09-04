@@ -6,6 +6,7 @@ Conflicts=nginx.service
 
 [Service]
 Type=notify
+Nice=0
 SyslogIdentifier=msap1-web-backend
 LogExtraFields=MNC_COMPONENT=web-backend
 StandardOutput=journal
