@@ -3,6 +3,10 @@
 Monutchee distribution, Xilinx integration, board, and product layers for
 MNCOS.
 
+MNCOS uses OE-Core directly and defaults to headless Linux. See
+[Standalone MNCOS](docs/standalone-mncos.md) for the `MNCOS_HEADLESS` switch,
+capture compatibility, migration, release reports and validation requirements.
+
 Shared layer ownership is split by responsibility:
 
 - `meta-mnc-artifact` defines the vendor-neutral Provisioning Station archive

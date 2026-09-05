@@ -1,3 +1,5 @@
+inherit mncos-release-reports
+
 MNCOS_IMAGE_ROLE ??= "unspecified"
 MNCOS_IMAGE_LABEL ??= "MNCOS image"
 MNCOS_BUILD_TIME ??= "${@time.strftime('%Y-%m-%d %H:%M:%S UTC', time.strptime(d.getVar('DATETIME'), '%Y%m%d%H%M%S'))}"

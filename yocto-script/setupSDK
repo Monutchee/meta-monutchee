@@ -112,6 +112,26 @@ if [ -z "${_monutchee_build_dir}" ]; then
     _monutchee_build_dir="${_monutchee_default_build_dir}"
 fi
 
+# Fail before changing the shell environment or creating build configuration.
+if [ ! -f "${ROOT}/sources/openembedded-core/oe-init-build-env" ] || \
+   [ ! -f "${ROOT}/sources/bitbake/bin/bitbake" ]; then
+    printf 'Error: MNCOS requires sources/openembedded-core and sources/bitbake from the matching Yocto manifest.\n' >&2
+    printf 'Synchronize the Yocto sources with setupWorkspace ... yocto first.\n' >&2
+    return 1 2>/dev/null || exit 1
+fi
+case "${_monutchee_build_dir}" in
+    /*) _monutchee_check_build_dir="${_monutchee_build_dir}" ;;
+    *) _monutchee_check_build_dir="${PWD}/${_monutchee_build_dir}" ;;
+esac
+if [ -f "${_monutchee_check_build_dir}/conf/bblayers.conf" ] && \
+   grep -v '^[[:space:]]*#' "${_monutchee_check_build_dir}/conf/bblayers.conf" | \
+       grep -Eq '(^|[/[:space:]])(poky|meta-poky|meta-yocto-bsp)([/[:space:]"\\]|$)'; then
+    printf 'Error: %s/conf/bblayers.conf still uses the former Poky layout.\n' "${_monutchee_check_build_dir}" >&2
+    printf 'Move the old build directory aside, initialize a fresh one, and transfer reviewed local.conf settings.\n' >&2
+    printf 'Regenerate machine configuration with the normal mnc mconf workflow; do not copy old bblayers.conf.\n' >&2
+    return 1 2>/dev/null || exit 1
+fi
+
 # Monutchee Yocto template (per-product; lives in the board/product layer)
 export MONUTCHEE_PRODUCT="${_monutchee_product}"
 export TEMPLATECONF="${ROOT}/sources/meta-monutchee/${_monutchee_template_layer}/conf/templates/default"
@@ -122,4 +142,6 @@ if [ -d "${ROOT}/sources/meta-xilinx/meta-xilinx-core/gen-machine-conf" ]; then
     export PATH="${PATH}:${ROOT}/sources/meta-xilinx/meta-xilinx-core/gen-machine-conf"
 fi
 
-source "${ROOT}/sources/poky/oe-init-build-env" "${_monutchee_build_dir}"
+# Pass BitBake explicitly so a stale BITBAKEDIR in the shell cannot win.
+source "${ROOT}/sources/openembedded-core/oe-init-build-env" \
+    "${_monutchee_build_dir}" "${ROOT}/sources/bitbake"
