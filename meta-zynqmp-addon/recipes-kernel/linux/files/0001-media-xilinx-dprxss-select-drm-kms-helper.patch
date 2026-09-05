@@ -1,0 +1,23 @@
+Subject: [PATCH] media: xilinx: dprxss: select the DRM KMS helpers
+
+The DisplayPort receive driver selects DRM's display and DP helpers. These
+reference the KMS atomic and hotplug helpers even when no display controller
+is enabled. Select the shared helper library explicitly so capture-only
+configurations link without an unrelated display driver selecting it.
+
+Upstream-Status: Pending
+---
+ drivers/media/platform/xilinx/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/media/platform/xilinx/Kconfig b/drivers/media/platform/xilinx/Kconfig
+--- a/drivers/media/platform/xilinx/Kconfig
++++ b/drivers/media/platform/xilinx/Kconfig
+@@ -159,6 +159,7 @@ config VIDEO_XILINX_DPRXSS
+ 	depends on VIDEO_XILINX
+ 	select DRM_DISPLAY_HELPER
+ 	select DRM_DISPLAY_DP_HELPER
++	select DRM_KMS_HELPER
+ 	select MFD_SYSCON
+ 	help
+ 	  Driver for Xilinx DisplayPort Rx Subsystem. This is a V4L sub-device

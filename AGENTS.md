@@ -116,6 +116,14 @@
 
 ## Build and verification
 
+- `meta-mncos` owns standalone OE-Core distro policy. Do not reintroduce a
+  dependency on Poky layers or the combined Poky checkout.
+- `MNCOS_HEADLESS` defaults to `1`; `0` retains the previous graphics policy.
+  Keep capture, DMA/CMA and required DRM helpers intact when disabling display
+  and GPU drivers. Never apply Linux graphics policy to firmware multiconfigs.
+- Preserve CVE/SPDX release reports and source provenance. Report generation
+  failures are errors; CVE findings remain report-only until baseline triage.
+
 Initialize from the `yocto-build` workspace root:
 
 ```sh

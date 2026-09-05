@@ -85,17 +85,9 @@ SSTATE_DIR ?= "${TOPDIR}/../yocto-cache/sstate-cache"
 #
 # Default policy config
 #
-# The distribution setting controls which policy settings are used as defaults.
-# The default value is fine for general Yocto project use, at least initially.
-# Ultimately when creating custom policy, people will likely end up subclassing 
-# these defaults.
-#
-# DISTRO ?= "poky"
-# As an example of a subclass there is a "bleeding" edge policy configuration
-# where many versions are set to the absolute latest code from the upstream 
-# source control systems. This is just mentioned here as an example, its not
-# useful to most new users.
-# DISTRO ?= "poky-bleeding"
+# MNCOS owns the distribution policy and defaults to headless Linux.
+# Set MNCOS_HEADLESS = "0" to retain the previous graphics policy.
+# DISTRO ?= "mncos"
 
 #
 # Package Management configuration
@@ -108,7 +100,7 @@ SSTATE_DIR ?= "${TOPDIR}/../yocto-cache/sstate-cache"
 #  - 'package_ipk' for ipk files are used by opkg (a debian style embedded package manager)
 #  - 'package_rpm' for rpm style packages
 # E.g.: PACKAGE_CLASSES ?= "package_rpm package_deb package_ipk"
-# OE-Core defaults to ipkg, whilst Poky defaults to rpm:
+# MNCOS defaults to RPM packaging:
 # PACKAGE_CLASSES ?= "package_rpm"
 
 #

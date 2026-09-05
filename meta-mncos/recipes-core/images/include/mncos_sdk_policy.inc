@@ -16,6 +16,11 @@ copy_sdk_to_export() {
         [ -f "${SDK_INSTALLER}" ] || continue
         cp "${SDK_INSTALLER}" "${DEST_DIR}/"
     done
+    for SDK_REPORT in ${SDKDEPLOYDIR}/${TOOLCHAIN_OUTPUTNAME}*.manifest \
+                      ${SDKDEPLOYDIR}/${TOOLCHAIN_OUTPUTNAME}*.spdx.tar.zst; do
+        [ -f "${SDK_REPORT}" ] || continue
+        cp "${SDK_REPORT}" "${DEST_DIR}/"
+    done
 }
 
 # Run the export as part of do_populate_sdk so it also happens when callers
@@ -29,6 +34,11 @@ copy_restored_sdk_to_export() {
     DEST_DIR="${TOPDIR}/export/sdk"
     mkdir -p ${DEST_DIR}
     cp -f ${SDK_DEPLOY}/*.sh "${DEST_DIR}/"
+    for SDK_REPORT in ${SDK_DEPLOY}/${TOOLCHAIN_OUTPUTNAME}*.manifest \
+                      ${SDK_DEPLOY}/${TOOLCHAIN_OUTPUTNAME}*.spdx.tar.zst; do
+        [ -f "${SDK_REPORT}" ] || continue
+        cp "${SDK_REPORT}" "${DEST_DIR}/"
+    done
 }
 
 do_populate_sdk_setscene[postfuncs] += "copy_restored_sdk_to_export"
