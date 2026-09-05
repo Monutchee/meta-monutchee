@@ -109,13 +109,12 @@ the settings and historian services plus `/data`, restricts writable paths to
 those two directories, limits address families to Unix/IPv4/IPv6, and enables
 watchdog/restart hardening.
 
-Waveform post-conversion runs as the append-only UID/GID 788
-`mnc-converter` identity. It receives read-only source access through
-`mnc-data`, exposes its mode-0660 AF_UNIX endpoint to `mnc-web`, and alone owns
-the mode-0700 `/data/mnc/waveform-exports` cache. The hardened service permits
-only AF_UNIX sockets and writes only its cache and runtime socket directories;
-the Web backend treats it as optional so native MNCWF download remains
-available if conversion is unhealthy.
+Waveform post-conversion is a bounded task inside `msap1-web-backend`, not a
+standalone service. The `mnc-web` identity owns the mode-0700
+`/data/mnc/waveform-exports` cache and receives read-only source access through
+`mnc-data` plus the unit's `ReadOnlyPaths` policy. The hardened Web unit can
+write only its runtime/TLS/export paths. If task-manager initialization fails,
+native MNCWF browsing and download remain available.
 
 The APU recipe builds the production transport adapter against libcurl and
 requires target curl with libssh2. The image carries `curl`, `libcurl4`,

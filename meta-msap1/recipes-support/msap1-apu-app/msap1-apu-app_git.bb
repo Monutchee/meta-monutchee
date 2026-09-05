@@ -28,7 +28,6 @@ SRC_URI:append = " \
     file://msap1-modbus-server.service \
     file://msap1-mqtt-publisher.service \
     file://msap1-web-backend.service \
-    file://msap1-waveform-converter.service \
     file://msap1-web-tls-setup \
     file://msap1-nginx.conf \
     file://msap1-runtime.conf \
@@ -44,8 +43,7 @@ S = "${WORKDIR}/git"
 # BitBake; the cross build must never download code through CMake.
 DEPENDS:append = " boost curl openssl paho-mqtt-cpp sqlite3 systemd zlib zstd"
 # mnc-users owns every account the units below run as (mnc-settings, mnc-stream,
-# mnc-historian, mnc-web, mnc-modbus, mnc-mqtt, mnc-data-sender,
-# mnc-converter) and their
+# mnc-historian, mnc-web, mnc-modbus, mnc-mqtt, and mnc-data-sender) and their
 # groups. This recipe deliberately declares no
 # accounts of its own: the ids are pinned in one place, and a second declaration
 # here could only drift from it. See meta-mncos/conf/include/mnc-identities.inc.
@@ -64,7 +62,7 @@ EXTRA_OECMAKE = " \
     -DMNC_LOGGING_REQUIRE_SYSTEMD=ON \
 "
 
-SYSTEMD_SERVICE:${PN} = "msap1-settings.service msap1-meter-stream.service msap1-meter-historian.service msap1-data-sender.service msap1-fpga-acquisition.service msap1-waveform-converter.service msap1-modbus-server.service msap1-web-backend.service msap1-service-manager.service"
+SYSTEMD_SERVICE:${PN} = "msap1-settings.service msap1-meter-stream.service msap1-meter-historian.service msap1-data-sender.service msap1-fpga-acquisition.service msap1-modbus-server.service msap1-web-backend.service msap1-service-manager.service"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 
 # EXTERNALSRC/local_inst bypasses fetch/unpack checksums. Include the APU-owned
@@ -94,8 +92,6 @@ do_install:append() {
         ${D}${systemd_system_unitdir}/msap1-mqtt-publisher.service
     install -m 0644 ${WORKDIR}/msap1-web-backend.service \
         ${D}${systemd_system_unitdir}/msap1-web-backend.service
-    install -m 0644 ${WORKDIR}/msap1-waveform-converter.service \
-        ${D}${systemd_system_unitdir}/msap1-waveform-converter.service
 
     install -d ${D}${libexecdir}
     install -m 0755 ${WORKDIR}/msap1-web-tls-setup \
@@ -145,7 +141,6 @@ FILES:${PN}:append = " \
     ${systemd_system_unitdir}/msap1-modbus-server.service \
     ${systemd_system_unitdir}/msap1-mqtt-publisher.service \
     ${systemd_system_unitdir}/msap1-web-backend.service \
-    ${systemd_system_unitdir}/msap1-waveform-converter.service \
     ${libexecdir}/msap1-web-tls-setup \
     ${sysconfdir}/monutchee/msap1/nginx.conf \
     ${datadir}/monutchee/msap1/settings/factory-defaults.json \

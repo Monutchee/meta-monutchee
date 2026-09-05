@@ -1,7 +1,8 @@
 [Unit]
 Description=MSAP1 authenticated web backend and nginx supervisor
-Wants=msap1-settings.service msap1-fpga-acquisition.service msap1-meter-historian.service msap1-waveform-converter.service
-After=network.target systemd-tmpfiles-setup.service msap1-settings.service msap1-meter-historian.service msap1-waveform-converter.service
+Wants=msap1-settings.service msap1-fpga-acquisition.service msap1-meter-historian.service
+After=network.target data.mount systemd-tmpfiles-setup.service msap1-settings.service msap1-meter-historian.service
+RequiresMountsFor=/data/mnc/waveform /data/mnc/waveform-exports
 Conflicts=nginx.service
 
 [Service]
@@ -24,6 +25,15 @@ UMask=0007
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadOnlyPaths=/data/mnc/waveform
+ReadWritePaths=/data/mnc/waveform-exports /run/monutchee /var/lib/monutchee
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 Environment=MSAP1_WEB_SOCKET=/run/monutchee/web-backend.sock
 Environment=MSAP1_WEB_HTTP_PORT=80
