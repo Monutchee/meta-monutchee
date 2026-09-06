@@ -1,0 +1,99 @@
+/*
+ * SPDX-License-Identifier: MIT
+ *
+ * OpenAMP/remoteproc device-tree additions for KR260Demo.
+ */
+
+&{/} {
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		kr260demo_rproc0_reserved: rproc@9800000 {
+			no-map;
+			reg = <0x0 0x09800000 0x0 0x60000>;
+		};
+
+		kr260demo_rpu0vdev0vring0: rpu0vdev0vring0@9860000 {
+			no-map;
+			reg = <0x0 0x09860000 0x0 0x4000>;
+		};
+
+		kr260demo_rpu0vdev0vring1: rpu0vdev0vring1@9864000 {
+			no-map;
+			reg = <0x0 0x09864000 0x0 0x4000>;
+		};
+
+		kr260demo_rpu0vdev0buffer: rpu0vdev0buffer@9868000 {
+			no-map;
+			reg = <0x0 0x09868000 0x0 0x40000>;
+		};
+
+		kr260demo_rproc1_reserved: rproc@9e00000 {
+			no-map;
+			reg = <0x0 0x09e00000 0x0 0x60000>;
+		};
+
+		kr260demo_rpu1vdev0vring0: rpu1vdev0vring0@9e60000 {
+			no-map;
+			reg = <0x0 0x09e60000 0x0 0x4000>;
+		};
+
+		kr260demo_rpu1vdev0vring1: rpu1vdev0vring1@9e64000 {
+			no-map;
+			reg = <0x0 0x09e64000 0x0 0x4000>;
+		};
+
+		kr260demo_rpu1vdev0buffer: rpu1vdev0buffer@9e68000 {
+			no-map;
+			reg = <0x0 0x09e68000 0x0 0x40000>;
+		};
+	};
+
+	remoteproc@ffe00000 {
+		compatible = "xlnx,zynqmp-r5fss";
+		xlnx,cluster-mode = <0>;
+		xlnx,tcm-mode = <0>;
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges = <0x0 0x0     0x0 0xffe00000 0x0 0x10000>,
+			 <0x0 0x20000 0x0 0xffe20000 0x0 0x10000>,
+			 <0x1 0x0     0x0 0xffe90000 0x0 0x10000>,
+			 <0x1 0x20000 0x0 0xffeb0000 0x0 0x10000>;
+
+		r5f@0 {
+			compatible = "xlnx,zynqmp-r5f";
+			reg = <0x0 0x0     0x0 0x10000>,
+			      <0x0 0x20000 0x0 0x10000>;
+			reg-names = "atcm0", "btcm0";
+			power-domains = <&zynqmp_firmware 7>,
+					<&zynqmp_firmware 15>,
+					<&zynqmp_firmware 16>;
+			memory-region = <&kr260demo_rproc0_reserved>,
+					<&kr260demo_rpu0vdev0buffer>,
+					<&kr260demo_rpu0vdev0vring0>,
+					<&kr260demo_rpu0vdev0vring1>;
+			mboxes = <&ipi_7_to_ipi_1 0>,
+				 <&ipi_7_to_ipi_1 1>;
+			mbox-names = "tx", "rx";
+		};
+
+		r5f@1 {
+			compatible = "xlnx,zynqmp-r5f";
+			reg = <0x1 0x0     0x0 0x10000>,
+			      <0x1 0x20000 0x0 0x10000>;
+			reg-names = "atcm0", "btcm0";
+			power-domains = <&zynqmp_firmware 8>,
+					<&zynqmp_firmware 17>,
+					<&zynqmp_firmware 18>;
+			memory-region = <&kr260demo_rproc1_reserved>,
+					<&kr260demo_rpu1vdev0buffer>,
+					<&kr260demo_rpu1vdev0vring0>,
+					<&kr260demo_rpu1vdev0vring1>;
+			mboxes = <&ipi_7_to_ipi_2 0>,
+				 <&ipi_7_to_ipi_2 1>;
+			mbox-names = "tx", "rx";
+		};
+	};
+};

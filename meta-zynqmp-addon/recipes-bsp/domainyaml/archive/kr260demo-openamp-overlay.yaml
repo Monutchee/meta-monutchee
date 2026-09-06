@@ -1,0 +1,129 @@
+# KR260Demo OpenAMP channel overlay (gen-machineconf --domain-file).
+#
+# Layer this ON TOP OF kr260demo-multidomain.yaml:
+#   --domain-file .../kr260demo-multidomain.yaml \
+#   --domain-file .../kr260demo-openamp-overlay.yaml
+# gen-machineconf deep-merges domains of the same name across files
+# (yaml_utils.MergeDomainConfigs), so the cores/cluster_cpu come from the base
+# and the rpmsg channels + carveouts come from here.
+#
+# Based on meta-xilinx-standalone-sdt zynqmp-openamp-overlay.yaml, extended to
+# both R5 cores. Carveout map matches the reference kr260demo-openamp.dtsi.
+#
+# DELIBERATELY NO host `access:` / isolation list here: that legacy field is what
+# leaked an &openamp_a53_0_cluster access block (referencing non-live labels) into
+# the PL overlay and broke `dfx-mgr-client -loadByName kr260demo`.
+
+reserved-memory:
+  ranges: true
+  "#size-cells": 2
+  "#address-cells": 2
+  # R5 core 0
+  rproc0@9800000:
+    label: rproc0
+    start: 0x9800000
+    size: 0x60000
+    no-map: 1
+  vdev0vring0@9860000:
+    label: vdev0vring0
+    start: 0x9860000
+    size: 0x4000
+    no-map: 1
+  vdev0vring1@9864000:
+    label: vdev0vring1
+    start: 0x9864000
+    size: 0x4000
+    no-map: 1
+  vdev0buffer@9868000:
+    label: vdev0buffer
+    start: 0x9868000
+    size: 0x40000
+    no-map: 1
+  # R5 core 1
+  rproc1@9e00000:
+    label: rproc1
+    start: 0x9e00000
+    size: 0x60000
+    no-map: 1
+  vdev1vring0@9e60000:
+    label: vdev1vring0
+    start: 0x9e60000
+    size: 0x4000
+    no-map: 1
+  vdev1vring1@9e64000:
+    label: vdev1vring1
+    start: 0x9e64000
+    size: 0x4000
+    no-map: 1
+  vdev1buffer@9e68000:
+    label: vdev1buffer
+    start: 0x9e68000
+    size: 0x40000
+    no-map: 1
+
+domains:
+  APU_Linux: # host in channels to both R5 cores
+    compatible: openamp,domain-v1
+    reserved-memory:
+      - vdev0buffer@9868000
+      - vdev0vring1@9864000
+      - vdev0vring0@9860000
+      - rproc0@9800000
+      - vdev1buffer@9e68000
+      - vdev1vring1@9e64000
+      - vdev1vring0@9e60000
+      - rproc1@9e00000
+
+    domain-to-domain:
+      compatible: openamp,domain-to-domain-v1
+      remoteproc-relation:
+        compatible: openamp,remoteproc-v2
+        relation0:
+          remote: R5_0_FREERTOS
+          elfload: [ psu_r5_0_atcm_global@ffe00000, psu_r5_0_btcm_global@ffe20000, rproc0@9800000 ]
+        relation1:
+          remote: R5_1_FREERTOS
+          elfload: [ psu_r5_1_atcm_global@ffe90000, psu_r5_1_btcm_global@ffeb0000, rproc1@9e00000 ]
+
+      rpmsg-relation:
+        compatible: openamp,rpmsg-v1
+        relation0:
+          remote: R5_0_FREERTOS
+          carveouts: [ vdev0vring0@9860000, vdev0vring1@9864000, vdev0buffer@9868000 ]
+          mbox: ipi_7_to_ipi_1
+        relation1:
+          remote: R5_1_FREERTOS
+          carveouts: [ vdev1vring0@9e60000, vdev1vring1@9e64000, vdev1buffer@9e68000 ]
+          mbox: ipi_7_to_ipi_2
+
+  R5_0_FREERTOS:
+    compatible: openamp,domain-v1
+    reserved-memory:
+      - vdev0buffer@9868000
+      - vdev0vring1@9864000
+      - vdev0vring0@9860000
+      - rproc0@9800000
+    domain-to-domain:
+      compatible: openamp,domain-to-domain-v1
+      rpmsg-relation:
+        compatible: openamp,rpmsg-v1
+        relation0:
+          host: APU_Linux
+          mbox: ipi_1_to_ipi_7
+          carveouts: [ vdev0vring0@9860000, vdev0vring1@9864000, vdev0buffer@9868000 ]
+
+  R5_1_FREERTOS:
+    compatible: openamp,domain-v1
+    reserved-memory:
+      - vdev1buffer@9e68000
+      - vdev1vring1@9e64000
+      - vdev1vring0@9e60000
+      - rproc1@9e00000
+    domain-to-domain:
+      compatible: openamp,domain-to-domain-v1
+      rpmsg-relation:
+        compatible: openamp,rpmsg-v1
+        relation0:
+          host: APU_Linux
+          mbox: ipi_2_to_ipi_7
+          carveouts: [ vdev1vring0@9e60000, vdev1vring1@9e64000, vdev1buffer@9e68000 ]

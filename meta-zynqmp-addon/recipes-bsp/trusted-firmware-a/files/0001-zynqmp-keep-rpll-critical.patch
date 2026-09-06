@@ -1,0 +1,49 @@
+Subject: [PATCH] zynqmp: keep the RPU PLL critical to Linux
+
+ZynqMP R5 cores can use RPLL without their clocks being exposed to Linux
+as clock consumers. The unused-clock sweep can therefore reset and bypass
+RPLL, reducing the R5 clock to the divided reference clock.
+
+Advertise the RPLL PLL node as critical through the existing clock topology
+ABI. Linux keeps its enable reference from clock registration, including
+while R5 firmware is stopped or restarted. Preserve the boot-programmed
+rate and all other PLL topology flags. Apply this shared always-on RPLL
+policy to ZynqMP builds; no board-specific frequency is imposed.
+
+This does not arbitrate direct PM firmware clock requests or lock the rate.
+
+Upstream-Status: Inappropriate [Monutchee ZynqMP always-on RPU clock policy]
+
+--- a/plat/xilinx/zynqmp/pm_service/pm_api_clock.c
++++ b/plat/xilinx/zynqmp/pm_service/pm_api_clock.c
+@@ -255,6 +255,19 @@
+ 		.offset = NA_SHIFT,
+ 		.width = NA_WIDTH,
+ 		.clkflags = (uint16_t)CLK_SET_RATE_NO_REPARENT,
++		.typeflags = NA_TYPE_FLAGS,
++		.mult = NA_MULT,
++		.div = NA_DIV,
++	},
++};
++
++/* Keep RPLL running for firmware-owned R5 cores. */
++static struct pm_clock_node rpu_critical_pll_nodes[] = {
++	{
++		.type = TYPE_PLL,
++		.offset = NA_SHIFT,
++		.width = NA_WIDTH,
++		.clkflags = (uint16_t)(CLK_IS_CRITICAL | CLK_SET_RATE_NO_REPARENT),
+ 		.typeflags = NA_TYPE_FLAGS,
+ 		.mult = NA_MULT,
+ 		.div = NA_DIV,
+@@ -1135,8 +1148,8 @@
+ 		.control_reg = CRL_APB_RPLL_CTRL,
+ 		.status_reg = CRF_APB_PLL_STATUS,
+ 		.parents = &((int32_t []) {CLK_RPLL_PRE_SRC, CLK_NA_PARENT}),
+-		.nodes = &generic_pll_nodes,
+-		.num_nodes = (uint8_t)ARRAY_SIZE(generic_pll_nodes),
++		.nodes = &rpu_critical_pll_nodes,
++		.num_nodes = (uint8_t)ARRAY_SIZE(rpu_critical_pll_nodes),
+ 	},
+ 	[CLK_RPLL_PRE_SRC] = {
+ 		.name = "rpll_pre_src",

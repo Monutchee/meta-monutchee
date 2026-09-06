@@ -1,0 +1,6 @@
+SERVER_IP=""
+IMAGE_NAME="target.wic.xz"
+CHECKSUM_NAME="target.wic.xz.sha256"
+
+# Leave empty to auto-detect exactly one non-removable MMC device.
+TARGET_DEVICE=""

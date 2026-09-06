@@ -1,0 +1,141 @@
+#!/bin/sh
+
+set -eu
+
+CONFIG=/etc/mncos-production-flash.conf
+[ ! -r "$CONFIG" ] || . "$CONFIG"
+
+cmdline_value() {
+    key=$1
+    for argument in $(cat /proc/cmdline); do
+        case "$argument" in
+            "$key"=*) printf '%s\n' "${argument#*=}"; return 0 ;;
+        esac
+    done
+    return 1
+}
+
+SERVER_IP=${SERVER_IP:-$(cmdline_value mncos.tftp_server || true)}
+IMAGE_NAME=${IMAGE_NAME:-target.wic.xz}
+CHECKSUM_NAME=${CHECKSUM_NAME:-${IMAGE_NAME}.sha256}
+TARGET_DEVICE=${TARGET_DEVICE:-}
+ASSUME_YES=0
+WORKDIR=/tmp/mncos-production-flash
+
+usage() {
+    cat <<EOF
+Usage: mncos-flash-emmc [options]
+
+Options:
+  --server IP       TFTP server (default: $SERVER_IP)
+  --image NAME      Compressed WIC filename (default: $IMAGE_NAME)
+  --checksum NAME   SHA-256 filename (default: $CHECKSUM_NAME)
+  --target DEVICE   Whole eMMC user device, for example /dev/mmcblk0
+  --yes             Skip the destructive-operation confirmation
+  -h, --help        Show this help
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --server) SERVER_IP=$2; shift 2 ;;
+        --image) IMAGE_NAME=$2; shift 2 ;;
+        --checksum) CHECKSUM_NAME=$2; shift 2 ;;
+        --target) TARGET_DEVICE=$2; shift 2 ;;
+        --yes) ASSUME_YES=1; shift ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
+    esac
+done
+
+[ -n "$SERVER_IP" ] || {
+    echo "No TFTP server received from U-Boot; use --server" >&2
+    exit 1
+}
+
+detect_emmc() {
+    found=""
+    for sysdev in /sys/class/block/mmcblk[0-9]*; do
+        [ -e "$sysdev" ] || continue
+        [ "$(cat "$sysdev/device/type" 2>/dev/null || true)" = "MMC" ] || continue
+        [ "$(cat "$sysdev/removable" 2>/dev/null || true)" = "0" ] || continue
+        dev="/dev/${sysdev##*/}"
+        if [ -n "$found" ]; then
+            echo "Multiple eMMC devices found; select one with --target" >&2
+            exit 1
+        fi
+        found=$dev
+    done
+    [ -n "$found" ] || {
+        echo "No non-removable eMMC user device was detected" >&2
+        exit 1
+    }
+    TARGET_DEVICE=$found
+}
+
+[ -n "$TARGET_DEVICE" ] || detect_emmc
+[ -b "$TARGET_DEVICE" ] || {
+    echo "$TARGET_DEVICE is not a block device" >&2
+    exit 1
+}
+
+case "$TARGET_DEVICE" in
+    /dev/mmcblk[0-9]*) ;;
+    *) echo "Refusing non-MMC target: $TARGET_DEVICE" >&2; exit 1 ;;
+esac
+
+case "$TARGET_DEVICE" in
+    *boot*|*rpmb*|*p[0-9]*)
+        echo "Use the whole eMMC user device, not a partition/boot/RPMB device" >&2
+        exit 1
+        ;;
+esac
+
+if grep -q "^${TARGET_DEVICE}\|^${TARGET_DEVICE}p" /proc/mounts; then
+    echo "$TARGET_DEVICE or one of its partitions is mounted" >&2
+    exit 1
+fi
+
+mkdir -p "$WORKDIR"
+cd "$WORKDIR"
+rm -f "$IMAGE_NAME" "$CHECKSUM_NAME"
+
+echo "Downloading $IMAGE_NAME from $SERVER_IP"
+tftp -g -r "$IMAGE_NAME" -l "$IMAGE_NAME" "$SERVER_IP"
+tftp -g -r "$CHECKSUM_NAME" -l "$CHECKSUM_NAME" "$SERVER_IP"
+
+echo "Verifying SHA-256 and XZ stream"
+sha256sum -c "$CHECKSUM_NAME"
+xz -t "$IMAGE_NAME"
+
+image_bytes=$(xz -l --robot "$IMAGE_NAME" | awk '$1 == "totals" { print $5 }')
+device_bytes=$(blockdev --getsize64 "$TARGET_DEVICE")
+[ -n "$image_bytes" ] || {
+    echo "Could not determine uncompressed image size" >&2
+    exit 1
+}
+[ "$image_bytes" -le "$device_bytes" ] || {
+    echo "Image is larger than $TARGET_DEVICE" >&2
+    exit 1
+}
+
+echo
+echo "WARNING: this will erase all data on $TARGET_DEVICE"
+echo "Image:  $IMAGE_NAME ($image_bytes bytes uncompressed)"
+echo "Target: $TARGET_DEVICE ($device_bytes bytes)"
+
+if [ "$ASSUME_YES" -ne 1 ]; then
+    printf "Type ERASE to continue: "
+    read -r answer
+    [ "$answer" = "ERASE" ] || {
+        echo "Cancelled"
+        exit 1
+    }
+fi
+
+echo "Writing image to $TARGET_DEVICE"
+xz -dc "$IMAGE_NAME" | dd of="$TARGET_DEVICE" bs=4M conv=fsync
+sync
+blockdev --rereadpt "$TARGET_DEVICE" 2>/dev/null || true
+
+echo "Production flashing complete. Power off before changing the boot mode."

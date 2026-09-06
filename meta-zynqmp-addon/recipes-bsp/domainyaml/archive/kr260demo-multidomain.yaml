@@ -1,0 +1,46 @@
+# KR260Demo OpenAMP/remoteproc domain description (gen-machineconf --domain-file).
+#
+# Based on meta-xilinx-standalone-sdt zynqmp-multidomain-base.yaml (the v2026.1
+# canonical "multidomain-base" flow), NOT the legacy "*-openamp-overlay.yaml"
+# flow. The base flow lets lopper auto-generate the Linux-side xlnx,zynqmp-r5fss
+# remoteproc nodes from each RPU domain's `cluster_cpu`, so /sys/class/remoteproc/
+# {0,1} appear and dfx-mgr can load R5c0/R5c1.
+#
+# Do NOT reintroduce a host `access:` list or `domain-to-domain:` block here: that
+# is the legacy openamp-overlay path, which lopper emits as an
+# &openamp_a53_0_cluster access block into the PL overlay (pl.dtso) referencing
+# labels (cpus_r5_0, ipi1, ipi2, ...) absent from the live-DT __symbols__, making
+# `dfx-mgr-client -loadByName kr260demo` fail with create_overlay err=-22.
+domains:
+  APU_Linux:
+    compatible: openamp,domain-v1
+    cpus:
+      - cluster: cpus_a53
+        cpumask: 0xf
+        mode:
+          secure: true
+          el: 0x3
+    os,type: linux
+
+  R5_0_FREERTOS:
+    compatible: openamp,domain-v1
+    cpus:
+      - cluster: cpus_r5_0
+        cpumask: 0x1
+        mode:
+          secure: true
+        # Required: lopper uses cluster_cpu to auto-generate cpu_config_str,
+        # rpu_pd_val, core_num and the remoteproc node. Without it, no remoteproc
+        # node is generated for this core.
+        cluster_cpu: psu_cortexr5_0
+    os,type: freertos
+
+  R5_1_FREERTOS:
+    compatible: openamp,domain-v1
+    cpus:
+      - cluster: cpus_r5_1
+        cpumask: 0x2
+        mode:
+          secure: true
+        cluster_cpu: psu_cortexr5_1
+    os,type: freertos

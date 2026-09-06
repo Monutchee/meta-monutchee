@@ -1,0 +1,23 @@
+DESCRIPTION = "Minimal MNCOS image for @@PROJECT_PREFIX@@"
+LICENSE = "MIT"
+
+require recipes-core/images/include/mncos-image-common.inc
+
+COMPATIBLE_MACHINE = "^@@PRODUCT@@$"
+
+MNCOS_IMAGE_ROLE = "main"
+MNCOS_IMAGE_LABEL = "MNCOS @@PROJECT_LABEL@@ MAIN SYSTEM IMAGE"
+
+IMAGE_INSTALL:append = " \
+    apu-rpu-ctl \
+    dfx-mgr \
+    @@PRODUCT@@-dfx-firmware \
+    lmsensors-config-kria-fancontrol \
+"
+
+IMAGE_FEATURES:remove = "hwcodecs"
+
+IMAGE_CLASSES:append = " export-tftpboot-file"
+JTAG_LOADER_TCL = "${XILINX_ADDON_LAYERDIR}/recipes-core/images/files/load-jtag-image.tcl"
+JTAG_LOADER_FORCE_JTAG_BOOT = "1"
+do_copy_tftpboot[file-checksums] += "${JTAG_LOADER_TCL}:True"
