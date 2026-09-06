@@ -1,0 +1,350 @@
+From: Monutchee <support@monutchee.com>
+Subject: [PATCH] zynqmp: add opt-in boot multimedia shutdown through EEMI
+
+Claim multimedia resources before gating their clocks, verify hardware state,
+and release their power requirements. Do not grant new firmware permissions
+or force shared PLLs off. Keep the feature disabled for other products.
+
+Upstream-Status: Inappropriate [MNCOS product power policy]
+
+--- a/arch/arm/mach-zynqmp/Kconfig
++++ b/arch/arm/mach-zynqmp/Kconfig
+@@ -1,4 +1,13 @@
+ if ARCH_ZYNQMP
++
++config ZYNQMP_MULTIMEDIA_OFF
++	bool "Shut down unused GPU and DisplayPort before Linux"
++	depends on BOARD_LATE_INIT && !VIDEO
++	default n
++	help
++	  Use EEMI ownership and verified clock gating to stop GPU and DP.
++	  Requires matching Linux device-tree and kernel multimedia-off policy.
++	  Shared PLLs remain under PMU reference accounting.
+ 
+ config SYS_BOARD
+ 	string "Board name"
+--- a/board/xilinx/zynqmp/Makefile
++++ b/board/xilinx/zynqmp/Makefile
+@@ -4,6 +4,9 @@
+ # Michal Simek <michal.simek@amd.com>
+ 
+ obj-y	:= zynqmp.o
++ifndef CONFIG_XPL_BUILD
++obj-$(CONFIG_ZYNQMP_MULTIMEDIA_OFF) += multimedia.o
++endif
+ 
+ ifneq ($(CONFIG_XILINX_PS_INIT_FILE),"")
+ PS_INIT_FILE := $(shell cd $(srctree); readlink -f $(CONFIG_XILINX_PS_INIT_FILE))
+--- a/board/xilinx/zynqmp/zynqmp.c
++++ b/board/xilinx/zynqmp/zynqmp.c
+@@ -537,9 +537,17 @@
+ 	return 0;
+ }
+ 
++#if IS_ENABLED(CONFIG_ZYNQMP_MULTIMEDIA_OFF)
++void zynqmp_multimedia_off(void);
++#endif
++
+ int board_late_init(void)
+ {
+ 	int ret, multiboot;
++
++#if IS_ENABLED(CONFIG_ZYNQMP_MULTIMEDIA_OFF)
++	zynqmp_multimedia_off();
++#endif
+ 
+ 	if (IS_ENABLED(CONFIG_EFI_HAVE_CAPSULE_SUPPORT))
+ 		configure_capsule_updates();
+--- a/board/xilinx/common/board.c
++++ b/board/xilinx/common/board.c
+@@ -686,6 +686,9 @@
+ #endif
+ 
+ #ifdef CONFIG_OF_BOARD_SETUP
++#if IS_ENABLED(CONFIG_ZYNQMP_MULTIMEDIA_OFF)
++void zynqmp_multimedia_fixup(void *blob);
++#endif
+ #define MAX_RAND_SIZE 8
+ int ft_board_setup(void *blob, struct bd_info *bd)
+ {
+@@ -693,6 +696,9 @@
+ 		{ "arm,pl353-nand-r2p1", MTD_DEV_TYPE_NAND, },
+ 	};
+ 
++#if IS_ENABLED(CONFIG_ZYNQMP_MULTIMEDIA_OFF)
++	zynqmp_multimedia_fixup(blob);
++#endif
+ 	if (IS_ENABLED(CONFIG_FDT_FIXUP_PARTITIONS) && IS_ENABLED(CONFIG_NAND_ZYNQ))
+ 		fdt_fixup_mtdparts(blob, nodes, ARRAY_SIZE(nodes));
+ 
+--- a/board/xilinx/zynqmp/multimedia.c
++++ b/board/xilinx/zynqmp/multimedia.c
+@@ -0,0 +1,268 @@
++// SPDX-License-Identifier: GPL-2.0+
++/* Boot-only multimedia shutdown. Uses the existing EEMI ownership policy. */
++#include <errno.h>
++#include <fdt_support.h>
++#include <linux/libfdt.h>
++#include <stdio.h>
++#include <string.h>
++#include <asm/io.h>
++#include <linux/bitops.h>
++#include <linux/delay.h>
++#include <linux/kernel.h>
++#include <zynqmp_firmware.h>
++
++/* Clock IDs in the ZynqMP EEMI ABI (not power-node IDs). */
++#define MM_DP_VIDEO 16
++#define MM_DP_AUDIO 17
++#define MM_DP_STC 18
++#define MM_DPDMA 20
++#define MM_GPU 24
++#define MM_GPU_PP0 25
++#define MM_GPU_PP1 26
++#define MM_VPLL 96 /* TF-A CLK_VPLL_INT; output mux 1 has no gate */
++#define MM_ACCESS 1
++#define MM_ACK_BLOCKING 2
++#define MM_OTHER_MASTER 2
++
++#define MM_DP_BASE 0xfd4a0000UL
++#define MM_DPDMA_BASE 0xfd4c0000UL
++#define MM_DP_TX_ENABLE 0x80
++#define MM_DP_STREAM_ENABLE 0x84
++#define MM_DP_PHY_RESET 0x200
++#define MM_DP_PHY_POWER_DOWN 0x238
++#define MM_DP_AUDIO_ENABLE 0x300
++#define MM_DP_IRQ_DISABLE 0x3ac
++#define MM_DMA_CONTROL 0x18
++#define MM_DMA_STATUS 0x1c
++#define MM_DMA_ENABLE BIT(0)
++#define MM_DMA_PAUSE BIT(1)
++#define MM_DMA_OUTSTANDING GENMASK(24, 21)
++
++/* Boot diagnostics survive independently of serial-console capture. */
++static u32 mm_gpu_initial[9], mm_gpu_last[3], mm_result[2], mm_boot_clocks[2];
++
++static int mm_pm(u32 api, u32 a, u32 b, u32 c, u32 e, u32 *result)
++{
++	u32 response[PAYLOAD_ARG_CNT] = { 0 };
++	int ret;
++
++	ret = xilinx_pm_request(api, a, b, c, e, 0, 0,
++				result ? result : response);
++	if (ret)
++		printf("MNCOS multimedia: PM api=%u id=%u failed (%d)\n",
++		       api, a, ret);
++	return ret ? -EIO : 0;
++}
++
++static int mm_claim(u32 node, u32 capability)
++{
++	u32 state[PAYLOAD_ARG_CNT];
++	int ret = mm_pm(PM_GET_NODE_STATUS, node, 0, 0, 0, state);
++
++	if (ret)
++		return ret;
++	if (state[3] & MM_OTHER_MASTER) {
++		printf("MNCOS multimedia: node %u has another owner\n", node);
++		return -EBUSY;
++	}
++	/* U-Boot's power-domain driver may already own the DP node. */
++	return mm_pm(state[3] & 1 ? PM_SET_REQUIREMENT : PM_REQUEST_NODE,
++		     node, capability, 0, MM_ACK_BLOCKING, NULL);
++}
++
++static int mm_clock(u32 clock, bool enable)
++{
++	u32 state[PAYLOAD_ARG_CNT];
++	int ret;
++
++	ret = mm_pm(enable ? PM_CLOCK_ENABLE : PM_CLOCK_DISABLE,
++		    clock, 0, 0, 0, NULL);
++	if (ret)
++		return ret;
++	ret = mm_pm(PM_CLOCK_GETSTATE, clock, 0, 0, 0, state);
++	if (ret)
++		return ret;
++	/* TF-A can mask PMU access errors; verify the actual gate. */
++	if (!!state[1] != enable) {
++		printf("MNCOS multimedia: clock %u remains %s\n",
++		       clock, state[1] ? "on" : "off");
++		return -EIO;
++	}
++	return 0;
++}
++
++static int mm_gpu_off(void)
++{
++	static const u32 nodes[] = { NODE_GPU, NODE_GPU_PP_0, NODE_GPU_PP_1 };
++	static const u32 clocks[] = { MM_GPU_PP0, MM_GPU_PP1, MM_GPU };
++	u32 state[PAYLOAD_ARG_CNT];
++	unsigned int i, claimed = 0;
++	int ret, release;
++
++	/* Check both modern and legacy GPU ownership before changing any node. */
++	for (i = 0; i < ARRAY_SIZE(nodes); i++) {
++		ret = mm_pm(PM_GET_NODE_STATUS, nodes[i], 0, 0, 0, state);
++		if (ret)
++			return ret;
++		memcpy(&mm_gpu_initial[i * 3], &state[1], 3 * sizeof(u32));
++		if (state[3] & MM_OTHER_MASTER) {
++			printf("MNCOS multimedia: GPU node %u has another owner\n", nodes[i]);
++			return -EBUSY;
++		}
++	}
++	/* PMU tracks the combined GPU and legacy pixel nodes separately. Update
++	 * all three state machines before gating: otherwise Linux's later
++	 * PM_INIT_FINALIZE can repeat a pixel power-down and restore GPU_REF.
++	 */
++	for (i = 0; i < ARRAY_SIZE(nodes); i++) {
++		ret = mm_claim(nodes[i], 0);
++		if (ret)
++			goto out;
++		claimed++;
++		ret = mm_pm(PM_GET_NODE_STATUS, nodes[i], 0, 0, 0, state);
++		memcpy(mm_gpu_last, &state[1], sizeof(mm_gpu_last));
++		if (ret || state[1]) {
++			ret = ret ? ret : -EBUSY;
++			goto out;
++		}
++	}
++	for (i = 0; i < ARRAY_SIZE(clocks); i++) {
++		ret = mm_clock(clocks[i], false);
++		if (ret)
++			goto out;
++	}
++out:
++	while (claimed) {
++		release = mm_pm(PM_RELEASE_NODE, nodes[--claimed], 0, 0, 0, NULL);
++		if (!ret)
++			ret = release;
++	}
++	if (ret)
++		return ret;
++	for (i = 0; i < ARRAY_SIZE(clocks); i++) {
++		ret = mm_pm(PM_CLOCK_GETSTATE, clocks[i], 0, 0, 0, state);
++		if (ret || state[1])
++			return ret ? ret : -EIO;
++	}
++	puts("MNCOS multimedia: GPU clocks and pixel islands off\n");
++	return 0;
++}
++
++static int mm_dma_stop(void)
++{
++	unsigned int ch, wait;
++	void __iomem *reg;
++	u32 control;
++
++	for (ch = 0; ch < 6; ch++) {
++		reg = (void __iomem *)(MM_DPDMA_BASE + 0x200 + ch * 0x100);
++		control = readl(reg + MM_DMA_CONTROL);
++		if (!(control & MM_DMA_ENABLE))
++			continue;
++		writel(control | MM_DMA_PAUSE, reg + MM_DMA_CONTROL);
++		for (wait = 0; wait < 1000; wait++) {
++			if (!(readl(reg + MM_DMA_STATUS) & MM_DMA_OUTSTANDING))
++				break;
++			udelay(100);
++		}
++		if (wait == 1000) {
++			printf("MNCOS multimedia: DPDMA channel %u did not drain\n", ch);
++			return -ETIMEDOUT;
++		}
++		writel((control | MM_DMA_PAUSE) & ~MM_DMA_ENABLE,
++		       reg + MM_DMA_CONTROL);
++	}
++	return 0;
++}
++
++static int mm_display_off(void)
++{
++	static const u32 clocks[] = { MM_DP_VIDEO, MM_DP_AUDIO, MM_DP_STC, MM_DPDMA };
++	void __iomem *dp = (void __iomem *)MM_DP_BASE;
++	u32 state[PAYLOAD_ARG_CNT];
++	unsigned int i;
++	int ret;
++
++	ret = mm_claim(NODE_DP, MM_ACCESS);
++	if (ret)
++		return ret;
++	/* Register accesses and DMA drain must finish before clocks are gated. */
++	for (i = 0; i < ARRAY_SIZE(clocks); i++) {
++		ret = mm_clock(clocks[i], true);
++		if (ret)
++			return ret;
++	}
++	writel(~0U, dp + MM_DP_IRQ_DISABLE);
++	writel(0, dp + MM_DP_STREAM_ENABLE);
++	writel(0, dp + MM_DP_AUDIO_ENABLE);
++	ret = mm_dma_stop();
++	if (ret)
++		return ret; /* Keep access/clocks for outstanding DMA, never force. */
++	/* These are DP logical lanes, not the four shared PS-GTR lanes. */
++	writel(0xf, dp + MM_DP_PHY_POWER_DOWN);
++	writel(BIT(0) | BIT(1) | BIT(8) | BIT(9), dp + MM_DP_PHY_RESET);
++	writel(0, dp + MM_DP_TX_ENABLE);
++	if ((readl(dp + MM_DP_PHY_POWER_DOWN) & 0xf) != 0xf ||
++	    readl(dp + MM_DP_TX_ENABLE) || readl(dp + MM_DP_STREAM_ENABLE))
++		return -EIO;
++	for (i = 0; i < ARRAY_SIZE(clocks); i++) {
++		ret = mm_clock(clocks[i], false);
++		if (ret)
++			return ret;
++	}
++	/* PMU releases parent PLLs only when their own use counts reach zero.
++	 * In particular, RPU/PL/IO users retain their shared parent references.
++	 * Do not force-reset VPLL or RPLL based on Linux's clock counts.
++	 */
++	ret = mm_pm(PM_RELEASE_NODE, NODE_DP, 0, 0, 0, NULL);
++	if (ret)
++		return ret;
++	ret = mm_pm(PM_GET_NODE_STATUS, NODE_DP, 0, 0, 0, state);
++	if (ret || state[2] || state[3])
++		return ret ? ret : -EBUSY;
++	ret = mm_pm(PM_CLOCK_GETSTATE, MM_VPLL, 0, 0, 0, state);
++	if (ret)
++		return ret;
++	printf("MNCOS multimedia: DP stopped/released; VPLL %s\n",
++	       state[1] ? "retained by firmware" : "off");
++	return 0;
++}
++
++void zynqmp_multimedia_off(void)
++{
++	int gpu, display;
++
++	gpu = mm_gpu_off();
++	display = mm_display_off();
++	mm_result[0] = gpu;
++	mm_result[1] = display;
++	mm_boot_clocks[0] = readl((void __iomem *)0xfd1a0084UL);
++	mm_boot_clocks[1] = readl((void __iomem *)0xfd1a0038UL);
++	if (gpu || display)
++		printf("MNCOS multimedia: shutdown incomplete (GPU %d, DP %d)\n",
++		       gpu, display);
++}
++
++static void mm_fdt_array(void *blob, int node, const char *name,
++			 const u32 *values, unsigned int count)
++{
++	fdt32_t cells[9];
++	unsigned int i;
++
++	for (i = 0; i < count; i++)
++		cells[i] = cpu_to_fdt32(values[i]);
++	if (fdt_setprop(blob, node, name, cells, count * sizeof(*cells)))
++		printf("MNCOS multimedia: could not record %s\n", name);
++}
++
++void zynqmp_multimedia_fixup(void *blob)
++{
++	int node = fdt_find_or_add_subnode(blob, 0, "chosen");
++
++	if (node < 0)
++		return;
++	mm_fdt_array(blob, node, "mncos,multimedia-result", mm_result, 2);
++	mm_fdt_array(blob, node, "mncos,multimedia-boot-clocks", mm_boot_clocks, 2);
++	mm_fdt_array(blob, node, "mncos,gpu-initial-state", mm_gpu_initial, 9);
++	mm_fdt_array(blob, node, "mncos,gpu-last-state", mm_gpu_last, 3);
++}

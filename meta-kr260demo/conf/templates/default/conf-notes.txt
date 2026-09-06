@@ -1,0 +1,18 @@
+### Shell environment set up for MNCos build. ###
+
+# This product uses the source-layer kr260demo machine, which inherits the
+# official meta-kria k26-smk-kr-sdt BSP. You do not need to run gen-machineconf
+# for the standard KR260 Starter Kit hardware.
+
+You can now run 'bitbake <target>'
+
+Common targets are:
+    kr260demo-image
+    kr260demo-production-flash-image
+
+You can also run generated qemu images with a command like 'runqemu qemux86-64'.
+
+Other commonly useful commands are:
+ - 'devtool' and 'recipetool' handle common recipe tasks
+ - 'bitbake-layers' handles common layer tasks
+ - 'oe-pkgdata-util' handles common target package tasks

@@ -1,0 +1,21 @@
+SUMMARY = "@@PROJECT_PREFIX@@ dfx-mgr PL application and RPU firmware"
+DESCRIPTION = "Packages the @@PROJECT_PREFIX@@ full bitstream, generated PL overlay, and Cortex-R5 firmware."
+LICENSE = "CLOSED"
+
+inherit xilinx-dfx-firmware
+
+COMPATIBLE_MACHINE = "^@@PRODUCT@@$"
+
+XILINX_DFX_APP_NAME = "@@PRODUCT@@"
+XILINX_DFX_RPU_BASE ?= "@@PRODUCT@@-rpu"
+XILINX_DFX_RPU_LOAD_NAMES ?= "R5c0 R5c1"
+XILINX_DFX_RPU_ELFS = "0:R5c0.elf 1:R5c1.elf"
+
+FILESEXTRAPATHS:prepend := "${TOPDIR}/conf/dts/@@PRODUCT@@/pl-overlay-full:${TOPDIR}/../../runtime-generated/vivado_SDT_out:"
+
+SRC_URI = " \
+    file://@@PROJECT_PREFIX@@_PL.bit \
+    file://pl.dtso \
+    file://R5c0.elf \
+    file://R5c1.elf \
+"

@@ -1,0 +1,30 @@
+# @@PROJECT_PREFIX@@ build bootstrap configuration.
+# The hardware machine configuration is generated from the product XSA/SDT.
+MACHINE ??= "qemuarm64"
+DISTRO ?= "mncos"
+
+APU_RPU_CTL_SRC = "local"
+APU_RPU_CTL_GIT_BRANCH = "main"
+APU_RPU_CTL_LOCAL_DIR = "${TOPDIR}/../../@@PROJECT_PREFIX@@_APU"
+
+# Load the PL application and both R5 firmwares at boot.
+XILINX_DFX_AUTOLOAD = "1"
+
+DL_DIR ?= "${TOPDIR}/../yocto-cache/downloads"
+SSTATE_DIR ?= "${TOPDIR}/../yocto-cache/sstate-cache"
+
+EXTRA_IMAGE_FEATURES ?= "debug-tweaks"
+USER_CLASSES ?= "buildstats"
+PATCHRESOLVE = "noop"
+
+BB_DISKMON_DIRS ??= "\
+    STOPTASKS,${TMPDIR},1G,100K \
+    STOPTASKS,${DL_DIR},1G,100K \
+    STOPTASKS,${SSTATE_DIR},1G,100K \
+    STOPTASKS,/tmp,100M,100K \
+    HALT,${TMPDIR},100M,1K \
+    HALT,${DL_DIR},100M,1K \
+    HALT,${SSTATE_DIR},100M,1K \
+    HALT,/tmp,10M,1K"
+
+PACKAGECONFIG:append:pn-qemu-system-native = " sdl"

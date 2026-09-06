@@ -1,0 +1,4 @@
+/* GPU and PS display endpoints must not be probed by Linux or overlays. */
+&gpu { status = "disabled"; };
+&zynqmp_dpsub { status = "disabled"; };
+&zynqmp_dpdma { status = "disabled"; };
