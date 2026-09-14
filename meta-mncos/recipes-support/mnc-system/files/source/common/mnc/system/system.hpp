@@ -45,6 +45,7 @@ struct NetworkConfig {
     std::uint8_t prefix_length = 24;
     std::string gateway;
     std::vector<std::string> dns_servers;
+    bool preferred_default = false; // Lower route metric; other links remain fallbacks.
     bool operator==(const NetworkConfig &) const = default;
 };
 struct Preferences {
@@ -71,6 +72,19 @@ struct TimeStatus {
     std::int32_t utc_offset_seconds = 0;
     std::uint64_t uptime_ms = 0;
 };
+struct TimezoneLocation {
+    double latitude = 0;
+    double longitude = 0;
+};
+struct Timezone {
+    std::string id;
+    std::optional<std::int32_t> utc_offset_seconds;
+    std::optional<TimezoneLocation> location;
+};
+struct TimezoneCatalog {
+    std::int64_t generated_at_unix_ms = 0;
+    std::vector<Timezone> zones;
+};
 struct Temperature {
     std::string zone;
     std::string label;
@@ -80,6 +94,7 @@ struct Temperature {
 };
 struct NetworkStatus {
     std::string interface;
+    std::string mac_address;
     bool carrier = false;
     std::vector<std::string> addresses;
     std::string gateway;
@@ -117,6 +132,7 @@ class SystemManager {
     virtual Result<SystemStatus> status() = 0;
     virtual Result<TimeStatus> time() = 0;
     virtual Result<std::vector<std::string>> timezones() = 0;
+    virtual Result<TimezoneCatalog> timezoneCatalog() = 0;
     virtual Result<std::vector<Temperature>> temperatures() = 0;
     virtual Result<void> apply(const Configuration &) = 0;
     virtual Result<NetworkTransaction> beginNetwork(const NetworkProposal &) = 0;
