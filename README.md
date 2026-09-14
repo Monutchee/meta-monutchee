@@ -47,3 +47,7 @@ Upstream components and explicitly licensed files retain their own terms.
 
 Private product layers are separate repositories synchronized by their project
 manifests into `sources/meta-<product>`. Shared SDK setup discovers their templates.
+
+The `meta-mncos/recipes-support/mnc-system` recipe provides the reusable MNC
+system-management SDK and daemon. See its `files/source/README.md` for namespace,
+build, IPC and product-policy integration contracts.
