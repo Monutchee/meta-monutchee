@@ -18,3 +18,9 @@ relevant image build and hardware validation before release.
 
 Follow LICENSING.md. Preserve upstream notices and recipe package licenses.
 Update this file when durable ownership or workflow rules change.
+
+The reusable system SDK and daemon belong in
+`meta-mncos/recipes-support/mnc-system/files/source`: portable `mnc::system`,
+native `mnc::os::system`, `mnc::logging` and `mnc::Service`. Product layers supply
+immutable profiles, service identities, hardware allowlists and reset paths.
+Keep arbitrary command/path/unit operations out of the privileged IPC API.

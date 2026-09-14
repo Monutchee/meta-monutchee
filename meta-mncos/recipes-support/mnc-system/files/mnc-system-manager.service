@@ -1,0 +1,30 @@
+[Unit]
+Description=MNC system management service
+Requires=dbus.service mnc-system-bootstrap.service
+After=dbus.service mnc-system-bootstrap.service systemd-networkd.service
+Wants=systemd-networkd.service
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/mnc-system-manager
+User=root
+Group=root
+UMask=0077
+Restart=on-failure
+RestartSec=2s
+NotifyAccess=main
+WatchdogSec=30s
+TimeoutStartSec=90s
+SyslogIdentifier=mnc-system-manager
+LogExtraFields=MNC_COMPONENT=system
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=read-only
+ProtectSystem=full
+ReadWritePaths=-/run/systemd/network /run/mnc-system
+RuntimeDirectory=mnc-system
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+
+[Install]
+WantedBy=multi-user.target
