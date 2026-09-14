@@ -37,7 +37,7 @@ Result<Reply> request(const char *method, const std::string &json) {
     if (sd_bus_message_read(response, "s", &text) < 0 || !text)
         return std::unexpected(SystemError{ErrorCode::internal_error, "invalid manager reply"});
     try {
-        return decode<Reply>(text);
+        return decode<Reply>(text, 512 * 1024);
     } catch (const Error &e) {
         return std::unexpected(SystemError{e.code, e.what()});
     }
@@ -57,7 +57,7 @@ Result<T> call(const char *method, const Request &value = {}) {
         if (reply->code != ErrorCode::none)
             return std::unexpected(SystemError{reply->code, reply->message});
         if constexpr (!std::is_void_v<T>)
-            return decode<T>(reply->json);
+            return decode<T>(reply->json, 512 * 1024);
         else
             return {};
     } catch (const Error &e) {
@@ -72,6 +72,7 @@ Result<TimeStatus> Client::time() { return call<TimeStatus>("GetTime"); }
 Result<std::vector<std::string>> Client::timezones() {
     return call<std::vector<std::string>>("ListTimezones");
 }
+Result<TimezoneCatalog> Client::timezoneCatalog() { return call<TimezoneCatalog>("GetTimezoneCatalog"); }
 Result<std::vector<Temperature>> Client::temperatures() {
     return call<std::vector<Temperature>>("GetTemperatures");
 }

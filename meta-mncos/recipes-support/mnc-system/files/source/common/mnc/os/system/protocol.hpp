@@ -26,9 +26,9 @@ struct Power {
 struct Reset {
     bool confirmed = false;
 };
-template <class T> T decode(std::string_view text) {
+template <class T> T decode(std::string_view text, std::size_t limit = max_message_size) {
     T result{};
-    if (text.size() > max_message_size)
+    if (text.size() > limit)
         throw mnc::system::Error({mnc::system::ErrorCode::invalid_argument, "message too large"});
     if (auto e = glz::read_json(result, text))
         throw mnc::system::Error({mnc::system::ErrorCode::invalid_argument,

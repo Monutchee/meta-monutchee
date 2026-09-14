@@ -18,7 +18,7 @@ inline bool allowed(std::string_view name, std::uint32_t uid,
         return uid == 0 || (settings_uid && uid == *settings_uid);
     if (controlOperation(name))
         return uid == 0 || (control_uid && uid == *control_uid);
-    return name == "GetStatus" || name == "GetTime" || name == "ListTimezones" ||
+    return name == "GetStatus" || name == "GetTime" || name == "ListTimezones" || name == "GetTimezoneCatalog" ||
            name == "GetTemperatures" || name == "GetNetworkTransaction" || name == "GetJob";
 }
 } // namespace mnc::os::system

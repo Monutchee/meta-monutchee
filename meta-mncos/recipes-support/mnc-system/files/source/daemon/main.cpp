@@ -54,6 +54,9 @@ class Daemon final : public mnc::Service {
             } else if (name == "ListTimezones") {
                 decode<Empty>(json);
                 reply.json = encode(self.backend_.timezones());
+            } else if (name == "GetTimezoneCatalog") {
+                decode<Empty>(json);
+                reply.json = encode(self.backend_.timezoneCatalog());
             } else if (name == "GetTemperatures") {
                 decode<Empty>(json);
                 reply.json = encode(self.backend_.temperatures());
@@ -113,6 +116,7 @@ class Daemon final : public mnc::Service {
                                               METHOD("GetStatus"),
                                               METHOD("GetTime"),
                                               METHOD("ListTimezones"),
+                                              METHOD("GetTimezoneCatalog"),
                                               METHOD("GetTemperatures"),
                                               METHOD("ApplyPreferences"),
                                               METHOD("BeginNetwork"),

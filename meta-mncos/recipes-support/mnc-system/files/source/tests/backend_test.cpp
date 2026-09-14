@@ -25,6 +25,7 @@ struct Fake : Platform {
     Configuration discover() override { return config; }
     SystemStatus status() override { return {}; }
     TimeStatus time() override { return {}; }
+    TimezoneCatalog timezoneCatalog() override { return {}; }
     std::vector<std::string> timezones() override { return {"UTC"}; }
     std::vector<Temperature> temperatures() override { return {}; }
     void validateConfiguration(const Configuration &c) override { validate(c); }
@@ -76,6 +77,7 @@ int main() {
         auto oldhash = fileHash(p.active_settings), newhash = fileHash(root / "candidate");
         auto network = fake.config.system.network;
         network[0] = {"end0", NetworkMode::static_ipv4, "10.0.0.2", 24, "10.0.0.1", {}};
+        network[0].preferred_default = true;
         NetworkProposal proposal{network, oldhash, newhash};
         {
             Backend b(p, fake, clock);

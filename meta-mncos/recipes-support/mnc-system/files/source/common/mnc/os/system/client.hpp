@@ -8,6 +8,7 @@ class Client final : public mnc::system::SystemManager {
     mnc::system::Result<mnc::system::SystemStatus> status() override;
     mnc::system::Result<mnc::system::TimeStatus> time() override;
     mnc::system::Result<std::vector<std::string>> timezones() override;
+    mnc::system::Result<mnc::system::TimezoneCatalog> timezoneCatalog() override;
     mnc::system::Result<std::vector<mnc::system::Temperature>> temperatures() override;
     mnc::system::Result<void> apply(const mnc::system::Configuration &) override;
     mnc::system::Result<mnc::system::NetworkTransaction>

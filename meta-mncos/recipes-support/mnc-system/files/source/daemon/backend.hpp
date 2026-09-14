@@ -46,6 +46,7 @@ class Platform {
     virtual SystemStatus status() = 0;
     virtual TimeStatus time() = 0;
     virtual std::vector<std::string> timezones() = 0;
+    virtual TimezoneCatalog timezoneCatalog() = 0;
     virtual std::vector<Temperature> temperatures() = 0;
     virtual void validateConfiguration(const Configuration &) = 0;
     virtual void preferences(const Configuration &) = 0;
@@ -79,6 +80,7 @@ class Backend {
     SystemStatus status();
     TimeStatus time() { return platform_.time(); }
     std::vector<std::string> timezones() { return platform_.timezones(); }
+    TimezoneCatalog timezoneCatalog() { return platform_.timezoneCatalog(); }
     std::vector<Temperature> temperatures() { return platform_.temperatures(); }
     void apply(const Configuration &);
     NetworkTransaction beginNetwork(const NetworkProposal &);
