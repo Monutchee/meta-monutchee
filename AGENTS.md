@@ -24,3 +24,9 @@ The reusable system SDK and daemon belong in
 native `mnc::os::system`, `mnc::logging` and `mnc::Service`. Product layers supply
 immutable profiles, service identities, hardware allowlists and reset paths.
 Keep arbitrary command/path/unit operations out of the privileged IPC API.
+
+Vendor SYSMON code belongs in `meta-xilinx-addon/recipes-support/mnc-xilinx-sysmon`
+under `mnc::xilinx::sysmon`, independent of the portable OS manager. Product
+layers own provider selection, immutable hardware profiles and final package
+composition. Discover AMS channels by driver/OF identity, never IIO indices;
+preserve duplicate labels, units and unavailable values.

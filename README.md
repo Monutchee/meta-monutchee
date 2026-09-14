@@ -48,6 +48,12 @@ Upstream components and explicitly licensed files retain their own terms.
 Private product layers are separate repositories synchronized by their project
 manifests into `sources/meta-<product>`. Shared SDK setup discovers their templates.
 
+The `meta-xilinx-addon/recipes-support/mnc-xilinx-sysmon` recipe provides the
+independent `mnc::xilinx::sysmon` IIO hardware monitor. Its
+[SDK documentation](meta-xilinx-addon/recipes-support/mnc-xilinx-sysmon/files/source/README.md)
+describes channel discovery, conversion, identity and native testing. Product
+layers select this provider through their own hardware profiles and packages.
+
 The `meta-mncos/recipes-support/mnc-system` recipe provides the reusable MNC
 system-management SDK and daemon. See its `files/source/README.md` for namespace,
 build, IPC and product-policy integration contracts.
