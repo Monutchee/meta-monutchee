@@ -136,6 +136,9 @@ Backend::Backend(Profile profile, Platform &platform, std::function<std::uint64_
         state_ = decode<State>(readFile(path));
     else
         state_.configuration = profile_.defaults;
+    // Old journals predate a selectable port. Product defaults preserve that port.
+    if (state_.configuration.time.ptp_interface.empty())
+        state_.configuration.time.ptp_interface = profile_.defaults.time.ptp_interface;
 }
 void Backend::persist() {
     if (storage_failed_)

@@ -22,6 +22,7 @@ struct Fake : Platform {
     Configuration config;
     bool fail_network = false, fail_power = false;
     unsigned reboots = 0;
+    bool fail_preferences_once = false;
     Configuration discover() override { return config; }
     SystemStatus status() override { return {}; }
     TimeStatus time() override { return {}; }
@@ -29,7 +30,11 @@ struct Fake : Platform {
     std::vector<std::string> timezones() override { return {"UTC"}; }
     std::vector<Temperature> temperatures() override { return {}; }
     void validateConfiguration(const Configuration &c) override { validate(c); }
-    void preferences(const Configuration &c) override { config = c; }
+    void preferences(const Configuration &c) override {
+        config = c;
+        if (std::exchange(fail_preferences_once, false))
+            throw Error({ErrorCode::apply_failed, "injected clock start failure"});
+    }
     void network(const std::vector<NetworkConfig> &n, bool) override {
         if (fail_network)
             throw Error({ErrorCode::apply_failed, "injected network failure"});
@@ -173,6 +178,21 @@ int main() {
             fs::remove(root / "private");
             fs::rename(root / "saved-private", root / "private");
             check(decode<State>(readFile(root / "private/state.json")).job.state == "completed");
+        }
+        {
+            Backend b(p, fake, clock);
+            b.start();
+            auto selected = b.status().configuration;
+            selected.time = {"ptp", "UTC", "lan7"};
+            b.apply(selected);
+            auto candidate = selected;
+            candidate.time.ptp_interface = "lan8";
+            fake.fail_preferences_once = true;
+            fails([&] { b.apply(candidate); });
+            check(fake.config.time.ptp_interface == "lan7");
+            check(b.status().configuration.time.ptp_interface == "lan7");
+            Backend restarted(p, fake, clock);
+            check(restarted.status().configuration.time.ptp_interface == "lan7");
         }
         const auto hw = root / "hwmon/hwmon27";
         fs::create_directories(hw);

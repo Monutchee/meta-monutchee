@@ -33,6 +33,10 @@ std::uint32_t ipv4(const std::string &text) {
     return result;
 }
 } // namespace
+bool validInterfaceName(const std::string &name) {
+    return !name.empty() && name.size() < 16 &&
+        std::ranges::all_of(name, [](unsigned char c) { return std::isalnum(c) || c == '_' || c == '-'; });
+}
 void validateNetwork(const std::vector<NetworkConfig> &configs) {
     check(configs.size() <= 8, "too many network interfaces");
     check(std::ranges::count(configs, true, &NetworkConfig::preferred_default) <= 1,
@@ -88,6 +92,8 @@ void validate(const Configuration &c) {
                                              x == '+';
                                   }),
           "invalid timezone");
+    check((c.time.ptp_interface.empty() && c.time.synchronization == "ntp") ||
+              validInterfaceName(c.time.ptp_interface), "invalid PTP interface name");
     validateNetwork(c.system.network);
 }
 } // namespace mnc::system

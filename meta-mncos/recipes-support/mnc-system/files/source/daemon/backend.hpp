@@ -26,7 +26,8 @@ struct Profile {
     std::string ssh_socket = "sshd.socket";
     std::string ssh_service = "sshd.service";
     std::vector<std::string> ntp_units = {"systemd-timesyncd.service"};
-    std::vector<std::string> ptp_units;
+    std::vector<std::string> ptp_units; // Legacy fixed instances, stopped during migration.
+    std::vector<std::string> ptp_unit_templates;
     std::vector<std::string> reset_paths;
 };
 Profile loadProfile(const std::filesystem::path &);

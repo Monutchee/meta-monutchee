@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "backend.hpp"
+#include "ptp.hpp"
 #include "timezone_catalog.hpp"
 #include "network_config.hpp"
 #include <algorithm>
@@ -243,6 +244,7 @@ class Native final : public Platform {
                     s.operating_system =
                         s.operating_system.substr(1, s.operating_system.size() - 2);
             }
+        s.ptp_interfaces = discoverPtpInterfaces(profile_);
         s.ssh_listening = unitState(bus, profile_.ssh_socket) == "active" ||
                           unitState(bus, profile_.ssh_service) == "active";
         for (const auto &p : profile_.interfaces) {
@@ -331,8 +333,7 @@ class Native final : public Platform {
         auto zones = timezones();
         if (std::ranges::find(zones, c.time.timezone) == zones.end())
             throw Error({ErrorCode::invalid_argument, "timezone is not installed"});
-        if (c.time.synchronization == "ptp" && profile_.ptp_units.empty())
-            throw Error({ErrorCode::unsupported, "PTP is unavailable on this product"});
+        validatePtpSelection(c.time, discoverPtpInterfaces(profile_));
     }
     void preferences(const Configuration &c) override {
         Bus b;
@@ -347,12 +348,10 @@ class Native final : public Platform {
         call(b, "org.freedesktop.hostname1", "/org/freedesktop/hostname1",
              "org.freedesktop.hostname1", "SetHostname", transient, "sb", c.system.hostname.c_str(),
              0);
-        const bool ntp = c.time.synchronization == "ntp";
-        const auto &stop = ntp ? profile_.ptp_units : profile_.ntp_units;
-        const auto &start = ntp ? profile_.ntp_units : profile_.ptp_units;
-        for (auto i = stop.rbegin(); i != stop.rend(); ++i)
-            unit(b, *i, false);
-        for (const auto &name : start)
+        const auto clocks = clockUnits(profile_, c.time);
+        for (const auto &name : clocks.stop)
+            unit(b, name, false);
+        for (const auto &name : clocks.start)
             unit(b, name, true);
         sshBootPolicy(c.system.ssh_enabled);
         unit(b, profile_.ssh_socket, c.system.ssh_enabled);
