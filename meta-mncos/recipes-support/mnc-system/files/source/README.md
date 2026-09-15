@@ -47,3 +47,10 @@ write uncertainty stops mutations and causes daemon recovery.
 
 New system code is GPL-3.0-only. Extracted logging/service code retains Apache-2.0
 (`LICENSE.runtime`); the build recipe records Glaze's upstream MIT license.
+
+PTP interface choices are kernel-discovered and include hardware timestamp/PHC
+capabilities, carrier state and eligibility reasons. Product hardware policy
+limits selectable ports. Time preferences persist one interface name, never a
+PHC index. Product `ptp_unit_templates` are instantiated only for validated
+interface names; transitions stop competing instances before starting the selected
+pair. `ptp_units` is retained only to stop legacy fixed services during migration.

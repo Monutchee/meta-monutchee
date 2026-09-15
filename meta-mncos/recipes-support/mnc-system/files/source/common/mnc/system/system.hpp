@@ -57,6 +57,7 @@ struct Preferences {
 struct TimePreferences {
     std::string synchronization = "ntp";
     std::string timezone = "UTC";
+    std::string ptp_interface;
     bool operator==(const TimePreferences &) const = default;
 };
 struct Configuration {
@@ -100,9 +101,18 @@ struct NetworkStatus {
     std::string gateway;
     std::vector<std::string> dns_servers;
 };
+struct PtpInterface {
+    std::string interface;
+    bool carrier = false;
+    bool hardware_timestamping = false;
+    int phc_index = -1;
+    bool selectable = false;
+    std::string reason;
+};
 struct SystemStatus {
     Configuration configuration;
     std::vector<NetworkStatus> network;
+    std::vector<PtpInterface> ptp_interfaces;
     bool ssh_listening = false;
     std::string kernel_release;
     std::string operating_system;
@@ -143,6 +153,7 @@ class SystemManager {
     virtual Result<Job> resetDevice(bool confirmed) = 0;
     virtual Result<Job> job() = 0;
 };
+bool validInterfaceName(const std::string &);
 void validate(const Configuration &);
 void validateNetwork(const std::vector<NetworkConfig> &);
 } // namespace mnc::system
