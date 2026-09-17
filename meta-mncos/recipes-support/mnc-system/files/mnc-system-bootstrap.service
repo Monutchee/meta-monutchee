@@ -1,0 +1,17 @@
+[Unit]
+Description=Recover MNC system transactions before platform services start
+DefaultDependencies=no
+Before=systemd-networkd.service systemd-tmpfiles-setup.service systemd-journal-flush.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/mnc-system-manager --bootstrap
+RemainAfterExit=yes
+User=root
+Group=root
+UMask=0077
+TimeoutStartSec=infinity
+SyslogIdentifier=mnc-system-bootstrap
+
+[Install]
+WantedBy=sysinit.target
