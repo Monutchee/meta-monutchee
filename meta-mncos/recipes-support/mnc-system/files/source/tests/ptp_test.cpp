@@ -45,6 +45,11 @@ int main() {
     const auto ntp = clockUnits(profile, time);
     assert(ntp.stop.size() == 4 && ntp.stop[0] == "phc2sys@enp2s0.service");
     assert(ntp.start == profile.ntp_units);
+    time.synchronization = "local";
+    validatePtpSelection(time, {});
+    const auto local = clockUnits(profile, time);
+    assert(local.start.empty() && local.stop.size() == 5);
+    assert(local.stop.back() == "systemd-timesyncd.service");
     time = {"ptp", "UTC", "../bad"};
     rejects([&] { validate(Configuration{{}, time}); });
     rejects([&] { clockUnits(profile, time); });

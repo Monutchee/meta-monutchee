@@ -3,6 +3,7 @@
 #include "ptp.hpp"
 #include "timezone_catalog.hpp"
 #include "network_config.hpp"
+#include "clock_config.hpp"
 #include <algorithm>
 #include <arpa/inet.h>
 #include <charconv>
@@ -348,9 +349,14 @@ class Native final : public Platform {
         call(b, "org.freedesktop.hostname1", "/org/freedesktop/hostname1",
              "org.freedesktop.hostname1", "SetHostname", transient, "sb", c.system.hostname.c_str(),
              0);
+        const auto changed = writeClockPolicy(profile_, c.time);
         const auto clocks = clockUnits(profile_, c.time);
         for (const auto &name : clocks.stop)
             unit(b, name, false);
+        // timesyncd reads its server list at startup. Do not restart it for unrelated settings.
+        if (changed.servers && c.time.synchronization == "ntp")
+            for (const auto &name : profile_.ntp_units) unit(b, name, false);
+        if (changed.network) reloadNetwork(c.system.network);
         for (const auto &name : clocks.start)
             unit(b, name, true);
         sshBootPolicy(c.system.ssh_enabled);
@@ -380,8 +386,9 @@ class Native final : public Platform {
             fs::permissions(path, fs::perms::owner_read | fs::perms::owner_write |
                                       fs::perms::group_read | fs::perms::others_read);
         }
-        if (bootstrap)
-            return;
+        if (!bootstrap) reloadNetwork(configs);
+    }
+    void reloadNetwork(const std::vector<NetworkConfig> &configs) {
         Bus b;
         Message reload;
         call(b, "org.freedesktop.network1", "/org/freedesktop/network1",
@@ -392,6 +399,9 @@ class Native final : public Platform {
                  "org.freedesktop.network1.Manager", "ReconfigureLink", m, "i",
                  static_cast<int>(if_nametoindex(c.interface.c_str())));
         }
+    }
+    void clockBootPolicy(const TimePreferences &time) override {
+        writeClockPolicy(profile_, time);
     }
     void sshBootPolicy(bool enabled) override {
         const fs::path marker = "/run/mnc-system/ssh-disabled";

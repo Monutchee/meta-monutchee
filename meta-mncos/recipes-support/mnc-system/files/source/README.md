@@ -54,3 +54,18 @@ limits selectable ports. Time preferences persist one interface name, never a
 PHC index. Product `ptp_unit_templates` are instantiated only for validated
 interface names; transitions stop competing instances before starting the selected
 pair. `ptp_units` is retained only to stop legacy fixed services during migration.
+
+Time preferences support `ntp`, `ptp` and `local`. Local mode stops every managed
+clock discipline; Linux starts from the RTC at boot and then runs its own clock.
+Changing mode does not step the running clock or prove UTC accuracy.
+`ntp_servers` contains up to eight unique hostnames, IPv4 or IPv6 addresses without
+ports. An empty list preserves automatic/image NTP discovery. A custom list
+replaces configured servers, disables fallback servers and suppresses DHCP NTP
+on product-managed links. The list is retained while using another clock mode.
+
+The native adapter writes runtime timesyncd/networkd drop-ins and restarts NTP
+only when its server configuration changes. Preference transactions restore the
+previous policy on failure. Bootstrap recreates clock policy before network/time
+services start. Product packages must gate NTP/PTP units on bootstrap and their
+respective `/run/mnc-system/ntp-disabled` or `ptp-disabled` marker being absent;
+this prevents an enabled service from synchronizing a saved Local clock at boot.
