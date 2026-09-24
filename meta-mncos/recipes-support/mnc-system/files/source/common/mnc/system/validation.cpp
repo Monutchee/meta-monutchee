@@ -33,6 +33,64 @@ std::uint32_t ipv4(const std::string &text) {
     return result;
 }
 } // namespace
+bool validNtpServer(const std::string &server) {
+    if (server.empty() || server.size() > 253) return false;
+    auto decimalAddress = [](std::string_view text) {
+        for (int i = 0; i < 4; ++i) {
+            const auto dot = text.find('.');
+            const auto part = text.substr(0, dot);
+            unsigned value = 0;
+            const auto parsed = std::from_chars(part.data(), part.data() + part.size(), value);
+            if (part.empty() || (part.size() > 1 && part.front() == '0') ||
+                parsed.ec != std::errc{} || parsed.ptr != part.data() + part.size() || value > 255 ||
+                ((i == 3) != (dot == std::string_view::npos))) return false;
+            if (dot != std::string_view::npos) text.remove_prefix(dot + 1);
+        }
+        return true;
+    };
+    std::string_view text(server);
+    if (text.find(':') != text.npos) {
+        // IPv6 literal, including an optional dotted IPv4 tail; no ports or zone IDs.
+        const auto compression = text.find("::");
+        if (compression != text.npos && text.find("::", compression + 2) != text.npos) return false;
+        auto count = [&](std::string_view part, bool allowV4) {
+            int words = 0;
+            while (!part.empty()) {
+                auto colon = part.find(':');
+                auto word = part.substr(0, colon);
+                if (word.find('.') != word.npos)
+                    return allowV4 && colon == part.npos && decimalAddress(word) ? words + 2 : -1;
+                unsigned value = 0;
+                const auto parsed = std::from_chars(word.data(), word.data() + word.size(), value, 16);
+                if (word.empty() || word.size() > 4 || parsed.ec != std::errc{} ||
+                    parsed.ptr != word.data() + word.size()) return -1;
+                ++words;
+                if (colon == part.npos) break;
+                part.remove_prefix(colon + 1);
+                if (part.empty()) return -1;
+            }
+            return words;
+        };
+        if (compression == text.npos) return count(text, true) == 8;
+        auto left = count(text.substr(0, compression), false);
+        auto right = count(text.substr(compression + 2), true);
+        return left >= 0 && right >= 0 && left + right < 8;
+    }
+    if (std::ranges::all_of(text, [](char c) { return (c >= '0' && c <= '9') || c == '.'; }))
+        return decimalAddress(text);
+    if (text.back() == '.') text.remove_suffix(1);
+    while (!text.empty()) {
+        auto dot = text.find('.');
+        auto label = text.substr(0, dot);
+        if (label.empty() || label.size() > 63 || label.front() == '-' || label.back() == '-' ||
+            !std::ranges::all_of(label, [](char c) {
+                return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
+            })) return false;
+        if (dot == text.npos) return true;
+        text.remove_prefix(dot + 1);
+    }
+    return false;
+}
 bool validInterfaceName(const std::string &name) {
     return !name.empty() && name.size() < 16 &&
         std::ranges::all_of(name, [](unsigned char c) { return std::isalnum(c) || c == '_' || c == '-'; });
@@ -82,7 +140,7 @@ void validate(const Configuration &c) {
               std::ranges::all_of(c.system.hostname,
                                   [](unsigned char x) { return std::isalnum(x) || x == '-'; }),
           "invalid hostname");
-    check(c.time.synchronization == "ntp" || c.time.synchronization == "ptp",
+    check(c.time.synchronization == "ntp" || c.time.synchronization == "ptp" || c.time.synchronization == "local",
           "invalid time synchronization mode");
     check(!c.time.timezone.empty() && c.time.timezone.size() <= 128 &&
               c.time.timezone.front() != '/' && c.time.timezone.find("..") == std::string::npos &&
@@ -92,8 +150,14 @@ void validate(const Configuration &c) {
                                              x == '+';
                                   }),
           "invalid timezone");
-    check((c.time.ptp_interface.empty() && c.time.synchronization == "ntp") ||
+    check((c.time.ptp_interface.empty() && c.time.synchronization != "ptp") ||
               validInterfaceName(c.time.ptp_interface), "invalid PTP interface name");
+    check(c.time.ntp_servers.size() <= 8, "at most eight NTP servers are allowed");
+    std::set<std::string> servers;
+    for (const auto &server : c.time.ntp_servers) {
+        check(validNtpServer(server), "invalid NTP server: use a hostname or IP address without a port");
+        check(servers.insert(server).second, "duplicate NTP server");
+    }
     validateNetwork(c.system.network);
 }
 } // namespace mnc::system

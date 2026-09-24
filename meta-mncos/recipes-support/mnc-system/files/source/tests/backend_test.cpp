@@ -40,6 +40,7 @@ struct Fake : Platform {
             throw Error({ErrorCode::apply_failed, "injected network failure"});
         config.system.network = n;
     }
+    void clockBootPolicy(const TimePreferences &t) override { config.time = t; }
     void sshBootPolicy(bool b) override { config.system.ssh_enabled = b; }
     void power(PowerAction) override {
         if (fail_power)
@@ -193,6 +194,25 @@ int main() {
             check(b.status().configuration.time.ptp_interface == "lan7");
             Backend restarted(p, fake, clock);
             check(restarted.status().configuration.time.ptp_interface == "lan7");
+        }
+        {
+            Backend b(p, fake, clock);
+            b.start();
+            auto selected = b.status().configuration;
+            selected.time = {"local", "America/Toronto", "lan7", {"ntp.example.test", "192.0.2.1"}};
+            b.apply(selected);
+            auto candidate = selected;
+            candidate.time = {"ntp", "UTC", "lan8", {"different.example.test"}};
+            fake.fail_preferences_once = true;
+            fails([&] { b.apply(candidate); });
+            check(fake.config.time == selected.time);
+            Backend restarted(p, fake, clock);
+            fake.config.time = {};
+            restarted.bootstrap(); // Restore policy before any clock daemon starts.
+            check(fake.config.time == selected.time);
+            check(restarted.status().configuration.time == selected.time);
+            const auto legacy = decode<TimePreferences>(R"({"synchronization":"ptp","timezone":"UTC","ptp_interface":"lan7"})");
+            check(legacy.ntp_servers.empty() && legacy.synchronization == "ptp");
         }
         const auto hw = root / "hwmon/hwmon27";
         fs::create_directories(hw);

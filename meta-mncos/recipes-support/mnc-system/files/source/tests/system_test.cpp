@@ -38,4 +38,18 @@ int main() {
     assert(fails([&] { validate(c); }));
     c.time.timezone = "America/Toronto";
     validate(c);
+    c.time.synchronization = "local";
+    c.time.ptp_interface.clear();
+    c.time.ntp_servers = {"ntp.example.test", "192.168.1.2", "2001:db8::1"};
+    validate(c);
+    for (const auto *server : {"pool.ntp.org.", "::1", "::ffff:192.0.2.1", "1.2.3.4"})
+        assert(validNtpServer(server));
+    for (const auto *server : {"", "a b", "a\nFallbackNTP=evil", "-bad", "bad-", "a..b",
+                              "http://host", "host:123", "[::1]", "fe80::1%eth0", ":::1",
+                              "256.1.1.1", "01.2.3.4", "1.2.3", "a_b"})
+        assert(!validNtpServer(server));
+    c.time.ntp_servers = {"host", "host"};
+    assert(fails([&] { validate(c); }));
+    c.time.ntp_servers = {"a", "b", "c", "d", "e", "f", "g", "h", "i"};
+    assert(fails([&] { validate(c); }));
 }

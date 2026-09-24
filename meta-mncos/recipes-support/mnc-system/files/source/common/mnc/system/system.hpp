@@ -58,6 +58,7 @@ struct TimePreferences {
     std::string synchronization = "ntp";
     std::string timezone = "UTC";
     std::string ptp_interface;
+    std::vector<std::string> ntp_servers; // Empty selects platform/DHCP defaults.
     bool operator==(const TimePreferences &) const = default;
 };
 struct Configuration {
@@ -153,6 +154,7 @@ class SystemManager {
     virtual Result<Job> resetDevice(bool confirmed) = 0;
     virtual Result<Job> job() = 0;
 };
+bool validNtpServer(const std::string &);
 bool validInterfaceName(const std::string &);
 void validate(const Configuration &);
 void validateNetwork(const std::vector<NetworkConfig> &);
