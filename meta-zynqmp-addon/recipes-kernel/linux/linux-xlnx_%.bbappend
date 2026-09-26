@@ -1,5 +1,6 @@
 FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 SRC_URI:append = " file://modify-kernel-features.cfg"
+SRC_URI:append:mncos = " file://mncos-systemd.cfg"
 SRC_URI:append:mncos = "${@' file://0001-media-xilinx-dprxss-select-drm-kms-helper.patch file://mncos-headless.cfg' if d.getVar('MNCOS_HEADLESS') == '1' else ''}"
 
 SRC_URI:append:mncos = "${@' file://mncos-multimedia-off.cfg' if d.getVar('MNCOS_MULTIMEDIA_OFF') == '1' else ''}"
@@ -9,6 +10,15 @@ SRC_URI:append:mncos = "${@' file://mncos-multimedia-off.cfg' if d.getVar('MNCOS
 python () {
     if d.getVar("DISTRO") == "mncos":
         d.appendVarFlag("do_configure", "postfuncs", " mncos_check_headless_kernel")
+        d.appendVarFlag("do_configure", "postfuncs", " mncos_check_systemd_kernel")
+}
+
+python mncos_check_systemd_kernel() {
+    from pathlib import Path
+    config = set((Path(d.getVar("B")) / ".config").read_text().splitlines())
+    for symbol in ("CONFIG_NAMESPACES", "CONFIG_UTS_NS"):
+        if symbol + "=y" not in config:
+            bb.fatal("MNCOS systemd hostname sandbox requires " + symbol)
 }
 python mncos_check_headless_kernel() {
     if d.getVar("MNCOS_HEADLESS") != "1":
