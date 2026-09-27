@@ -190,6 +190,7 @@ void Backend::bootstrap() {
         state_.pending = {};
         platform_.network(state_.configuration.system.network, true);
         platform_.sshBootPolicy(state_.configuration.system.ssh_enabled);
+        platform_.clockBootPolicy(state_.configuration.time);
         state_.reset_intent = false;
         state_.job.state = "completed";
         persist();
@@ -197,6 +198,9 @@ void Backend::bootstrap() {
         recoverNetwork(true);
         platform_.network(state_.configuration.system.network, true);
         platform_.sshBootPolicy(state_.configuration.system.ssh_enabled);
+        platform_.clockBootPolicy(state_.configuration.time);
+    } else {
+        platform_.clockBootPolicy(profile_.defaults.time);
     }
 }
 void Backend::start() {

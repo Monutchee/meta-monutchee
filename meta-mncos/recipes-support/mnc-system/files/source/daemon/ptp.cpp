@@ -98,7 +98,7 @@ ClockUnits clockUnits(const Profile &profile, const TimePreferences &time) {
     ClockUnits result;
     for (auto it = all.rbegin(); it != all.rend(); ++it)
         if (std::ranges::find(selected, *it) == selected.end()) result.stop.push_back(*it);
-    if (time.synchronization == "ptp") {
+    if (time.synchronization != "ntp") {
         result.stop.insert(result.stop.end(), profile.ntp_units.rbegin(), profile.ntp_units.rend());
         result.start = std::move(selected);
     } else result.start = profile.ntp_units;
