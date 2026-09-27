@@ -53,6 +53,7 @@ class Platform {
     virtual void preferences(const Configuration &) = 0;
     virtual void network(const std::vector<NetworkConfig> &, bool bootstrap) = 0;
     virtual void sshBootPolicy(bool) = 0;
+    virtual void clockBootPolicy(const TimePreferences &) = 0;
     virtual void power(PowerAction) = 0;
 };
 std::unique_ptr<Platform> nativePlatform(const Profile &);
