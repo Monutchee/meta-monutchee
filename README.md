@@ -18,6 +18,12 @@ Shared layer ownership is split by responsibility:
   [RPLL protection for R5 firmware](meta-zynqmp-addon/README.md#r5-clock-protection).
 - External product layers select the image and product policy.
 
+The Xilinx add-on splits `freeipmi-fru` and its shared libraries from the full
+FreeIPMI package. Product consumers that only read board EEPROM identification
+can depend on `freeipmi-fru`; shared-library scanning supplies its libraries.
+The existing `freeipmi` package depends on the split packages and continues to
+provide the complete toolkit for other consumers.
+
 ## Creating a Xilinx product layer
 
 Use the maintained KR260 product-layer scaffold instead of copying an existing
