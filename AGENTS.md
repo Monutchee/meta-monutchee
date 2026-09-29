@@ -30,3 +30,8 @@ under `mnc::xilinx::sysmon`, independent of the portable OS manager. Product
 layers own provider selection, immutable hardware profiles and final package
 composition. Discover AMS channels by driver/OF identity, never IIO indices;
 preserve duplicate labels, units and unavailable values.
+
+The generic base utility allowlist belongs in packagegroup-mncos-base-utils.
+Additional command requirements belong in consumer RDEPENDS, with vendor
+consumers maintained in vendor layers. Keep package recommendations and
+automatic shared-library dependency resolution enabled.

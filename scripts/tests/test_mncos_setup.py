@@ -61,6 +61,40 @@ class SetupSDKTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(f"TEMPLATE:{self.workspace}/sources/meta-example/conf/templates/default", result.stdout)
 
+    def test_nested_family_template_in_bash_and_zsh(self):
+        direct = self.workspace / "sources/meta-example"
+        nested = self.workspace / "sources/meta-family/meta-example"
+        nested.parent.mkdir()
+        direct.rename(nested)
+        for shell in ("bash", "zsh"):
+            if not shutil.which(shell):
+                continue
+            with self.subTest(shell=shell):
+                result = self.run_setup(shell=shell)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("INITIALIZED:build:", result.stdout)
+
+    def test_symlink_to_same_nested_template_is_not_ambiguous(self):
+        nested = self.workspace / "sources/meta-family/meta-example"
+        nested.parent.mkdir()
+        nested.symlink_to(self.workspace / "sources/meta-example", target_is_directory=True)
+        result = self.run_setup()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_distinct_nested_templates_are_ambiguous(self):
+        (self.workspace / "sources/meta-family/meta-example/conf/templates/default").mkdir(parents=True)
+        result = self.run_setup()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("ambiguous build templates", result.stderr)
+
+    @unittest.skipUnless(shutil.which("zsh"), "zsh is unavailable")
+    def test_no_product_repositories_in_zsh(self):
+        shutil.rmtree(self.workspace / "sources/meta-example")
+        shutil.rmtree(self.workspace / "sources/meta-monutchee")
+        result = self.run_setup(shell="zsh")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing build template", result.stderr)
+
     def test_missing_bitbake_fails_before_initialization(self):
         self.bitbake.unlink()
         result = self.run_setup()
