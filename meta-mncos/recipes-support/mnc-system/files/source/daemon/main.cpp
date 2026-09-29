@@ -176,15 +176,19 @@ int main(int argc, char **argv) {
     using namespace mnc::os::system;
     try {
         auto profile = loadProfile("/usr/share/mnc/system/profile.json");
-        if (argc == 2 && std::string_view(argv[1]) == "--bootstrap") {
+        bool bootstrap = false;
+        for (int i = 1; i < argc; ++i) {
+            const std::string_view argument(argv[i]);
+            if (argument == "--bootstrap") bootstrap = true;
+            else if (argument == "--boot-preferences" && i + 1 < argc)
+                loadBootPreferences(profile, argv[++i]);
+            else throw std::invalid_argument("usage: mnc-system-manager [--bootstrap] [--boot-preferences FILE]");
+        }
+        if (bootstrap) {
             auto platform = nativePlatform(profile);
             Backend backend(profile, *platform);
             backend.bootstrap();
             return 0;
-        }
-        if (argc != 1) {
-            std::cerr << "usage: mnc-system-manager [--bootstrap]\n";
-            return 2;
         }
         Daemon daemon(std::move(profile));
         return daemon.run();

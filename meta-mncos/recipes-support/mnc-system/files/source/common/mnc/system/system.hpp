@@ -66,6 +66,13 @@ struct Configuration {
     TimePreferences time;
     bool operator==(const Configuration &) const = default;
 };
+/** Root-owned boot projection; excludes hardware policy, paths and service names. */
+struct BootPreferences {
+    std::uint32_t schema_version = 1;
+    Configuration factory;
+    Configuration initial;
+    std::string managed_hostname;
+};
 struct TimeStatus {
     std::int64_t unix_time_ms = 0;
     std::string utc_time;
