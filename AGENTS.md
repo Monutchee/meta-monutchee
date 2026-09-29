@@ -35,3 +35,8 @@ The generic base utility allowlist belongs in packagegroup-mncos-base-utils.
 Additional command requirements belong in consumer RDEPENDS, with vendor
 consumers maintained in vendor layers. Keep package recommendations and
 automatic shared-library dependency resolution enabled.
+
+- The system manager's optional `--boot-preferences` supplies typed factory and
+  initial preferences plus a managed hostname. Keep vendor selection in product
+  code; boot preferences cannot replace immutable hardware allowlists, unit
+  policy or reset paths. Early hostname application must not depend on D-Bus.

@@ -29,8 +29,10 @@ struct Profile {
     std::vector<std::string> ptp_units; // Legacy fixed instances, stopped during migration.
     std::vector<std::string> ptp_unit_templates;
     std::vector<std::string> reset_paths;
+    std::optional<BootPreferences> boot_preferences;
 };
 Profile loadProfile(const std::filesystem::path &);
+void loadBootPreferences(Profile &, const std::filesystem::path &);
 std::string readFile(const std::filesystem::path &, std::size_t limit = 1048576);
 void atomicWrite(const std::filesystem::path &, std::string_view);
 void durableRemove(const std::filesystem::path &);
@@ -51,6 +53,9 @@ class Platform {
     virtual std::vector<Temperature> temperatures() = 0;
     virtual void validateConfiguration(const Configuration &) = 0;
     virtual void preferences(const Configuration &) = 0;
+    virtual void bootHostname(const std::string &) {
+        throw Error({ErrorCode::unsupported, "early hostname is unsupported"});
+    }
     virtual void network(const std::vector<NetworkConfig> &, bool bootstrap) = 0;
     virtual void sshBootPolicy(bool) = 0;
     virtual void clockBootPolicy(const TimePreferences &) = 0;

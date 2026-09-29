@@ -127,6 +127,31 @@ Profile loadProfile(const fs::path &p) {
     }
     return profile;
 }
+void loadBootPreferences(Profile& profile, const fs::path& path) {
+    struct stat st{};
+    io(lstat(path.c_str(), &st) == 0, "stat boot preferences");
+    if (!S_ISREG(st.st_mode) || st.st_uid != 0 || (st.st_mode & 0022))
+        throw Error({ErrorCode::permission_denied, "boot preferences must be root-owned and non-writable"});
+    auto boot = decode<BootPreferences>(readFile(path));
+    if (boot.schema_version != 1 || boot.managed_hostname.empty())
+        throw Error({ErrorCode::invalid_argument, "invalid boot preferences"});
+    boot.factory.system.hostname = boot.managed_hostname;
+    boot.initial.system.hostname = boot.managed_hostname;
+    validate(boot.factory);
+    validate(boot.initial);
+    // The immutable profile remains authoritative for every managed interface.
+    for (const auto* config : {&boot.factory, &boot.initial}) {
+        if (config->system.network.size() != profile.interfaces.size())
+            throw Error({ErrorCode::invalid_argument, "boot preferences must include all managed interfaces"});
+        for (const auto& policy : profile.interfaces) {
+            const auto count = std::count_if(config->system.network.begin(), config->system.network.end(),
+                [&](const auto& n) { return n.interface == policy.name; });
+            if (count != 1) throw Error({ErrorCode::invalid_argument, "invalid boot interface"});
+        }
+    }
+    profile.defaults = boot.factory;
+    profile.boot_preferences = std::move(boot);
+}
 Backend::Backend(Profile profile, Platform &platform, std::function<std::uint64_t()> clock)
     : profile_(std::move(profile)), platform_(platform), clock_(std::move(clock)) {
     fs::create_directories(profile_.state_directory);
@@ -199,8 +224,21 @@ void Backend::bootstrap() {
         platform_.network(state_.configuration.system.network, true);
         platform_.sshBootPolicy(state_.configuration.system.ssh_enabled);
         platform_.clockBootPolicy(state_.configuration.time);
+    } else if (profile_.boot_preferences) {
+        state_.configuration = profile_.boot_preferences->initial;
+        platform_.network(state_.configuration.system.network, true);
+        platform_.sshBootPolicy(state_.configuration.system.ssh_enabled);
+        platform_.clockBootPolicy(state_.configuration.time);
+        state_.initialized = true;
+        persist();
     } else {
         platform_.clockBootPolicy(profile_.defaults.time);
+    }
+    if (profile_.boot_preferences) {
+        // Recover any journal transaction before changing the settings identity.
+        state_.configuration.system.hostname = profile_.boot_preferences->managed_hostname;
+        platform_.bootHostname(state_.configuration.system.hostname);
+        persist();
     }
 }
 void Backend::start() {
@@ -229,6 +267,8 @@ SystemStatus Backend::status() {
 void Backend::apply(const Configuration &config) {
     idle();
     validate(config);
+    if (profile_.boot_preferences && config.system.hostname != profile_.boot_preferences->managed_hostname)
+        throw Error({ErrorCode::invalid_argument, "hostname is managed by production identity"});
     platform_.validateConfiguration(config);
     if (state_.initialized && config.system.network != state_.configuration.system.network)
         throw Error(
@@ -258,6 +298,8 @@ NetworkTransaction Backend::beginNetwork(const NetworkProposal &p) {
     auto config = state_.configuration;
     config.system.network = p.network;
     validate(config);
+    if (profile_.boot_preferences && config.system.hostname != profile_.boot_preferences->managed_hostname)
+        throw Error({ErrorCode::invalid_argument, "hostname is managed by production identity"});
     platform_.validateConfiguration(config);
     const auto validHash = [](const std::string &s) {
         return s.size() == 64 && std::ranges::all_of(s, [](char c) {
