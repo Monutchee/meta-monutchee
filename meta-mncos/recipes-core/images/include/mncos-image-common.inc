@@ -26,7 +26,7 @@ MNCOS_COMMON_INSTALL = " \
     libubootenv \
     openssl \
     jq \
-    util-linux \
+    packagegroup-mncos-base-utils \
     net-tools \
     traceroute \
 "
