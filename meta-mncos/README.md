@@ -45,6 +45,11 @@ hash remains in `/etc/mncos-image-info` for unambiguous diagnostics. The short
 hash is a convenient display identifier; it must not be treated as a security
 or integrity check.
 
+An image with a runtime banner provider can set `MNCOS_STATIC_LOGIN_BANNER = "0"`.
+The class then writes only `/etc/mncos-image-info`; the provider owns rendering
+`/etc/issue` and `/etc/motd` from that metadata and its runtime identity. Other
+images retain the default static banners.
+
 ## SDK export
 
 For generate the sdk

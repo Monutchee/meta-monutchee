@@ -41,6 +41,7 @@ struct Fake : Platform {
         config.system.network = n;
     }
     void clockBootPolicy(const TimePreferences &t) override { config.time = t; }
+    void bootHostname(const std::string& hostname) override { config.system.hostname = hostname; }
     void sshBootPolicy(bool b) override { config.system.ssh_enabled = b; }
     void power(PowerAction) override {
         if (fail_power)
@@ -213,6 +214,31 @@ int main() {
             check(restarted.status().configuration.time == selected.time);
             const auto legacy = decode<TimePreferences>(R"({"synchronization":"ptp","timezone":"UTC","ptp_interface":"lan7"})");
             check(legacy.ntp_servers.empty() && legacy.synchronization == "ptp");
+        }
+        {
+            auto bootProfile = p;
+            bootProfile.state_directory = (root / "vendor-state").string();
+            auto factory = p.defaults;
+            factory.system.hostname = "serial001";
+            factory.system.ssh_enabled = false;
+            auto initial = factory;
+            initial.system.ssh_enabled = true; // Existing preferences survive migration.
+            bootProfile.defaults = factory;
+            bootProfile.boot_preferences = mnc::system::BootPreferences{1, factory, initial, "serial001"};
+            Fake bootPlatform;
+            Backend boot(bootProfile, bootPlatform, clock);
+            boot.bootstrap();
+            check(bootPlatform.config.system.hostname == "serial001");
+            check(bootPlatform.config.system.ssh_enabled);
+            boot.start();
+            auto bad = boot.status().configuration;
+            bad.system.hostname = "manual";
+            fails([&] { boot.apply(bad); });
+            bootProfile.boot_preferences->managed_hostname = "newserial";
+            Backend nextBoot(bootProfile, bootPlatform, clock);
+            nextBoot.bootstrap();
+            check(nextBoot.status().configuration.system.hostname == "newserial");
+            check(bootPlatform.config.system.ssh_enabled);
         }
         const auto hw = root / "hwmon/hwmon27";
         fs::create_directories(hw);

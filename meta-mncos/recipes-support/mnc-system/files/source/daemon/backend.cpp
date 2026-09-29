@@ -17,6 +17,8 @@
 #include <sys/utsname.h>
 #include <systemd/sd-bus.h>
 #include <thread>
+#include <unistd.h>
+#include <sys/stat.h>
 namespace mnc::os::system {
 namespace fs = std::filesystem;
 namespace {
@@ -335,6 +337,14 @@ class Native final : public Platform {
         if (std::ranges::find(zones, c.time.timezone) == zones.end())
             throw Error({ErrorCode::invalid_argument, "timezone is not installed"});
         validatePtpSelection(c.time, discoverPtpInterfaces(profile_));
+    }
+    void bootHostname(const std::string& hostname) override {
+        // This runs before D-Bus/network/SSH/Avahi. Do not activate hostnamed here.
+        atomicWrite("/etc/hostname", hostname + "\n");
+        if (::chmod("/etc/hostname", 0644) != 0)
+            throw Error({ErrorCode::apply_failed, "cannot set hostname file permissions"});
+        if (::sethostname(hostname.data(), hostname.size()) != 0)
+            throw Error({ErrorCode::apply_failed, "cannot set boot hostname"});
     }
     void preferences(const Configuration &c) override {
         Bus b;
