@@ -26,11 +26,15 @@ MNCOS_COMMON_INSTALL = " \
     libubootenv \
     openssl \
     jq \
-    util-linux \
+    packagegroup-mncos-base-utils \
     net-tools \
     traceroute \
 "
 
+# The boost metapackage preserves the existing all-runtime-libraries default.
+# Products can use IMAGE_INSTALL:remove = "boost" for dependency-driven runtime
+# selection. Keep DEPENDS += "boost" in consumers; shlibs adds linked runtime
+# components automatically. Indirect dlopen/plugin loads need explicit RDEPENDS.
 MNCOS_LIB_INSTALL = " \
     net-snmp \
     curl \
