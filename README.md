@@ -52,7 +52,16 @@ commercial license. See [LICENSE](LICENSE), [LICENSING.md](LICENSING.md) and
 Upstream components and explicitly licensed files retain their own terms.
 
 Private product layers are separate repositories synchronized by their project
-manifests into `sources/meta-<product>`. Shared SDK setup discovers their templates.
+manifests into `sources/meta-<product>`, or nested as
+`sources/meta-<family>/meta-<product>`. Shared SDK setup discovers both layouts.
+Distinct matching templates are rejected; symlinks to the same template are
+deduplicated.
+
+The common image selects `packagegroup-mncos-base-utils` instead of the
+`util-linux` umbrella. This keeps explicit boot, storage and diagnostic command
+packages while normal runtime dependencies select their libraries. Additional
+commands belong in the consuming recipe's `RDEPENDS`; vendor-specific consumers
+are maintained in vendor layers. BusyBox applets remain available.
 
 The `meta-xilinx-addon/recipes-support/mnc-xilinx-sysmon` recipe provides the
 independent `mnc::xilinx::sysmon` IIO hardware monitor. Its

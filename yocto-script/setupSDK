@@ -7,7 +7,8 @@ Products:
   zudemo       Use meta-zuboard/conf/templates/default and build
   kr260demo    Use meta-kr260demo/conf/templates/default and build
 
-Other products use meta-<product>/conf/templates/default when that directory
+Other products use meta-<product>/conf/templates/default, either directly in
+sources/ or nested inside a sources/meta-* repository, when that directory
 exists and the product name contains only lowercase letters, digits, and
 single hyphen separators.
 
@@ -104,7 +105,9 @@ esac
 
 
 _monutchee_template_dir=""
-for _monutchee_candidate in     "${ROOT}/sources/${_monutchee_template_layer}/conf/templates/default"     "${ROOT}/sources/meta-monutchee/${_monutchee_template_layer}/conf/templates/default"; do
+# NUL-delimited paths support spaces and missing repositories in bash and zsh.
+while IFS= read -r -d '' _monutchee_repository; do
+    _monutchee_candidate="${_monutchee_repository}/${_monutchee_template_layer}/conf/templates/default"
     [ -d "${_monutchee_candidate}" ] || continue
     _monutchee_candidate="$(readlink -f "${_monutchee_candidate}")"
     if [ -n "${_monutchee_template_dir}" ] && [ "${_monutchee_template_dir}" != "${_monutchee_candidate}" ]; then
@@ -112,7 +115,8 @@ for _monutchee_candidate in     "${ROOT}/sources/${_monutchee_template_layer}/co
         return 2 2>/dev/null || exit 2
     fi
     _monutchee_template_dir="${_monutchee_candidate}"
-done
+done < <(printf '%s\0' "${ROOT}/sources"; find -L "${ROOT}/sources" \
+    -mindepth 1 -maxdepth 1 -type d -name 'meta-*' -print0 2>/dev/null)
 if [ -z "${_monutchee_template_dir}" ]; then
     printf 'Error: unsupported product or missing build template: %s. Synchronize its product layer first.\n' "${_monutchee_product}" >&2
     return 2 2>/dev/null || exit 2
