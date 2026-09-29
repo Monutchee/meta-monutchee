@@ -2,6 +2,7 @@ inherit mncos-release-reports
 
 MNCOS_IMAGE_ROLE ??= "unspecified"
 MNCOS_IMAGE_LABEL ??= "MNCOS image"
+MNCOS_STATIC_LOGIN_BANNER ??= "1"
 MNCOS_BUILD_TIME ??= "${@time.strftime('%Y-%m-%d %H:%M:%S UTC', time.strptime(d.getVar('DATETIME'), '%Y%m%d%H%M%S'))}"
 MNCOS_BUILD_HASH ??= "${BB_TASKHASH}"
 
@@ -21,6 +22,11 @@ mncos_write_image_identity() {
         "${MNCOS_BUILD_HASH}" \
         "$build_hash_short" \
         > "${IMAGE_ROOTFS}${sysconfdir}/mncos-image-info"
+
+    # Runtime banner providers still consume the immutable image metadata above.
+    if [ "${MNCOS_STATIC_LOGIN_BANNER}" != "1" ]; then
+        return
+    fi
 
     printf '\n*** %s ***\nImage role: %s\nImage recipe: %s\nMachine: %s\nBuild time: %s\nBuild hash: %s\n\n' \
         "${MNCOS_IMAGE_LABEL}" \
