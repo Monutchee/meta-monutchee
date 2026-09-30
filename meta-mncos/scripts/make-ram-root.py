@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Wrap a product root in SquashFS and a minimal BusyBox initramfs tree."""
 import argparse
+import json
 import os
 from pathlib import Path
 import re
@@ -54,9 +55,15 @@ def build(root, output, readelf, epoch):
                 raise RuntimeError('unresolved BusyBox dependency: ' + needed)
 
     elf('/bin/busybox', '/bin/busybox')
-    for applet in ('sh', 'mount', 'mv', 'switch_root'):
+    for applet in ('sh', 'mount', 'mkdir', 'mv', 'switch_root'):
         (output / 'bin' / applet).symlink_to('busybox')
-    shutil.copy2(root / 'usr/share/mnc/storage/ram-init', output / 'init')
+    policy = json.loads((root / 'usr/share/mnc/storage/policy.json').read_text())
+    runtime = policy.get('runtime_root', '/run/mnc')
+    if not re.fullmatch(r'/run/[A-Za-z][A-Za-z0-9_-]*', runtime):
+        raise RuntimeError('invalid runtime root in storage policy')
+    script = (root / 'usr/share/mnc/storage/ram-init').read_text()
+    (output / 'init').write_text(script.replace('@MNC_BOOT_ROOT@', runtime + '/boot'))
+    (output / 'init').chmod(0o755)
     env = os.environ.copy()
     env.pop('SOURCE_DATE_EPOCH', None)  # Explicit timestamp flags below own reproducibility.
     subprocess.run(['mksquashfs', str(root), str(output / 'rootfs.squashfs'),

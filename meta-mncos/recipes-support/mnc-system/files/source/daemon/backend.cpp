@@ -437,7 +437,7 @@ class Native final : public Platform {
         writeClockPolicy(profile_, time);
     }
     void sshBootPolicy(bool enabled) override {
-        const fs::path marker = "/run/mnc-system/ssh-disabled";
+        const fs::path marker = fs::path(profile_.runtime_root) / "system/ssh-disabled";
         if (enabled)
             durableRemove(marker);
         else

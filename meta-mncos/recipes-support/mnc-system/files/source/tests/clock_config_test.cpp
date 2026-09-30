@@ -10,12 +10,13 @@ int main() {
     struct Cleanup { fs::path path; mode_t mask; ~Cleanup() { umask(mask); fs::remove_all(path); } } cleanup{root, oldMask};
     fs::create_directories(root);
     Profile profile;
+    profile.runtime_root = "/run/test-product";
     profile.interfaces = {{"lan7", ""}, {"lan8", ""}};
     TimePreferences time{"ntp", "UTC", "", {"ntp.example.test", "2001:db8::1"}};
     auto change = writeClockPolicy(profile, time, root);
     assert(change.servers && change.network);
-    assert(!fs::exists(root / "mnc-system/ntp-disabled"));
-    assert(fs::exists(root / "mnc-system/ptp-disabled"));
+    assert(!fs::exists(root / "test-product/system/ntp-disabled"));
+    assert(fs::exists(root / "test-product/system/ptp-disabled"));
     const auto config = root / "systemd/timesyncd.conf.d/90-mnc-time.conf";
     assert(readFile(config) == "[Time]\nNTP=\nNTP=ntp.example.test 2001:db8::1 \nFallbackNTP=\n");
     for (auto path = config.parent_path(); path != root; path = path.parent_path())
@@ -29,11 +30,11 @@ int main() {
     assert(!change.servers && !change.network);
     time.synchronization = "local";
     writeClockPolicy(profile, time, root);
-    assert(fs::exists(root / "mnc-system/ntp-disabled") && fs::exists(root / "mnc-system/ptp-disabled"));
+    assert(fs::exists(root / "test-product/system/ntp-disabled") && fs::exists(root / "test-product/system/ptp-disabled"));
     time.synchronization = "ptp";
     time.ptp_interface = "lan7";
     writeClockPolicy(profile, time, root);
-    assert(fs::exists(root / "mnc-system/ntp-disabled") && !fs::exists(root / "mnc-system/ptp-disabled"));
+    assert(fs::exists(root / "test-product/system/ntp-disabled") && !fs::exists(root / "test-product/system/ptp-disabled"));
     time.synchronization = "ntp";
     time.ntp_servers.clear();
     change = writeClockPolicy(profile, time, root);

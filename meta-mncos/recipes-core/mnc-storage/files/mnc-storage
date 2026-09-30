@@ -20,6 +20,21 @@ POLICY = '/usr/share/mnc/storage/policy.json'
 ROLES = ('factory', 'state', 'data')
 
 
+def runtime_root(p):
+    return Path(p.get('runtime_root', '/run/mnc'))
+
+
+def storage_runtime(p):
+    # Keep privileged boot state outside the application-writable runtime tree.
+    root = runtime_root(p)
+    root.mkdir(mode=0o755, exist_ok=True)
+    root.chmod(0o755)
+    directory = root / 'storage'
+    directory.mkdir(mode=0o755, exist_ok=True)
+    directory.chmod(0o755)
+    return directory
+
+
 def require(ok, message):
     if not ok:
         raise RuntimeError(message)
@@ -36,6 +51,8 @@ def relative(value):
 
 def validate(p):
     require(p.get('schema_version') == 1, 'unsupported storage policy')
+    require(re.fullmatch(r'/run/[A-Za-z][A-Za-z0-9_-]*', p.get('runtime_root', '/run/mnc')),
+            'invalid runtime root')
     require(re.fullmatch(r'/dev/(sd[a-z]+|mmcblk[0-9]+|nvme[0-9]+n[0-9]+)', p['disk']), 'invalid policy disk')
     require(set(p['roles']) == set(ROLES), 'policy needs factory, state and data roles')
     labels = set()
@@ -223,6 +240,7 @@ def partition_path(disk, index):
 def prepare(p):
     """Runs before the real PID 1; machine-id must already exist when systemd starts."""
     require(os.getpid() != 1, 'prepare must be called by the early init wrapper')
+    storage_runtime(p)
     status = {'schema_version': 1, 'target': p['target'], 'roles': {}}
     maintenance = 'mnc.storage=maintenance' in Path('/proc/cmdline').read_text().split()
     status['maintenance'] = maintenance
@@ -301,15 +319,15 @@ def prepare(p):
                 run('cp', '-a', '/var/lib/.', str(source))
         Path(target).mkdir(parents=True, exist_ok=True)
         run('mount', '--bind', str(source), target)
-    runtime = Path('/run/mnc-os')
+    runtime = runtime_root(p) / 'os'
     runtime.mkdir(mode=0o755, exist_ok=True)
     (runtime / 'hostname').write_text(p['target'] + '\n')
     (runtime / 'localtime').symlink_to('/usr/share/zoneinfo/UTC')
     status['capabilities'] = {'persistent_settings': status['roles']['state']['persistent'],
                               'recordings': status['roles']['data']['persistent'],
                               'factory_reset': all(status['roles'][r]['persistent'] for r in ('state', 'data'))}
-    Path('/run/mnc-storage.json').write_text(json.dumps(status, indent=2) + '\n')
-    Path('/run/mnc-storage.json').chmod(0o644)
+    (runtime_root(p) / 'storage/status.json').write_text(json.dumps(status, indent=2) + '\n')
+    (runtime_root(p) / 'storage/status.json').chmod(0o644)
 
 
 def restore(p, archive_path, devices):
@@ -318,7 +336,7 @@ def restore(p, archive_path, devices):
     nodes = [n for d in inventory() for n in descendants(d) if n['name'] in devices.values()]
     require(len(nodes) == len(ROLES) and all(not any(n.get('mountpoints', [])) for n in nodes),
             'restore requires unmounted policy partitions')
-    with tempfile.TemporaryDirectory(prefix='mnc-restore-', dir='/run') as tmp:
+    with tempfile.TemporaryDirectory(prefix='restore-', dir=storage_runtime(p)) as tmp:
         with tarfile.open(archive_path) as archive:
             # Strict verification above excludes links, devices and traversal, retaining numeric ownership.
             archive.extractall(tmp, numeric_owner=True, filter='fully_trusted')
@@ -417,14 +435,15 @@ def main():
         print(partition_script(p), end='')
     elif args.command == 'status':
         status = {'target': p['target'], 'disk': p['disk'], 'devices': resolve(p, inventory())}
-        if Path('/run/mnc-storage.json').exists():
-            status['boot'] = json.loads(Path('/run/mnc-storage.json').read_text())
+        if (runtime_root(p) / 'storage/status.json').exists():
+            status['boot'] = json.loads((runtime_root(p) / 'storage/status.json').read_text())
         print(json.dumps(status, indent=2))
     elif args.command == 'verify':
         print(json.dumps(verify_archive(args.archive), indent=2))
     else:
         require(os.geteuid() == 0, 'maintenance requires root')
-        with open('/run/mnc-storage.lock', 'w') as lock:
+        storage_runtime(p)
+        with open(runtime_root(p) / 'storage/maintenance.lock', 'w') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             if args.command == 'backup':
                 backup(p, args.archive)

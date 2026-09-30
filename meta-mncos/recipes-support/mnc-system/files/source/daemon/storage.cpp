@@ -114,8 +114,13 @@ Profile loadProfile(const fs::path &p) {
                      "system profile must be a root-owned, non-writable regular file"});
     auto profile = decode<Profile>(readFile(p));
     validate(profile.defaults);
-    if ((!profile.runtime_etc_directory.empty() && profile.runtime_etc_directory != "/run/mnc-os") ||
-        (!profile.storage_status_file.empty() && profile.storage_status_file != "/run/mnc-storage.json"))
+    const fs::path runtime(profile.runtime_root);
+    if (runtime.parent_path() != "/run" || runtime.filename().empty() ||
+        runtime.filename() == "." || runtime.filename() == ".." ||
+        profile.runtime_root.find_first_not_of("/abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") != std::string::npos)
+        throw Error({ErrorCode::invalid_argument, "invalid runtime root"});
+    if ((!profile.runtime_etc_directory.empty() && profile.runtime_etc_directory != profile.runtime_root + "/os") ||
+        (!profile.storage_status_file.empty() && profile.storage_status_file != profile.runtime_root + "/storage/status.json"))
         throw Error({ErrorCode::invalid_argument, "unsupported runtime storage paths"});
     if (profile.state_directory.empty() || profile.active_settings.empty() ||
         profile.settings_user.empty() || profile.control_user.empty())
