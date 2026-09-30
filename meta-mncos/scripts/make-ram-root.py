@@ -61,7 +61,7 @@ def build(root, output, readelf, epoch):
     runtime = policy.get('runtime_root', '/run/mnc')
     if not re.fullmatch(r'/run/[A-Za-z][A-Za-z0-9_-]*', runtime):
         raise RuntimeError('invalid runtime root in storage policy')
-    script = (root / 'usr/share/mnc/storage/ram-init').read_text()
+    script = (root / 'usr/share/mnc/preboot/ram-init').read_text()
     (output / 'init').write_text(script.replace('@MNC_BOOT_ROOT@', runtime + '/boot'))
     (output / 'init').chmod(0o755)
     env = os.environ.copy()

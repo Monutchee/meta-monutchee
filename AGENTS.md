@@ -41,9 +41,15 @@ automatic shared-library dependency resolution enabled.
   code; boot preferences cannot replace immutable hardware allowlists, unit
   policy or reset paths. Early hostname application must not depend on D-Bus.
 
+- `meta-mncos/recipes-core/mnc-preboot` owns `/sbin/mnc-preboot`, the shared
+  WIC/JTAG setup entry point before the main init system, and the minimal
+  RAM-root init template. Required setup stages run here; storage preparation
+  uses `mnc-preboot storage prepare`. Interactive invocations dispatch feature
+  subcommands without running boot setup; only PID 1 hands off to systemd.
 - `meta-mncos/recipes-core/mnc-storage` supplies policy-driven early storage
-  preparation and explicit backup/repartition/restore tooling. Product layers
-  own disk identities, role labels, sizes and reset journals. Discovery never
+  preparation and explicit backup/repartition/restore tooling behind the
+  `mnc-preboot storage` interface. Keep `mnc-storage` as a compatibility command.
+  Product layers own disk identities, role labels, sizes and reset journals. Discovery never
   formats media; pending durable reset intent may format only the data role.
 - `meta-mncos/scripts/make-ram-root.py` wraps an immutable SquashFS root in a
   minimal BusyBox initramfs. Product image recipes select it and provide the
