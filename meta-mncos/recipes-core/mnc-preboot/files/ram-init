@@ -13,4 +13,4 @@ mount --move /dev /newroot/dev || fail
 mount --move /proc /newroot/proc || fail
 mount --move /sys /newroot/sys || fail
 mount --move /run /newroot/run || fail
-exec switch_root /newroot /sbin/mnc-storage-init
+exec switch_root /newroot /sbin/mnc-preboot

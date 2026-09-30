@@ -1,0 +1,36 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
+# Used by both disk-root init= and the RAM/SquashFS switch_root entry point.
+# Run required setup stages here before handing PID 1 to the main system.
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
+# Only PID 1 performs boot setup. Interactive commands must never start init.
+if [ "$$" -ne 1 ]; then
+    case "${1-}" in
+        storage)
+            shift
+            export MNC_STORAGE_PROG='mnc-preboot storage'
+            exec /usr/sbin/mnc-storage "$@"
+            ;;
+        ''|-h|--help)
+            echo 'Usage: mnc-preboot storage <command> [options]'
+            echo 'Run mnc-preboot storage --help for storage commands.'
+            exit 0
+            ;;
+        *)
+            echo "mnc-preboot: unknown subcommand: $1" >&2
+            echo 'Usage: mnc-preboot storage <command> [options]' >&2
+            exit 2
+            ;;
+    esac
+fi
+
+mountpoint -q /proc || mount -t proc proc /proc
+mountpoint -q /sys || mount -t sysfs sysfs /sys
+mountpoint -q /dev || mount -t devtmpfs devtmpfs /dev
+mountpoint -q /run || mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs /run
+if ! /sbin/mnc-preboot storage prepare; then
+    echo 'mnc-preboot: storage preparation failed; refusing normal startup.' >/dev/console
+    exec /bin/sh </dev/console >/dev/console 2>&1
+fi
+exec /sbin/init "$@"

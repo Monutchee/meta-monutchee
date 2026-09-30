@@ -413,7 +413,8 @@ def reformat(p, disk, archive, confirmation):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(prog=os.environ.get('MNC_STORAGE_PROG', 'mnc-storage'),
+                                     description=__doc__)
     parser.add_argument('--policy', default=POLICY)
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('status')
@@ -460,5 +461,5 @@ if __name__ == '__main__':
     try:
         main()
     except (RuntimeError, OSError, ValueError, KeyError, subprocess.CalledProcessError, tarfile.TarError) as error:
-        print('mnc-storage:', error, file=sys.stderr)
+        print(os.environ.get('MNC_STORAGE_PROG', 'mnc-storage') + ':', error, file=sys.stderr)
         sys.exit(1)
