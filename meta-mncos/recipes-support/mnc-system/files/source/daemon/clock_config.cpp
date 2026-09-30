@@ -29,7 +29,7 @@ ClockPolicyChanges writeClockPolicy(const Profile &profile, const TimePreference
     validate(validation); // Reject configuration injection even on bootstrap.
     ClockPolicyChanges changes;
     for (const auto *mode : {"ntp", "ptp"}) {
-        const auto marker = runtime / "mnc-system" / (std::string(mode) + "-disabled");
+        const auto marker = runtime / fs::path(profile.runtime_root).filename() / "system" / (std::string(mode) + "-disabled");
         if (time.synchronization == mode) durableRemove(marker);
         else atomicWrite(marker, "disabled\n");
     }

@@ -6,8 +6,9 @@ mount -t devtmpfs devtmpfs /dev || fail
 mount -t proc proc /proc || fail
 mount -t sysfs sysfs /sys || fail
 mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs /run || fail
-mv /rootfs.squashfs /run/rootfs.squashfs || fail
-mount -t squashfs -o loop,ro /run/rootfs.squashfs /newroot || fail
+mkdir -p @MNC_BOOT_ROOT@ || fail
+mv /rootfs.squashfs @MNC_BOOT_ROOT@/rootfs.squashfs || fail
+mount -t squashfs -o loop,ro @MNC_BOOT_ROOT@/rootfs.squashfs /newroot || fail
 mount --move /dev /newroot/dev || fail
 mount --move /proc /newroot/proc || fail
 mount --move /sys /newroot/sys || fail

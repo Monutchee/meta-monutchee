@@ -134,13 +134,17 @@ class BootTests(unittest.TestCase):
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            for name in ('state', 'data', 'factory', 'var/lib', 'etc', 'proc/sys/kernel/random'):
+            for name in ('run', 'state', 'data', 'factory', 'var/lib', 'etc', 'proc/sys/kernel/random'):
                 (root / name).mkdir(parents=True, exist_ok=True)
             (root / 'proc/sys/kernel/random/uuid').write_text('01234567-89ab-cdef-0123-456789abcdef\n')
             (root / 'proc/cmdline').write_text('mnc.storage=maintenance' if maintenance else '')
             def mapped(value):
                 path = Path(value)
                 return root / str(path).lstrip('/') if path.is_absolute() else path
+            p = policy()
+            if maintenance:
+                p['runtime_root'] = '/run/test-product'
+            runtime = root / p.get('runtime_root', '/run/mnc').lstrip('/')
             commands = []
             def run(*args, **kwargs):
                 commands.append(args)
@@ -148,10 +152,12 @@ class BootTests(unittest.TestCase):
             with patch.object(storage, 'Path', mapped), patch.object(storage, 'inventory', return_value=[]) as inventory, \
                  patch.object(storage, 'run', side_effect=run), patch.object(storage.time, 'sleep'), \
                  patch.object(storage.os.path, 'ismount', return_value=False):
-                storage.prepare(policy())
+                storage.prepare(p)
                 if maintenance:
                     inventory.assert_not_called()
-            status = json.loads((root / 'run/mnc-storage.json').read_text())
+            for directory in (runtime, runtime / 'storage'):
+                self.assertEqual(directory.stat().st_mode & 0o777, 0o755)
+            status = json.loads((runtime / 'storage/status.json').read_text())
             self.assertFalse(status['capabilities']['persistent_settings'])
             self.assertFalse(status['capabilities']['recordings'])
             self.assertFalse(status['capabilities']['factory_reset'])
@@ -184,7 +190,7 @@ class BootTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             for name in ('state/msa/settings', 'state/mnc-system', 'state/os', 'data', 'factory',
-                         'var/lib', 'etc', 'proc', 'sys/class/block/sda3/holders'):
+                         'run', 'var/lib', 'etc', 'proc', 'sys/class/block/sda3/holders'):
                 (root / name).mkdir(parents=True, exist_ok=True)
             (root / 'proc/cmdline').write_text('')
             (root / 'state/mnc-system/state.json').write_text('{"reset_intent":true}')
@@ -206,9 +212,9 @@ class BootTests(unittest.TestCase):
                 # Replay a boot interrupted before the manager clears its durable reset intent.
                 for attempt in range(2):
                     storage.prepare(policy())
-                    status = json.loads((root / 'run/mnc-storage.json').read_text())
+                    status = json.loads((root / 'run/mnc/storage/status.json').read_text())
                     self.assertTrue(status['reset_prepared'])
-                    (root / 'run/mnc-os/localtime').unlink()
+                    (root / 'run/mnc/os/localtime').unlink()
             formats = [c for c in commands if c[0] == 'mkfs.ext4']
             self.assertEqual(formats, [('mkfs.ext4', '-F', '-L', 'msa-data', '/dev/sda3')] * 2)
             self.assertFalse((root / 'state/msa/settings').exists())

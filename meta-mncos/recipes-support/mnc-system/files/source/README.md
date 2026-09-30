@@ -67,5 +67,5 @@ The native adapter writes runtime timesyncd/networkd drop-ins and restarts NTP
 only when its server configuration changes. Preference transactions restore the
 previous policy on failure. Bootstrap recreates clock policy before network/time
 services start. Product packages must gate NTP/PTP units on bootstrap and their
-respective `/run/mnc-system/ntp-disabled` or `ptp-disabled` marker being absent;
+respective `/run/mnc/system/ntp-disabled` or `ptp-disabled` marker being absent;
 this prevents an enabled service from synchronizing a saved Local clock at boot.

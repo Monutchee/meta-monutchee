@@ -20,6 +20,7 @@ struct Profile {
     std::string control_user;
     std::string state_directory;
     std::string active_settings;
+    std::string runtime_root = "/run/mnc";
     std::string runtime_etc_directory;
     std::string storage_status_file;
     std::vector<InterfacePolicy> interfaces;
