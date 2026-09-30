@@ -1,0 +1,445 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-3.0-only
+"""Policy driven storage maintenance. Never formats storage during discovery."""
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import stat
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+
+POLICY = '/usr/share/mnc/storage/policy.json'
+ROLES = ('factory', 'state', 'data')
+
+
+def require(ok, message):
+    if not ok:
+        raise RuntimeError(message)
+
+
+def run(*args, **kwargs):
+    return subprocess.run(args, check=True, text=True, stdout=subprocess.PIPE, **kwargs).stdout.strip()
+
+
+def relative(value):
+    return isinstance(value, str) and bool(value) and not value.startswith('/') and all(
+        part not in ('', '.', '..') for part in value.split('/'))
+
+
+def validate(p):
+    require(p.get('schema_version') == 1, 'unsupported storage policy')
+    require(re.fullmatch(r'/dev/(sd[a-z]+|mmcblk[0-9]+|nvme[0-9]+n[0-9]+)', p['disk']), 'invalid policy disk')
+    require(set(p['roles']) == set(ROLES), 'policy needs factory, state and data roles')
+    labels = set()
+    for role in ROLES:
+        r = p['roles'][role]
+        require(r['mount'] == '/' + role, 'invalid role mount')
+        require(re.fullmatch(r'[a-zA-Z0-9_-]{1,16}', r['label']), 'invalid ext4 label')
+        require(r['label'] not in labels, 'duplicate role label')
+        labels.add(r['label'])
+        require(type(r['size_mib']) is int and r['size_mib'] >= 0, 'invalid partition size')
+        require(r['readonly'] == (role == 'factory'), 'factory must be read-only')
+    require(p['roles']['factory']['size_mib'] >= 16 and p['roles']['state']['size_mib'] >= 32
+            and p['roles']['data']['size_mib'] == 0, 'invalid storage layout')
+    require(1 <= p['state_tmpfs_mib'] <= 256, 'invalid tmpfs limit')
+    for key in ('settings', 'product_info', 'reset_journal'):
+        require(relative(p[key]), 'invalid relative policy path')
+    for key in ('legacy_settings', 'legacy_product_info'):
+        require(p[key].startswith('/data/') and '..' not in p[key].split('/'), 'invalid legacy path')
+    require(all(re.fullmatch(r'[a-zA-Z0-9@_.-]+\.service', u) for u in p['quiesce_units']), 'invalid unit')
+    return p
+
+
+def load_policy(path):
+    s = os.lstat(path)
+    require(stat.S_ISREG(s.st_mode) and s.st_uid == 0 and not s.st_mode & 0o022,
+            'policy must be a root-owned regular file without group/other write access')
+    return validate(json.loads(Path(path).read_text()))
+
+
+def inventory():
+    return json.loads(run('lsblk', '--json', '--bytes', '--paths', '--output',
+                         'NAME,TYPE,SIZE,FSTYPE,LABEL,MOUNTPOINTS,PKNAME,MAJ:MIN'))['blockdevices']
+
+
+def descendants(node):
+    yield node
+    for child in node.get('children', []):
+        yield from descendants(child)
+
+
+def resolve(p, nodes):
+    """Reject duplicate labels globally and labels on the wrong physical disk."""
+    result = {}
+    all_nodes = [n for disk in nodes for n in descendants(disk)]
+    for role, spec in p['roles'].items():
+        matches = [n for n in all_nodes if n.get('label') == spec['label']]
+        require(len(matches) <= 1, 'ambiguous label: ' + spec['label'])
+        if matches:
+            n = matches[0]
+            require(n['type'] == 'part' and n.get('pkname') == p['disk'], 'role is on unexpected disk: ' + role)
+            require(n.get('fstype') == 'ext4', 'unexpected filesystem: ' + role)
+            result[role] = n['name']
+    return result
+
+
+def digest(path):
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def sync_path(path):
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def verify_archive(path):
+    require(path.is_file() and not path.is_symlink(), 'backup is not a regular archive')
+    require(path.stat().st_size <= 32 * 1024 * 1024, 'backup exceeds 32 MiB')
+    with tarfile.open(path, 'r:') as archive:
+        members = archive.getmembers()
+        names = set()
+        size = 0
+        for m in members:
+            require(relative(m.name) and m.name not in names, 'unsafe or duplicate backup member')
+            require(m.isfile() or m.isdir(), 'backup contains link or special file')
+            require(m.name in ('settings', 'productInfo.json', 'manifest.json') or m.name.startswith('settings/'),
+                    'unexpected backup member')
+            require(not m.mode & 0o7000, 'backup contains special permissions')
+            names.add(m.name)
+            size += m.size
+        require(size <= 16 * 1024 * 1024, 'settings backup exceeds 16 MiB')
+        require({'manifest.json', 'productInfo.json', 'settings/active.json'} <= names, 'incomplete backup')
+        by_name = {m.name: m for m in members}
+        for name in ('manifest.json', 'productInfo.json', 'settings/active.json'):
+            require(by_name[name].isfile(), 'required backup document is not a file')
+        for m in members:
+            for parent in Path(m.name).parents:
+                if parent.as_posix() in by_name:
+                    require(by_name[parent.as_posix()].isdir(), 'backup ancestor is not a directory')
+        manifest = json.load(archive.extractfile('manifest.json'))
+        require(manifest.get('schema_version') == 1, 'unsupported backup version')
+        expected = {m.name for m in members if m.isfile() and m.name != 'manifest.json'}
+        require(set(manifest['sha256']) == expected, 'backup manifest mismatch')
+        for name, checksum in manifest['sha256'].items():
+            require(hashlib.sha256(archive.extractfile(name).read()).hexdigest() == checksum,
+                    'backup checksum failed: ' + name)
+        require(isinstance(json.load(archive.extractfile('settings/active.json')), dict), 'invalid settings JSON')
+        require(isinstance(json.load(archive.extractfile('productInfo.json')), dict), 'invalid product JSON')
+        return manifest
+
+
+def quiesce(p):
+    for unit in p['quiesce_units']:
+        run('systemctl', 'stop', unit)
+    for unit in p['quiesce_units']:
+        state = run('systemctl', 'show', '--property=ActiveState', '--value', unit)
+        require(state in ('inactive', 'failed'), 'service still active: ' + unit)
+
+
+def backup(p, destination):
+    require(not destination.exists(), 'backup destination already exists')
+    require(destination.parent.is_dir(), 'backup parent does not exist')
+    source = Path('/state') / p['settings']
+    product = Path('/factory') / p['product_info']
+    if not source.exists():
+        source = Path(p['legacy_settings'])
+    if not product.exists():
+        product = Path(p['legacy_product_info'])
+    require(source.is_dir() and not source.is_symlink() and product.is_file() and not product.is_symlink(),
+            'settings and productInfo.json must exist; refusing an incomplete backup')
+    quiesce(p)
+    # An exclusive settings lock also prevents another settings writer during the snapshot.
+    with open(source / '.lock', 'a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with tempfile.TemporaryDirectory(dir=destination.parent, prefix='.mnc-backup-') as tmp:
+            tmp = Path(tmp)
+            manifest = {'schema_version': 1, 'target': p['target'], 'sha256': {}}
+            files = [(source, 'settings'), (product, 'productInfo.json')]
+            files += [(s, 'settings/' + s.relative_to(source).as_posix()) for s in source.rglob('*') if s.name != '.lock']
+            require(sum(s.lstat().st_size for s, _ in files) < 16 * 1024 * 1024, 'settings too large')
+            with tarfile.open(tmp / 'backup.tar', 'w', format=tarfile.PAX_FORMAT) as archive:
+                for src, name in files:
+                    st = src.lstat()
+                    require(stat.S_ISREG(st.st_mode) or stat.S_ISDIR(st.st_mode), 'settings contain links/special files')
+                    require(not st.st_mode & 0o7000, 'settings contain special permissions')
+                    archive.add(src, arcname=name, recursive=False)
+                    if src.is_file():
+                        manifest['sha256'][name] = digest(src)
+                (tmp / 'manifest.json').write_text(json.dumps(manifest))
+                archive.add(tmp / 'manifest.json', arcname='manifest.json')
+            verify_archive(tmp / 'backup.tar')
+            os.chmod(tmp / 'backup.tar', 0o600)
+            sync_path(tmp / 'backup.tar')
+            os.link(tmp / 'backup.tar', destination)
+            sync_path(destination.parent)
+    print('Verified backup:', destination, 'SHA256:', digest(destination))
+    print('Services remain stopped. Copy this secret-bearing backup off the device before formatting.')
+
+
+def disk_guard(p, disk, nodes, root_type):
+    require(disk == p['disk'], 'explicit disk does not match policy')
+    require(root_type in ('rootfs', 'tmpfs', 'ramfs', 'squashfs'), 'repartition requires a RAM/JTAG recovery boot')
+    matches = [n for n in nodes if n['name'] == disk and n['type'] == 'disk']
+    require(len(matches) == 1, 'target is not one whole disk')
+    d = matches[0]
+    require(int(d['size']) >= (sum(p['roles'][r]['size_mib'] for r in ROLES) + 128) * 1024 * 1024,
+            'target disk is too small')
+    for n in descendants(d):
+        require(n['type'] in ('disk', 'part'), 'target has a device-mapper/RAID consumer')
+        mounts = [m for m in n.get('mountpoints', []) if m]
+        require(all(m in ('/factory', '/state', '/data') for m in mounts),
+                'target contains a boot, swap, bind or unrelated mount')
+    return d
+
+
+def partition_script(p):
+    lines = ['label: gpt', 'unit: sectors', '']
+    for role in ROLES:
+        spec = p['roles'][role]
+        size = ('size=%dMiB, ' % spec['size_mib']) if spec['size_mib'] else ''
+        lines.append(size + 'type=L, name="' + spec['label'] + '"')
+    return '\n'.join(lines) + '\n'
+
+
+def partition_path(disk, index):
+    return disk + ('p' if disk[-1].isdigit() else '') + str(index)
+
+
+def prepare(p):
+    """Runs before the real PID 1; machine-id must already exist when systemd starts."""
+    require(os.getpid() != 1, 'prepare must be called by the early init wrapper')
+    status = {'schema_version': 1, 'target': p['target'], 'roles': {}}
+    maintenance = 'mnc.storage=maintenance' in Path('/proc/cmdline').read_text().split()
+    status['maintenance'] = maintenance
+    devices = {}
+    # Give removable media a bounded time to enumerate. A partial layout is not reformatted.
+    for attempt in range(0 if maintenance else 10):
+        devices = resolve(p, inventory())
+        if len(devices) == len(ROLES):
+            break
+        time.sleep(1)
+    resetting = False
+    for role in ROLES:
+        spec = p['roles'][role]
+        path = Path(spec['mount'])
+        path.mkdir(exist_ok=True)
+        require(not os.path.ismount(path), 'role already mounted before preparation: ' + role)
+        error = 'maintenance_boot' if maintenance else 'partition_missing'
+        if role == 'data':
+            journal = Path('/state') / p['reset_journal']
+            resetting = journal.exists() and json.loads(journal.read_text()).get('reset_intent', False)
+            if resetting:
+                require(status['roles']['state']['persistent'] and role in devices,
+                        'factory reset needs persistent state and data')
+                # Resolve already checked physical disk, label and filesystem; refuse any users.
+                nodes = [n for d in inventory() for n in descendants(d) if n['name'] == devices[role]]
+                require(len(nodes) == 1 and not any(nodes[0].get('mountpoints', [])), 'reset data is mounted')
+                require(not list((Path('/sys/class/block') / Path(devices[role]).name / 'holders').iterdir()),
+                        'reset data has block holders')
+                run('mkfs.ext4', '-F', '-L', spec['label'], devices[role])
+        if role in devices:
+            try:
+                if not spec['readonly']:
+                    checked = subprocess.run(['e2fsck', '-p', devices[role]], stdout=subprocess.DEVNULL).returncode
+                    require(checked in (0, 1), 'filesystem needs manual repair')
+                run('mount', '-t', 'ext4', '-o', ('ro,noload' if spec['readonly'] else 'rw') + ',nosuid,nodev,noexec',
+                    devices[role], str(path))
+                status['roles'][role] = {'persistent': True, 'device': devices[role], 'error': ''}
+                if role == 'data':
+                    Path('/data/log/journal').mkdir(parents=True, exist_ok=True)
+                continue
+            except (RuntimeError, subprocess.CalledProcessError) as exc:
+                error = str(exc)
+        # No files may leak into the underlying rootfs. Only state gets writable fallback.
+        options = 'nosuid,nodev,noexec,mode=0755,size=' + str(p['state_tmpfs_mib'] if role == 'state' else 1) + 'm'
+        if role != 'state':
+            options += ',ro'
+        run('mount', '-t', 'tmpfs', '-o', options, 'mnc-' + role, str(path))
+        status['roles'][role] = {'persistent': False, 'device': '', 'error': error}
+    if resetting:
+        require(status['roles']['data']['persistent'], 'cannot complete reset without data')
+        for path in (Path('/state') / p['settings'], Path('/state/os/var-lib/monutchee'),
+                     Path('/state/os/ssh'), Path('/state/os/root-ssh')):
+            require(not path.is_symlink(), 'unsafe reset path')
+            if path.exists():
+                shutil.rmtree(path)
+                sync_path(path.parent)
+        status['reset_prepared'] = True
+    osdir = Path('/state/os')
+    osdir.mkdir(mode=0o700, exist_ok=True)
+    machine = osdir / 'machine-id'
+    if not machine.exists():
+        temporary = machine.with_suffix('.new')
+        temporary.write_text(Path('/proc/sys/kernel/random/uuid').read_text().replace('-', ''))
+        os.chmod(temporary, 0o444)
+        sync_path(temporary)
+        os.replace(temporary, machine)
+        sync_path(osdir)
+    require(re.fullmatch('[0-9a-f]{32}\n?', machine.read_text()), 'invalid persistent machine-id')
+    run('mount', '--bind', str(machine), '/etc/machine-id')
+    run('mount', '-o', 'remount,bind,ro', '/etc/machine-id')
+    for leaf, target, mode in [('var-lib', '/var/lib', 0o755), ('ssh', '/run/ssh', 0o700), ('root-ssh', '/root/.ssh', 0o700)]:
+        source = osdir / leaf
+        if not source.exists():
+            source.mkdir(mode=mode)
+            if target == '/var/lib':
+                run('cp', '-a', '/var/lib/.', str(source))
+        Path(target).mkdir(parents=True, exist_ok=True)
+        run('mount', '--bind', str(source), target)
+    runtime = Path('/run/mnc-os')
+    runtime.mkdir(mode=0o755, exist_ok=True)
+    (runtime / 'hostname').write_text(p['target'] + '\n')
+    (runtime / 'localtime').symlink_to('/usr/share/zoneinfo/UTC')
+    status['capabilities'] = {'persistent_settings': status['roles']['state']['persistent'],
+                              'recordings': status['roles']['data']['persistent'],
+                              'factory_reset': all(status['roles'][r]['persistent'] for r in ('state', 'data'))}
+    Path('/run/mnc-storage.json').write_text(json.dumps(status, indent=2) + '\n')
+    Path('/run/mnc-storage.json').chmod(0o644)
+
+
+def restore(p, archive_path, devices):
+    require(set(devices) == set(ROLES), 'all three policy partitions are required')
+    require(verify_archive(archive_path)['target'] == p['target'], 'backup target mismatch')
+    nodes = [n for d in inventory() for n in descendants(d) if n['name'] in devices.values()]
+    require(len(nodes) == len(ROLES) and all(not any(n.get('mountpoints', [])) for n in nodes),
+            'restore requires unmounted policy partitions')
+    with tempfile.TemporaryDirectory(prefix='mnc-restore-', dir='/run') as tmp:
+        with tarfile.open(archive_path) as archive:
+            # Strict verification above excludes links, devices and traversal, retaining numeric ownership.
+            archive.extractall(tmp, numeric_owner=True, filter='fully_trusted')
+        for role in ('factory', 'state'):
+            target = Path(p['roles'][role]['mount'])
+            target.mkdir(exist_ok=True)
+            if os.path.ismount(target) and run('findmnt', '-n', '-o', 'FSTYPE', str(target)) == 'tmpfs':
+                run('umount', str(target))  # Release the empty maintenance/missing-media role.
+            require(not os.path.ismount(target), 'restore requires unmounted destination: ' + str(target))
+            run('mount', '-t', 'ext4', '-o', 'rw,nosuid,nodev,noexec', devices[role], str(target))
+            try:
+                src = Path(tmp) / ('settings' if role == 'state' else 'productInfo.json')
+                dest = target / (p['settings'] if role == 'state' else p['product_info'])
+                if dest.exists():
+                    def contents(path):
+                        if path.is_symlink():
+                            raise RuntimeError('restore destination contains a symlink')
+                        if path.is_file():
+                            return digest(path)
+                        return {f.relative_to(path).as_posix(): contents(f) for f in sorted(path.iterdir())}
+                    require(contents(src) == contents(dest), 'restore refuses conflicting existing ' + str(dest))
+                    continue  # A previous restore completed this role before interruption.
+
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                run('cp', '-a', str(src), str(dest))
+                run('sync')
+            finally:
+                run('umount', str(target))
+    print('Settings restored to /state; manufacturing identity restored to /factory. Reboot the new image.')
+
+
+def reformat(p, disk, archive, confirmation):
+    manifest = verify_archive(archive)
+    require(manifest['target'] == p['target'], 'backup target mismatch')
+    require(confirmation == 'ERASE:' + disk, 'requires --confirm ERASE:' + disk)
+    root_type = run('findmnt', '-n', '-o', 'FSTYPE', '/')
+    d = disk_guard(p, disk, inventory(), root_type)
+    # SquashFS is allowed only when its backing file is in RAM, never on the target disk.
+    if root_type == 'squashfs':
+        rootdev = run('findmnt', '-n', '-o', 'SOURCE', '/')
+        backing = run('losetup', '-n', '-O', 'BACK-FILE', rootdev)
+        require(run('findmnt', '-n', '-o', 'FSTYPE', '-T', backing) in ('tmpfs', 'ramfs', 'rootfs'),
+                'SquashFS backing file is not RAM-resident')
+    require(run('findmnt', '-n', '-o', 'FSTYPE', '-T', str(archive)) in ('tmpfs', 'ramfs', 'rootfs'),
+            'use a verified RAM backup; also copy it off-device to survive power loss')
+    for cmd in ('sfdisk', 'mkfs.ext4', 'udevadm', 'fuser'):
+        require(shutil.which(cmd), 'missing required tool: ' + cmd)
+    quiesce(p)
+    run('journalctl', '--relinquish-var')
+    for role in reversed(ROLES):
+        path = p['roles'][role]['mount']
+        if os.path.ismount(path):
+            # Ordinary unmount deliberately refuses open files/cwds. Never force or lazy-unmount.
+            run('umount', path)
+    d = disk_guard(p, disk, inventory(), root_type)
+    for n in descendants(d):
+        require(not any(n.get('mountpoints', [])), 'target is still mounted')
+        holders = Path('/sys/class/block') / Path(n['name']).name / 'holders'
+        require(holders.is_dir() and not list(holders.iterdir()), 'target has active block holders')
+        status = subprocess.run(['fuser', n['name']], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
+        require(status == 1, 'target is busy or fuser could not check it')
+    # Revalidate after quiescing, before the first destructive operation.
+    verify_archive(archive)
+    run('sfdisk', '--wipe', 'always', '--wipe-partitions', 'always', disk, input=partition_script(p))
+    run('udevadm', 'settle', '--timeout=15')
+    devices = {}
+    for index, role in enumerate(ROLES, 1):
+        path = partition_path(disk, index)
+        require(Path(path).is_block_device(), 'new partition is missing: ' + path)
+        run('mkfs.ext4', '-F', '-L', p['roles'][role]['label'], path)
+        devices[role] = path
+    run('sync')
+    restore(p, archive, devices)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--policy', default=POLICY)
+    sub = parser.add_subparsers(dest='command', required=True)
+    sub.add_parser('status')
+    sub.add_parser('prepare', help=argparse.SUPPRESS)
+    sub.add_parser('layout', help='print the JTAG storage-only sfdisk plan without changing the disk')
+    b = sub.add_parser('backup', help='stop product services and save settings/product identity only')
+    b.add_argument('archive', type=Path)
+    v = sub.add_parser('verify')
+    v.add_argument('archive', type=Path)
+    r = sub.add_parser('reformat', help='ERASE the explicitly selected RAM-boot data card and restore the backup')
+    r.add_argument('--disk', required=True)
+    r.add_argument('--backup', type=Path, required=True)
+    r.add_argument('--confirm', required=True)
+    s = sub.add_parser('restore', help='restore to existing, empty, unmounted policy partitions')
+    s.add_argument('archive', type=Path)
+    args = parser.parse_args()
+    p = load_policy(args.policy)
+    if args.command == 'layout':
+        print(partition_script(p), end='')
+    elif args.command == 'status':
+        status = {'target': p['target'], 'disk': p['disk'], 'devices': resolve(p, inventory())}
+        if Path('/run/mnc-storage.json').exists():
+            status['boot'] = json.loads(Path('/run/mnc-storage.json').read_text())
+        print(json.dumps(status, indent=2))
+    elif args.command == 'verify':
+        print(json.dumps(verify_archive(args.archive), indent=2))
+    else:
+        require(os.geteuid() == 0, 'maintenance requires root')
+        with open('/run/mnc-storage.lock', 'w') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if args.command == 'backup':
+                backup(p, args.archive)
+            elif args.command == 'prepare':
+                prepare(p)
+            elif args.command == 'reformat':
+                reformat(p, args.disk, args.backup, args.confirm)
+            elif args.command == 'restore':
+                quiesce(p)
+                restore(p, args.archive, resolve(p, inventory()))
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (RuntimeError, OSError, ValueError, KeyError, subprocess.CalledProcessError, tarfile.TarError) as error:
+        print('mnc-storage:', error, file=sys.stderr)
+        sys.exit(1)

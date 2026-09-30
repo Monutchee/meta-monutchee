@@ -40,3 +40,11 @@ automatic shared-library dependency resolution enabled.
   initial preferences plus a managed hostname. Keep vendor selection in product
   code; boot preferences cannot replace immutable hardware allowlists, unit
   policy or reset paths. Early hostname application must not depend on D-Bus.
+
+- `meta-mncos/recipes-core/mnc-storage` supplies policy-driven early storage
+  preparation and explicit backup/repartition/restore tooling. Product layers
+  own disk identities, role labels, sizes and reset journals. Discovery never
+  formats media; pending durable reset intent may format only the data role.
+- `meta-mncos/scripts/make-ram-root.py` wraps an immutable SquashFS root in a
+  minimal BusyBox initramfs. Product image recipes select it and provide the
+  kernel support; hardware/Station payload policy remains in its owning layer.
