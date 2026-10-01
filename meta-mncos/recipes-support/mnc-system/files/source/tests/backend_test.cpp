@@ -128,6 +128,14 @@ int main() {
             auto failed = b.networkTransaction();
             b.finishNetwork(failed.id, false);
             check(fake.config.system.network == network);
+            {
+                auto temporary = p;
+                temporary.storage_status_file = (root / "storage.json").string();
+                atomicWrite(temporary.storage_status_file, R"({"capabilities":{"factory_reset":false}})");
+                Backend unavailable(temporary, fake, clock);
+                fails([&] { unavailable.resetDevice(true); });
+                check(!decode<State>(readFile(root / "private/state.json")).reset_intent);
+            }
             b.resetDevice(true);
             check(fs::exists(p.active_settings));
             now += 5001;

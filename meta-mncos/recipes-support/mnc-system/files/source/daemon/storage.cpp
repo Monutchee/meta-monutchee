@@ -114,6 +114,14 @@ Profile loadProfile(const fs::path &p) {
                      "system profile must be a root-owned, non-writable regular file"});
     auto profile = decode<Profile>(readFile(p));
     validate(profile.defaults);
+    const fs::path runtime(profile.runtime_root);
+    if (runtime.parent_path() != "/run" || runtime.filename().empty() ||
+        runtime.filename() == "." || runtime.filename() == ".." ||
+        profile.runtime_root.find_first_not_of("/abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") != std::string::npos)
+        throw Error({ErrorCode::invalid_argument, "invalid runtime root"});
+    if ((!profile.runtime_etc_directory.empty() && profile.runtime_etc_directory != profile.runtime_root + "/os") ||
+        (!profile.storage_status_file.empty() && profile.storage_status_file != profile.runtime_root + "/storage/status.json"))
+        throw Error({ErrorCode::invalid_argument, "unsupported runtime storage paths"});
     if (profile.state_directory.empty() || profile.active_settings.empty() ||
         profile.settings_user.empty() || profile.control_user.empty())
         throw Error({ErrorCode::invalid_argument, "incomplete system profile"});
@@ -205,8 +213,21 @@ void Backend::recoverNetwork(bool bootstrap) {
                            fileHash(profile_.active_settings) == state_.pending.candidate_hash;
     settleNetwork(committed, bootstrap);
 }
+namespace {
+struct StorageCapabilities { bool factory_reset = false; };
+struct StorageBootStatus { StorageCapabilities capabilities; bool reset_prepared = false; };
+StorageBootStatus storageStatus(const std::string &path) {
+    StorageBootStatus status;
+    const auto input = readFile(path);
+    if (glz::read<glz::opts{.error_on_unknown_keys = false}>(status, input))
+        throw Error({ErrorCode::unavailable, "invalid storage boot status"});
+    return status;
+}
+}
 void Backend::bootstrap() {
     if (state_.reset_intent) {
+        if (!profile_.storage_status_file.empty() && !storageStatus(profile_.storage_status_file).reset_prepared)
+            throw Error({ErrorCode::unavailable, "storage reset recovery did not complete"});
         // Intent survives every deletion and is cleared only after all work succeeds.
         for (const auto &path : profile_.reset_paths)
             durableRemove(path);
@@ -373,6 +394,8 @@ Job Backend::resetDevice(bool confirmed) {
         throw Error(
             {ErrorCode::invalid_argument, "whole-device reset requires explicit confirmation"});
     idle();
+    if (!profile_.storage_status_file.empty() && !storageStatus(profile_.storage_status_file).capabilities.factory_reset)
+        throw Error({ErrorCode::unavailable, "factory reset requires persistent state and data"});
     state_.job = {randomId(), "device_reset", "accepted"};
     state_.reset_intent = true;
     persist();
