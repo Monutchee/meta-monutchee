@@ -5,6 +5,9 @@ Before=systemd-networkd.service systemd-tmpfiles-setup.service systemd-journal-f
 
 [Service]
 Type=oneshot
+RuntimeDirectory=mnc/system
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
 ExecStart=/usr/bin/mnc-system-manager --bootstrap
 RemainAfterExit=yes
 User=root

@@ -278,6 +278,11 @@ class Native final : public Platform {
         TimeStatus result;
         result.timezone = property(bus, "org.freedesktop.timedate1", "/org/freedesktop/timedate1",
                                    "org.freedesktop.timedate1", "Timezone");
+        if (!profile_.runtime_etc_directory.empty()) {
+            const auto zone = fs::read_symlink(fs::path(profile_.runtime_etc_directory) / "localtime").string();
+            constexpr std::string_view prefix = "/usr/share/zoneinfo/";
+            if (zone.starts_with(prefix)) result.timezone = zone.substr(prefix.size());
+        }
         if (result.timezone.empty())
             result.timezone = "UTC";
         timespec now{};
@@ -340,14 +345,20 @@ class Native final : public Platform {
     }
     void bootHostname(const std::string& hostname) override {
         // This runs before D-Bus/network/SSH/Avahi. Do not activate hostnamed here.
-        atomicWrite("/etc/hostname", hostname + "\n");
-        if (::chmod("/etc/hostname", 0644) != 0)
+        const auto file = profile_.runtime_etc_directory.empty() ? fs::path("/etc/hostname") :
+            fs::path(profile_.runtime_etc_directory) / "hostname";
+        atomicWrite(file, hostname + "\n");
+        if (::chmod(file.c_str(), 0644) != 0)
             throw Error({ErrorCode::apply_failed, "cannot set hostname file permissions"});
         if (::sethostname(hostname.data(), hostname.size()) != 0)
             throw Error({ErrorCode::apply_failed, "cannot set boot hostname"});
     }
     void preferences(const Configuration &c) override {
         Bus b;
+        if (!profile_.runtime_etc_directory.empty()) {
+            runtimeTimezone(c.time.timezone);
+            bootHostname(c.system.hostname);
+        } else {
         Message tz;
         call(b, "org.freedesktop.timedate1", "/org/freedesktop/timedate1",
              "org.freedesktop.timedate1", "SetTimezone", tz, "sb", c.time.timezone.c_str(), 0);
@@ -359,6 +370,7 @@ class Native final : public Platform {
         call(b, "org.freedesktop.hostname1", "/org/freedesktop/hostname1",
              "org.freedesktop.hostname1", "SetHostname", transient, "sb", c.system.hostname.c_str(),
              0);
+        }
         const auto changed = writeClockPolicy(profile_, c.time);
         const auto clocks = clockUnits(profile_, c.time);
         for (const auto &name : clocks.stop)
@@ -410,11 +422,22 @@ class Native final : public Platform {
                  static_cast<int>(if_nametoindex(c.interface.c_str())));
         }
     }
+    void runtimeTimezone(const std::string &zone) {
+        const auto target = fs::path("/usr/share/zoneinfo") / zone;
+        if (!fs::is_regular_file(target) || zone.starts_with('/') || zone.find("..") != std::string::npos)
+            throw Error({ErrorCode::invalid_argument, "invalid timezone"});
+        const auto path = fs::path(profile_.runtime_etc_directory) / "localtime";
+        const auto temporary = path.string() + "." + randomId();
+        fs::create_symlink(target, temporary);
+        fs::rename(temporary, path);
+        tzset();
+    }
     void clockBootPolicy(const TimePreferences &time) override {
+        if (!profile_.runtime_etc_directory.empty()) runtimeTimezone(time.timezone);
         writeClockPolicy(profile_, time);
     }
     void sshBootPolicy(bool enabled) override {
-        const fs::path marker = "/run/mnc-system/ssh-disabled";
+        const fs::path marker = fs::path(profile_.runtime_root) / "system/ssh-disabled";
         if (enabled)
             durableRemove(marker);
         else
