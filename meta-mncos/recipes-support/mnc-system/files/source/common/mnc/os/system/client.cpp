@@ -7,7 +7,7 @@
 namespace mnc::os::system {
 using namespace mnc::system;
 namespace {
-Result<Reply> request(const char *method, const std::string &json) {
+Result<Reply> request(const char *method, const std::string &json, std::chrono::milliseconds timeout) {
 #ifdef MNC_SYSTEM_HAVE_SYSTEMD
     sd_bus *bus = nullptr;
     sd_bus_message *response = nullptr;
@@ -25,7 +25,8 @@ Result<Reply> request(const char *method, const std::string &json) {
     int r = sd_bus_open_system(&bus);
     if (r < 0)
         return std::unexpected(SystemError{ErrorCode::unavailable, "system bus unavailable"});
-    sd_bus_set_method_call_timeout(bus, 60000000);
+    if (sd_bus_set_method_call_timeout(bus, static_cast<std::uint64_t>(timeout.count()) * 1000) < 0)
+        return std::unexpected(SystemError{ErrorCode::internal_error, "cannot set system manager request timeout"});
     r = sd_bus_call_method(bus, bus_name, object_path, interface_name, method, &error, &response,
                            "s", json.c_str());
     if (r < 0)
@@ -42,6 +43,7 @@ Result<Reply> request(const char *method, const std::string &json) {
         return std::unexpected(SystemError{e.code, e.what()});
     }
 #else
+    (void)timeout;
     (void)method;
     (void)json;
     return std::unexpected(
@@ -49,9 +51,9 @@ Result<Reply> request(const char *method, const std::string &json) {
 #endif
 }
 template <class T, class Request = Empty>
-Result<T> call(const char *method, const Request &value = {}) {
+Result<T> call(std::chrono::milliseconds timeout, const char *method, const Request &value = {}) {
     try {
-        auto reply = request(method, encode(value));
+        auto reply = request(method, encode(value), timeout);
         if (!reply)
             return std::unexpected(reply.error());
         if (reply->code != ErrorCode::none)
@@ -67,31 +69,31 @@ Result<T> call(const char *method, const Request &value = {}) {
     }
 }
 } // namespace
-Result<SystemStatus> Client::status() { return call<SystemStatus>("GetStatus"); }
-Result<TimeStatus> Client::time() { return call<TimeStatus>("GetTime"); }
+Result<SystemStatus> Client::status() { return call<SystemStatus>(timeout_, "GetStatus"); }
+Result<TimeStatus> Client::time() { return call<TimeStatus>(timeout_, "GetTime"); }
 Result<std::vector<std::string>> Client::timezones() {
-    return call<std::vector<std::string>>("ListTimezones");
+    return call<std::vector<std::string>>(timeout_, "ListTimezones");
 }
-Result<TimezoneCatalog> Client::timezoneCatalog() { return call<TimezoneCatalog>("GetTimezoneCatalog"); }
+Result<TimezoneCatalog> Client::timezoneCatalog() { return call<TimezoneCatalog>(timeout_, "GetTimezoneCatalog"); }
 Result<std::vector<Temperature>> Client::temperatures() {
-    return call<std::vector<Temperature>>("GetTemperatures");
+    return call<std::vector<Temperature>>(timeout_, "GetTemperatures");
 }
-Result<void> Client::apply(const Configuration &c) { return call<void>("ApplyPreferences", c); }
+Result<void> Client::apply(const Configuration &c) { return call<void>(timeout_, "ApplyPreferences", c); }
 Result<NetworkTransaction> Client::beginNetwork(const NetworkProposal &c) {
-    return call<NetworkTransaction>("BeginNetwork", c);
+    return call<NetworkTransaction>(timeout_, "BeginNetwork", c);
 }
 Result<NetworkTransaction> Client::networkTransaction() {
-    return call<NetworkTransaction>("GetNetworkTransaction");
+    return call<NetworkTransaction>(timeout_, "GetNetworkTransaction");
 }
 Result<void> Client::prepareNetworkCommit(const std::string &id) {
-    return call<void>("PrepareNetworkCommit", Id{id});
+    return call<void>(timeout_, "PrepareNetworkCommit", Id{id});
 }
 Result<void> Client::finishNetwork(const std::string &id, bool commit) {
-    return call<void>("FinishNetwork", Finish{id, commit});
+    return call<void>(timeout_, "FinishNetwork", Finish{id, commit});
 }
-Result<Job> Client::power(PowerAction action) { return call<Job>("Power", Power{action}); }
+Result<Job> Client::power(PowerAction action) { return call<Job>(timeout_, "Power", Power{action}); }
 Result<Job> Client::resetDevice(bool confirmed) {
-    return call<Job>("ResetDevice", Reset{confirmed});
+    return call<Job>(timeout_, "ResetDevice", Reset{confirmed});
 }
-Result<Job> Client::job() { return call<Job>("GetJob"); }
+Result<Job> Client::job() { return call<Job>(timeout_, "GetJob"); }
 } // namespace mnc::os::system
