@@ -85,6 +85,18 @@ include(CMakePackageConfigHelpers)
 configure_package_config_file(MncSystemConfig.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/MncSystemConfig.cmake INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/MncSystem)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/MncSystemConfig.cmake DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/MncSystem)
 if(BUILD_TESTING)
+    add_executable(mnc_system_client_test tests/client_test.cpp)
+    target_link_libraries(mnc_system_client_test PRIVATE mnc_os_system)
+    target_compile_options(mnc_system_client_test PRIVATE -UNDEBUG)
+    if(TARGET PkgConfig::SYSTEMD)
+        target_link_libraries(mnc_system_client_test PRIVATE PkgConfig::SYSTEMD)
+        target_compile_definitions(mnc_system_client_test PRIVATE MNC_CLIENT_TEST_SYSTEMD=1)
+        target_link_options(mnc_system_client_test PRIVATE
+            -Wl,--wrap=sd_bus_open_system -Wl,--wrap=sd_bus_set_method_call_timeout
+            -Wl,--wrap=sd_bus_call_method -Wl,--wrap=sd_bus_unref
+            -Wl,--wrap=sd_bus_message_unref -Wl,--wrap=sd_bus_error_free)
+    endif()
+    add_test(NAME mnc_system_client_test COMMAND mnc_system_client_test)
     add_executable(mnc_system_test tests/system_test.cpp)
     target_link_libraries(mnc_system_test PRIVATE mnc_system)
     target_compile_options(mnc_system_test PRIVATE -UNDEBUG)
