@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "mnc/os/system/client.hpp"
 #include <cassert>
+#include "mnc/system/audit.hpp"
 #ifdef MNC_CLIENT_TEST_SYSTEMD
 #include <systemd/sd-bus.h>
 #include <cerrno>
@@ -15,6 +16,12 @@ extern "C" sd_bus_message * __wrap_sd_bus_message_unref(sd_bus_message *) { retu
 extern "C" void __wrap_sd_bus_error_free(sd_bus_error *) {}
 #endif
 int main() {
+    const mnc::system::AuditContext submitted{"administrator", "request"};
+    assert(mnc::system::trustedAuditContext(submitted, 100, 100).actor == "administrator");
+    auto untrusted = mnc::system::trustedAuditContext(submitted, 200, 100);
+    assert(untrusted.actor == "uid:200" && untrusted.request_id.empty());
+    assert(mnc::system::trustedAuditContext(submitted, 100, {}).actor == "uid:100");
+    assert(mnc::system::trustedAuditContext({"bad\nactor", "request"}, 100, 100).actor == "unknown");
     using namespace std::chrono_literals;
     using mnc::os::system::Client;
     assert(Client{}.requestTimeout() == 60s);
