@@ -10,10 +10,10 @@ python mncos_check_selinux_kernel() {
         return
     import pathlib
     config = pathlib.Path(d.getVar('B'), '.config').read_text().splitlines()
-    required = ('SECURITY', 'SECURITYFS', 'SECURITY_SELINUX', 'SECURITY_SELINUX_DEVELOP', 'AUDIT', 'AUDITSYSCALL', 'EXT4_FS_SECURITY', 'SQUASHFS_XATTR')
+    required = ('NET', 'INET', 'SECURITY', 'SECURITY_NETWORK', 'SECURITYFS', 'SECURITY_SELINUX', 'SECURITY_SELINUX_DEVELOP', 'AUDIT', 'AUDITSYSCALL', 'EXT4_FS_SECURITY', 'SQUASHFS_XATTR')
     missing = [symbol for symbol in required if 'CONFIG_' + symbol + '=y' not in config]
     lsm = next((line for line in config if line.startswith('CONFIG_LSM=')), '')
-    if 'selinux' not in lsm:
+    if 'selinux' not in lsm.partition('=')[2].strip(chr(34)).split(','):
         missing.append('LSM containing selinux')
     if missing:
         bb.fatal('SELinux kernel configuration is incomplete: ' + ', '.join(missing))
