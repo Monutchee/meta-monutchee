@@ -19,12 +19,15 @@ struct Id {
 struct Finish {
     std::string id;
     bool commit = false;
+    mnc::system::AuditContext audit_context{};
 };
 struct Power {
     mnc::system::PowerAction action = mnc::system::PowerAction::reboot;
+    mnc::system::AuditContext audit_context{};
 };
 struct Reset {
     bool confirmed = false;
+    mnc::system::AuditContext audit_context{};
 };
 template <class T> T decode(std::string_view text, std::size_t limit = max_message_size) {
     T result{};

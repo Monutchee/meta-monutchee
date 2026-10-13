@@ -75,6 +75,7 @@ struct Pending {
     std::string candidate_hash;
     std::uint64_t deadline = 0;
     std::string actor = "system";
+    std::string request_id;
 };
 struct State {
     Configuration configuration;
@@ -83,6 +84,7 @@ struct State {
     Job job;
     bool reset_intent = false;
     std::string job_actor = "system";
+    std::string job_request_id;
 };
 /** Serialized by the sd-bus worker. All durable changes precede their effects. */
 class Backend {
@@ -99,19 +101,20 @@ class Backend {
     TimezoneCatalog timezoneCatalog() { return platform_.timezoneCatalog(); }
     std::vector<Temperature> temperatures() { return platform_.temperatures(); }
     void apply(const Configuration &);
-    NetworkTransaction beginNetwork(const NetworkProposal &, std::string actor = "system");
+    NetworkTransaction beginNetwork(const NetworkProposal &, std::string actor = "system", std::string request_id = {});
     NetworkTransaction networkTransaction();
     void prepareNetworkCommit(const std::string &);
-    void finishNetwork(const std::string &, bool, std::string actor = "system");
-    Job power(PowerAction, std::string actor = "system");
-    Job resetDevice(bool, std::string actor = "system");
+    void finishNetwork(const std::string &, bool, std::string actor = "system", std::string request_id = {});
+    Job power(PowerAction, std::string actor = "system", std::string request_id = {});
+    Job resetDevice(bool, std::string actor = "system", std::string request_id = {});
     Job job() const { return state_.job; }
     const Profile &profile() const { return profile_; }
 
   private:
     void event(std::string_view code, std::string_view category, std::string_view message,
                std::string_view actor, std::string_view action, std::string_view outcome,
-               std::string_view subject, mnc::logging::Priority priority = mnc::logging::Priority::info) noexcept;
+               std::string_view subject, mnc::logging::Priority priority = mnc::logging::Priority::info,
+               std::string_view request_id = {}) noexcept;
     void observeNetwork() noexcept;
     void persist();
     void recoverNetwork(bool bootstrap);
