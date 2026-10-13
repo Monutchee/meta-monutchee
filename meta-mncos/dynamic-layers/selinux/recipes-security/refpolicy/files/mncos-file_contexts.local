@@ -1,0 +1,6 @@
+# Shared runtime defaults; products append rules for their own descendants.
+/run/mnc(/.*)?    system_u:object_r:var_run_t:s0
+# Files recreated by the shared system manager running in initrc_t.
+/run/mnc/os/hostname    --    system_u:object_r:initrc_runtime_t:s0
+/run/mnc/os/localtime    -l    system_u:object_r:initrc_runtime_t:s0
+/run/mnc/system/ptp-disabled    --    system_u:object_r:initrc_runtime_t:s0

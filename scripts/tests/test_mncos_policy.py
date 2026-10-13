@@ -47,6 +47,35 @@ class PolicyTests(unittest.TestCase):
         self.data.setVar("BBFILE_COLLECTIONS", "core mncos selinux")
         self.run_policy_function("mncos_validate_configuration")
 
+    def test_selinux_context_install_preserves_contributions_and_feature_off(self):
+        append = ROOT / 'meta-mncos/dynamic-layers/selinux/recipes-security/refpolicy/refpolicy-targeted_%.bbappend'
+        work = Path(self.temporary.name)
+        files = append.parent / 'files'
+        for name in ['mncos-file_contexts.subs_dist', 'mncos-file_contexts.local']:
+            shutil.copyfile(files / name, work / name)
+        target = work / 'image'
+        locations = ['etc/selinux/targeted/contexts/files', 'var/lib/selinux/targeted/active']
+        for location in locations:
+            directory = target / location
+            directory.mkdir(parents=True)
+            (directory / 'file_contexts.local').write_text('# existing contribution\n')
+        self.data.setVar('do_install', '')
+        self.data.setVar('D', str(target))
+        self.data.setVar('WORKDIR', str(work))
+        self.data.setVar('sysconfdir', '/etc')
+        self.data.setVar('POLICY_STORE_ROOT', '/var/lib/selinux')
+        self.data.setVar('POLICY_NAME', 'targeted')
+        bb.parse.parse_py.BBHandler.handle(str(append), self.data, include=True)
+        self.data.setVar('DISTRO_FEATURES', '')
+        subprocess.run(['sh', '-ec', self.data.getVar('do_install')], check=True)
+        for location in locations:
+            self.assertEqual((target / location / 'file_contexts.local').read_text(), '# existing contribution\n')
+        self.data.setVar('DISTRO_FEATURES', 'selinux')
+        subprocess.run(['sh', '-ec', self.data.getVar('do_install')], check=True)
+        expected = '# existing contribution\n' + (files / 'mncos-file_contexts.local').read_text()
+        for location in locations:
+            self.assertEqual((target / location / 'file_contexts.local').read_text(), expected)
+
     def test_optional_uutils_selinux_bindgen_requires_provider_layer(self):
         recipe = ROOT / "meta-mncos/dynamic-layers/openembedded-layer/recipes-core/uutils-coreutils/uutils-coreutils_%.bbappend"
         # Execute the actual anonymous recipe guard with BitBake's datastore

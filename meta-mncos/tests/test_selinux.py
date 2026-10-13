@@ -102,6 +102,9 @@ class SelinuxPolicyAliasTests(unittest.TestCase):
             original = source.with_suffix('.subs_dist').read_bytes()
             upstream = original.split(b'# Persistent backing inodes')[0]
             context.with_suffix('.subs_dist').write_bytes(upstream + aliases.read_bytes())
+            shared = aliases.with_name('mncos-file_contexts.local')
+            with context.with_suffix('.local').open('ab') as stream:
+                stream.write(shared.read_bytes())
             option = Option(3, os.fsencode(context))
             handle = lib.selabel_open(0, ctypes.byref(option), 1)
             self.assertTrue(handle, 'real policy file backend failed to load')
@@ -109,8 +112,15 @@ class SelinuxPolicyAliasTests(unittest.TestCase):
                      '/state/os/ssh': (stat.S_IFDIR, 'etc_t'),
                      '/run/mnc/selinux/store': (stat.S_IFDIR, 'semanage_store_t'),
                      '/var/lib/selinux': (stat.S_IFDIR, 'semanage_store_t'),
+                     '/home/root/.ssh': (stat.S_IFDIR, 'ssh_home_t'),
                      '/state/os/root-ssh': (stat.S_IFDIR, 'ssh_home_t'),
-                     '/root/.ssh': (stat.S_IFDIR, 'ssh_home_t')}
+                     '/root/.ssh': (stat.S_IFDIR, 'ssh_home_t'),
+                     '/run/mnc/boot': (stat.S_IFDIR, 'var_run_t'),
+                     '/run/mnc/os/hostname': (stat.S_IFREG, 'initrc_runtime_t'),
+                     '/run/mnc/os/localtime': (stat.S_IFLNK, 'initrc_runtime_t'),
+                     '/run/mnc/system/ptp-disabled': (stat.S_IFREG, 'initrc_runtime_t'),
+                     '/run/mnc/os/ordinary': (stat.S_IFREG, 'var_run_t'),
+                     '/run/mnc/os/hostname-dir': (stat.S_IFDIR, 'var_run_t')}
             for prefix in ['/run/ssh', '/state/os/ssh']:
                 for algorithm in ['rsa', 'ed25519', 'ecdsa']:
                     for suffix in ['', '.pub']:
