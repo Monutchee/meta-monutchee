@@ -1,0 +1,117 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-3.0-only
+"""Immutable image policy and explicit writable-filesystem labeling."""
+import argparse
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+
+def run(*args):
+    return subprocess.run(args, check=True, text=True, stdout=subprocess.PIPE).stdout.strip()
+
+
+def safe(path):
+    path = Path(path)
+    if not path.is_absolute() or '..' in path.parts:
+        raise RuntimeError('unsafe SELinux path: ' + str(path))
+    for component in [path, *path.parents]:
+        if component.is_symlink():
+            raise RuntimeError('symlink in SELinux path: ' + str(path))
+    return path
+
+
+def storage_policy():
+    return json.loads(Path('/usr/share/mnc/storage/policy.json').read_text())
+
+
+def readonly(path):
+    return 'ro' in run('findmnt', '-n', '-o', 'OPTIONS', '-T', str(path)).split(',')
+
+
+def store(action, policy):
+    source = safe('/var/lib/selinux')
+    captured = safe(Path(policy.get('runtime_root', '/run/mnc')) / 'selinux/store')
+    if action == 'capture':
+        if not source.is_dir() or not readonly(source):
+            raise RuntimeError('SELinux policy store must exist on the immutable image')
+        captured.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+        captured.parent.chmod(0o700)
+        captured.mkdir(mode=0o700, exist_ok=True)
+        run('mount', '--bind', str(source), str(captured))
+        run('mount', '-o', 'remount,bind,ro', str(captured))
+    else:
+        if not captured.is_dir() or not readonly(captured):
+            raise RuntimeError('immutable image SELinux policy was not captured')
+        source.mkdir(mode=0o755, exist_ok=True)
+        run('mount', '--bind', str(captured), str(source))
+        run('mount', '-o', 'remount,bind,ro', str(source))
+
+
+def loaded():
+    if run('getenforce') not in ('Permissive', 'Enforcing'):
+        raise RuntimeError('SELinux policy must be loaded before labeling')
+
+
+def relabel(path):
+    path = safe(path)
+    if not path.exists():
+        return
+    if readonly(path):
+        raise RuntimeError('explicit relabel requires a writable mount: ' + str(path))
+    # Never traverse the immutable policy-store bind mounted within /var/lib.
+    run('restorecon', '-RF', '-e', '/var/lib/selinux', '-e', '/state/os/var-lib/selinux', str(path))
+
+
+def restore(policy, extra):
+    loaded()
+    paths = ['/state', '/data', policy.get('runtime_root', '/run/mnc'),
+             '/var/lib', '/run/ssh', '/root/.ssh'] + extra.get('writable_paths', [])
+    for name in dict.fromkeys(paths):
+        path = safe(name)
+        if path.exists() and not readonly(path):
+            relabel(path)
+    # Factory is never made writable at startup. Report every incorrect context
+    # for acceptance/maintenance; permissive startup can still proceed.
+    errors = 0
+    for name in dict.fromkeys(['/factory'] + extra.get('factory_paths', [])):
+        path = safe(name)
+        if not path.exists():
+            continue
+        for item in [path, *path.rglob('*')] if path.is_dir() else [path]:
+            result = subprocess.run(['matchpathcon', '-V', str(item)], check=False)
+            if result.returncode:
+                errors += 1
+    if errors:
+        print('mnc-selinux: factory label validation failed for %d entries; writable maintenance required' % errors,
+              file=sys.stderr)
+    else:
+        print('mnc-selinux: writable labels restored; factory labels validated')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=['capture', 'finalize', 'restore', 'maintenance'])
+    parser.add_argument('path', nargs='?')
+    args = parser.parse_args()
+    policy = storage_policy()
+    if args.action in ('capture', 'finalize'):
+        store(args.action, policy)
+    elif args.action == 'maintenance':
+        loaded()
+        if not args.path or not any(args.path == root or args.path.startswith(root + '/')
+                                    for root in ['/factory', '/state', '/data']):
+            raise RuntimeError('maintenance path must be within factory, state or data')
+        relabel(args.path)
+    else:
+        config = Path('/etc/mnc/selinux-paths.json')
+        restore(policy, json.loads(config.read_text()) if config.exists() else {})
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (RuntimeError, OSError, ValueError, subprocess.CalledProcessError) as exc:
+        print('mnc-selinux: ' + str(exc), file=sys.stderr)
+        sys.exit(1)

@@ -38,6 +38,15 @@ class PolicyTests(unittest.TestCase):
         self.data.setVar("IMAGE_FEATURES", "x11 hwcodecs ${EXTRA_IMAGE_FEATURES}")
         bb.parse.handle(str(ROOT / "meta-mncos/conf/distro/include/mncos-policy.inc"), self.data, include=True)
 
+    def test_selinux_is_opt_in_and_requires_layer_only_when_enabled(self):
+        self.assertNotIn("selinux", self.features("DISTRO_FEATURES"))
+        self.run_policy_function("mncos_validate_configuration")
+        self.data.setVar("DISTRO_FEATURES:append", " selinux")
+        with self.assertRaisesRegex(ValueError, "meta-selinux layer is missing"):
+            self.run_policy_function("mncos_validate_configuration")
+        self.data.setVar("BBFILE_COLLECTIONS", "core mncos selinux")
+        self.run_policy_function("mncos_validate_configuration")
+
     def features(self, variable):
         return set(self.data.getVar(variable).split())
 
