@@ -38,6 +38,86 @@ class PolicyTests(unittest.TestCase):
         self.data.setVar("IMAGE_FEATURES", "x11 hwcodecs ${EXTRA_IMAGE_FEATURES}")
         bb.parse.handle(str(ROOT / "meta-mncos/conf/distro/include/mncos-policy.inc"), self.data, include=True)
 
+    def test_selinux_is_opt_in_and_requires_layer_only_when_enabled(self):
+        self.assertNotIn("selinux", self.features("DISTRO_FEATURES"))
+        self.run_policy_function("mncos_validate_configuration")
+        self.data.setVar("DISTRO_FEATURES:append", " selinux")
+        with self.assertRaisesRegex(ValueError, "meta-selinux layer is missing"):
+            self.run_policy_function("mncos_validate_configuration")
+        self.data.setVar("BBFILE_COLLECTIONS", "core mncos selinux")
+        self.run_policy_function("mncos_validate_configuration")
+
+    def test_selinux_context_install_preserves_contributions_and_feature_off(self):
+        append = ROOT / 'meta-mncos/dynamic-layers/selinux/recipes-security/refpolicy/refpolicy-targeted_%.bbappend'
+        work = Path(self.temporary.name)
+        files = append.parent / 'files'
+        for name in ['mncos-file_contexts.subs_dist', 'mncos-file_contexts.local']:
+            shutil.copyfile(files / name, work / name)
+        target = work / 'image'
+        locations = ['etc/selinux/targeted/contexts/files', 'var/lib/selinux/targeted/active']
+        for location in locations:
+            directory = target / location
+            directory.mkdir(parents=True)
+            (directory / 'file_contexts.local').write_text('# existing contribution\n')
+        self.data.setVar('do_install', '')
+        self.data.setVar('D', str(target))
+        self.data.setVar('WORKDIR', str(work))
+        self.data.setVar('sysconfdir', '/etc')
+        self.data.setVar('POLICY_STORE_ROOT', '/var/lib/selinux')
+        self.data.setVar('POLICY_NAME', 'targeted')
+        bb.parse.parse_py.BBHandler.handle(str(append), self.data, include=True)
+        self.data.setVar('DISTRO_FEATURES', '')
+        subprocess.run(['sh', '-ec', self.data.getVar('do_install')], check=True)
+        for location in locations:
+            self.assertEqual((target / location / 'file_contexts.local').read_text(), '# existing contribution\n')
+        self.data.setVar('DISTRO_FEATURES', 'selinux')
+        subprocess.run(['sh', '-ec', self.data.getVar('do_install')], check=True)
+        expected = '# existing contribution\n' + (files / 'mncos-file_contexts.local').read_text()
+        for location in locations:
+            self.assertEqual((target / location / 'file_contexts.local').read_text(), expected)
+
+    def test_optional_uutils_selinux_bindgen_requires_provider_layer(self):
+        recipe = ROOT / "meta-mncos/dynamic-layers/openembedded-layer/recipes-core/uutils-coreutils/uutils-coreutils_%.bbappend"
+        # Execute the actual anonymous recipe guard with BitBake's datastore
+        # and exception type; no vendor tools or task execution are needed.
+        body = recipe.read_text().split("python () {\n", 1)[1].split("\n}", 1)[0]
+        namespace = {"d": self.data, "bb": bb}
+        exec("def check():\n" + body, namespace)
+        for features, dependencies, collections, skipped in (
+                ("selinux", "clang-native libselinux-native", "core openembedded-layer", True),
+                ("selinux", "clang-native libselinux-native", "core openembedded-layer clang-layer", False),
+                ("", "", "core openembedded-layer", False),
+                ("selinux", "libselinux-native", "core openembedded-layer", False)):
+            with self.subTest(features=features, dependencies=dependencies, collections=collections):
+                self.data.setVar("PACKAGECONFIG", features)
+                self.data.setVar("DEPENDS", dependencies)
+                self.data.setVar("BBFILE_COLLECTIONS", collections)
+                if skipped:
+                    with self.assertRaisesRegex(bb.parse.SkipRecipe, "clang-native from meta-clang"):
+                        namespace["check"]()
+                else:
+                    namespace["check"]()
+
+    def test_selinux_kernel_requires_network_hooks_and_exact_lsm(self):
+        append = "meta-mncos/dynamic-layers/xilinx/recipes-kernel/linux/linux-xlnx_%.bbappend"
+        fragment = ROOT / "meta-mncos/dynamic-layers/xilinx/recipes-kernel/linux/files/mncos-selinux.cfg"
+        config = Path(self.temporary.name) / ".config"
+        self.data.setVar("B", self.temporary.name)
+        self.data.setVar("DISTRO_FEATURES", "systemd selinux")
+        config.write_text(fragment.read_text())
+        self.run_policy_function("mncos_check_selinux_kernel", append)
+        for bad, expected in (
+                (fragment.read_text().replace("CONFIG_SECURITY_NETWORK=y", "# CONFIG_SECURITY_NETWORK is not set"), "SECURITY_NETWORK"),
+                (fragment.read_text().replace("CONFIG_SECURITY_SELINUX=y", "# CONFIG_SECURITY_SELINUX is not set"), "SECURITY_SELINUX"),
+                (fragment.read_text().replace(",selinux,", ",noselinux,"), "LSM containing selinux")):
+            with self.subTest(expected=expected):
+                config.write_text(bad)
+                with self.assertRaisesRegex(ValueError, expected):
+                    self.run_policy_function("mncos_check_selinux_kernel", append)
+        self.data.setVar("DISTRO_FEATURES", "systemd")
+        config.unlink()
+        self.run_policy_function("mncos_check_selinux_kernel", append)
+
     def features(self, variable):
         return set(self.data.getVar(variable).split())
 

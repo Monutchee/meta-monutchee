@@ -67,7 +67,7 @@ def build(root, output, readelf, epoch):
     env = os.environ.copy()
     env.pop('SOURCE_DATE_EPOCH', None)  # Explicit timestamp flags below own reproducibility.
     subprocess.run(['mksquashfs', str(root), str(output / 'rootfs.squashfs'),
-                    '-noappend', '-comp', 'gzip', '-processors', '2', '-mkfs-time', str(epoch),
+                    '-noappend', '-xattrs', '-comp', 'gzip', '-processors', '2', '-mkfs-time', str(epoch),
                     '-all-time', str(epoch), '-wildcards', '-e', 'boot/*'], check=True, env=env)
 
 
