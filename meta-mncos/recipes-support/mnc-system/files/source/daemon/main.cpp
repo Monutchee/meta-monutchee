@@ -63,7 +63,7 @@ class Daemon final : public mnc::Service {
             } else if (name == "ApplyPreferences")
                 self.backend_.apply(decode<Configuration>(json));
             else if (name == "BeginNetwork")
-                reply.json = encode(self.backend_.beginNetwork(decode<NetworkProposal>(json)));
+                reply.json = encode(self.backend_.beginNetwork(decode<NetworkProposal>(json), "uid:" + std::to_string(uid)));
             else if (name == "GetNetworkTransaction") {
                 decode<Empty>(json);
                 reply.json = encode(self.backend_.networkTransaction());
@@ -71,11 +71,11 @@ class Daemon final : public mnc::Service {
                 self.backend_.prepareNetworkCommit(decode<Id>(json).id);
             else if (name == "FinishNetwork") {
                 auto v = decode<Finish>(json);
-                self.backend_.finishNetwork(v.id, v.commit);
+                self.backend_.finishNetwork(v.id, v.commit, "uid:" + std::to_string(uid));
             } else if (name == "Power")
-                reply.json = encode(self.backend_.power(decode<Power>(json).action));
+                reply.json = encode(self.backend_.power(decode<Power>(json).action, "uid:" + std::to_string(uid)));
             else if (name == "ResetDevice")
-                reply.json = encode(self.backend_.resetDevice(decode<Reset>(json).confirmed));
+                reply.json = encode(self.backend_.resetDevice(decode<Reset>(json).confirmed, "uid:" + std::to_string(uid)));
             else if (name == "GetJob") {
                 decode<Empty>(json);
                 reply.json = encode(self.backend_.job());

@@ -160,8 +160,10 @@ void loadBootPreferences(Profile& profile, const fs::path& path) {
     profile.defaults = boot.factory;
     profile.boot_preferences = std::move(boot);
 }
-Backend::Backend(Profile profile, Platform &platform, std::function<std::uint64_t()> clock)
-    : profile_(std::move(profile)), platform_(platform), clock_(std::move(clock)) {
+Backend::Backend(Profile profile, Platform &platform, std::function<std::uint64_t()> clock,
+                 std::shared_ptr<mnc::logging::Sink> sink)
+    : profile_(std::move(profile)), platform_(platform), clock_(std::move(clock)),
+      user_log_("system-manager", "operations", std::move(sink)) {
     fs::create_directories(profile_.state_directory);
     fs::permissions(profile_.state_directory, fs::perms::owner_all);
     const auto path = fs::path(profile_.state_directory) / "state.json";
@@ -172,6 +174,38 @@ Backend::Backend(Profile profile, Platform &platform, std::function<std::uint64_
     // Old journals predate a selectable port. Product defaults preserve that port.
     if (state_.configuration.time.ptp_interface.empty())
         state_.configuration.time.ptp_interface = profile_.defaults.time.ptp_interface;
+}
+void Backend::event(std::string_view code, std::string_view category, std::string_view message,
+                    std::string_view actor, std::string_view action, std::string_view outcome,
+                    std::string_view subject, mnc::logging::Priority priority) noexcept {
+    try {
+        (void)user_log_.write(priority, {
+            .code = std::string(code), .category = std::string(category),
+            .message = std::string(message), .actor = std::string(actor),
+            .action = std::string(action), .outcome = std::string(outcome),
+            .subject = std::string(subject), .changed_fields = {}, .request_id = {}});
+    } catch (...) { /* Public audit is best effort and never changes control behavior. */ }
+}
+void Backend::observeNetwork() noexcept {
+    try {
+        const auto links = platform_.networkLinks();
+        // Missing/administratively disabled links establish a new baseline on return.
+        std::erase_if(carriers_, [&](const auto &previous) {
+            return std::ranges::none_of(links, [&](const auto &link) { return link.interface == previous.first; });
+        });
+        for (const auto &link : links) {
+            if (std::ranges::none_of(profile_.interfaces, [&](const auto &policy) {
+                    return policy.name == link.interface;
+                })) continue;
+            const auto previous = carriers_.find(link.interface);
+            if (previous != carriers_.end() && previous->second != link.carrier)
+                event(link.carrier ? "network_recovered" : "network_down", "network",
+                      link.carrier ? "Network connection restored" : "Network connection lost",
+                      "system", "link", link.carrier ? "recovered" : "failed", link.interface,
+                      link.carrier ? mnc::logging::Priority::info : mnc::logging::Priority::warning);
+            carriers_[link.interface] = link.carrier;
+        }
+    } catch (...) { /* No observer failure may stop privileged operation handling. */ }
 }
 void Backend::persist() {
     if (storage_failed_)
@@ -197,7 +231,7 @@ void Backend::checkId(const std::string &id) {
     if (!pending() || id != state_.pending.transaction.id)
         throw Error({ErrorCode::invalid_argument, "network transaction is no longer pending"});
 }
-void Backend::settleNetwork(bool commit, bool bootstrap) {
+void Backend::settleNetwork(bool commit, bool bootstrap, std::string_view reason) {
     auto next = commit ? state_.pending.transaction.network : state_.pending.previous;
     // Retain the journal until the runtime apply succeeds; failures are retryable.
     platform_.network(next, bootstrap);
@@ -205,13 +239,16 @@ void Backend::settleNetwork(bool commit, bool bootstrap) {
     state_.pending.transaction.state = commit ? "committed" : "rolled_back";
     state_.pending.transaction.remaining_ms = 0;
     persist();
+    event(commit ? "network_configuration_committed" : reason == "cancel" ? "network_configuration_cancelled" : reason == "timeout" ? "network_configuration_timed_out" : "network_configuration_rolled_back",
+          "network", commit ? "Network settings confirmed" : reason == "cancel" ? "Network settings cancelled" : reason == "timeout" ? "Network settings confirmation timed out" : "Network settings restored",
+          state_.pending.actor, "configure_network", commit ? "completed" : "rolled_back", "network");
 }
 void Backend::recoverNetwork(bool bootstrap) {
     if (!pending())
         return;
     const bool committed = state_.pending.transaction.state == "committing" &&
                            fileHash(profile_.active_settings) == state_.pending.candidate_hash;
-    settleNetwork(committed, bootstrap);
+    settleNetwork(committed, bootstrap, bootstrap ? "recovery" : "timeout");
 }
 namespace {
 struct StorageCapabilities { bool factory_reset = false; };
@@ -240,6 +277,8 @@ void Backend::bootstrap() {
         state_.reset_intent = false;
         state_.job.state = "completed";
         persist();
+        event("device_reset_completed", "administration", "Device reset completed",
+              state_.job_actor, "device_reset", "completed", "device");
     } else if (state_.initialized) {
         recoverNetwork(true);
         platform_.network(state_.configuration.system.network, true);
@@ -278,6 +317,8 @@ void Backend::start() {
     if (state_.job.state == "accepted") {
         state_.job.state = "interrupted";
         persist();
+        event("system_operation_interrupted", "administration", "System operation interrupted",
+              state_.job_actor, state_.job.action, "interrupted", "device", mnc::logging::Priority::warning);
     }
 }
 SystemStatus Backend::status() {
@@ -314,7 +355,7 @@ void Backend::apply(const Configuration &config) {
         throw;
     }
 }
-NetworkTransaction Backend::beginNetwork(const NetworkProposal &p) {
+NetworkTransaction Backend::beginNetwork(const NetworkProposal &p, std::string actor) {
     idle();
     auto config = state_.configuration;
     config.system.network = p.network;
@@ -338,6 +379,7 @@ NetworkTransaction Backend::beginNetwork(const NetworkProposal &p) {
     next.previous_hash = p.previous_settings_hash;
     next.candidate_hash = p.candidate_settings_hash;
     next.deadline = clock_() + 120000;
+    next.actor = std::move(actor);
     state_.pending = std::move(next);
     persist();
     try {
@@ -346,6 +388,8 @@ NetworkTransaction Backend::beginNetwork(const NetworkProposal &p) {
         settleNetwork(false);
         throw;
     }
+    event("network_configuration_pending", "network", "Network settings await confirmation",
+          state_.pending.actor, "configure_network", "pending", "network");
     return networkTransaction();
 }
 NetworkTransaction Backend::networkTransaction() {
@@ -366,7 +410,7 @@ void Backend::prepareNetworkCommit(const std::string &id) {
     state_.pending.deadline = clock_() + 30000;
     persist();
 }
-void Backend::finishNetwork(const std::string &id, bool commit) {
+void Backend::finishNetwork(const std::string &id, bool commit, std::string actor) {
     if (id == state_.pending.transaction.id &&
         state_.pending.transaction.state == (commit ? "committed" : "rolled_back"))
         return;
@@ -378,18 +422,23 @@ void Backend::finishNetwork(const std::string &id, bool commit) {
     if (!commit && state_.pending.transaction.state == "committing" &&
         fileHash(profile_.active_settings) == state_.pending.candidate_hash)
         throw Error({ErrorCode::busy, "network settings already committed"});
-    settleNetwork(commit);
+    state_.pending.actor = std::move(actor);
+    settleNetwork(commit, false, "cancel");
 }
-Job Backend::power(PowerAction action) {
+Job Backend::power(PowerAction action, std::string actor) {
     idle();
     if (action != PowerAction::reboot && action != PowerAction::shutdown)
         throw Error({ErrorCode::invalid_argument, "invalid power action"});
     state_.job = {randomId(), action == PowerAction::reboot ? "reboot" : "shutdown", "accepted"};
+    state_.job_actor = std::move(actor);
     persist();
+    event(state_.job.action == "device_reset" ? "device_reset_requested" : "power_requested",
+          "administration", state_.job.action == "device_reset" ? "Device reset requested" : "Power operation requested",
+          state_.job_actor, state_.job.action, "accepted", "device");
     job_deadline_ = clock_() + 5000;
     return state_.job;
 }
-Job Backend::resetDevice(bool confirmed) {
+Job Backend::resetDevice(bool confirmed, std::string actor) {
     if (!confirmed)
         throw Error(
             {ErrorCode::invalid_argument, "whole-device reset requires explicit confirmation"});
@@ -398,23 +447,39 @@ Job Backend::resetDevice(bool confirmed) {
         throw Error({ErrorCode::unavailable, "factory reset requires persistent state and data"});
     state_.job = {randomId(), "device_reset", "accepted"};
     state_.reset_intent = true;
+    state_.job_actor = std::move(actor);
     persist();
+    event(state_.job.action == "device_reset" ? "device_reset_requested" : "power_requested",
+          "administration", state_.job.action == "device_reset" ? "Device reset requested" : "Power operation requested",
+          state_.job_actor, state_.job.action, "accepted", "device");
     job_deadline_ = clock_() + 5000;
     return state_.job;
 }
 void Backend::tick() {
     if (storage_failed_)
         throw Error({ErrorCode::unavailable, "system journal requires recovery"});
+    if (clock_() >= next_network_observation_) {
+        next_network_observation_ = clock_() + 1000;
+        observeNetwork();
+    }
     if (pending() && clock_() >= state_.pending.deadline)
         recoverNetwork(false);
     if (job_deadline_ && clock_() >= job_deadline_) {
         job_deadline_ = 0;
+        // Persist handoff before the power call can stop this process. A later boot
+        // cannot mistake an accepted reboot for an interrupted request.
+        state_.job.state = "dispatched";
+        persist();
         try {
             platform_.power(state_.job.action == "shutdown" ? PowerAction::shutdown
                                                             : PowerAction::reboot);
+            event("system_operation_dispatched", "administration", "System operation dispatched",
+                  state_.job_actor, state_.job.action, "dispatched", "device");
         } catch (...) {
             state_.job.state = "failed";
             persist();
+            event("system_operation_failed", "administration", "System operation failed",
+                  state_.job_actor, state_.job.action, "failed", "device", mnc::logging::Priority::error);
             throw;
         }
     }
