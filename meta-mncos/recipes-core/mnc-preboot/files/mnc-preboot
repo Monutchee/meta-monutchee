@@ -30,10 +30,16 @@ mountpoint -q /sys || mount -t sysfs sysfs /sys
 mountpoint -q /dev || mount -t devtmpfs devtmpfs /dev
 mountpoint -q /run || mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs /run
 echo 'mnc-preboot: starting early setup (PID 1, before systemd).' >/dev/console
+if [ '@MNC_SELINUX@' = 1 ]; then
+    /usr/libexec/mnc-selinux capture || exec /bin/sh </dev/console >/dev/console 2>&1
+fi
 echo 'mnc-preboot: preparing storage.' >/dev/console
 if ! /sbin/mnc-preboot storage prepare; then
     echo 'mnc-preboot: storage preparation failed; refusing normal startup.' >/dev/console
     exec /bin/sh </dev/console >/dev/console 2>&1
+fi
+if [ '@MNC_SELINUX@' = 1 ]; then
+    /usr/libexec/mnc-selinux finalize || exec /bin/sh </dev/console >/dev/console 2>&1
 fi
 echo 'mnc-preboot: storage ready; early setup complete. Starting systemd.' >/dev/console
 exec /sbin/init "$@"

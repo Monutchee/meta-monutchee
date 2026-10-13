@@ -1,0 +1,6 @@
+# Persistent backing inodes must retain their logical runtime-path labels.
+/state/os/var-lib /var/lib
+/state/os/machine-id /etc/machine-id
+/state/os/ssh /run/ssh
+/state/os/root-ssh /root/.ssh
+/data/log /var/log

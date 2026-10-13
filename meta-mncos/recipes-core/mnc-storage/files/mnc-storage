@@ -358,10 +358,15 @@ def restore(p, archive_path, devices):
                             return digest(path)
                         return {f.relative_to(path).as_posix(): contents(f) for f in sorted(path.iterdir())}
                     require(contents(src) == contents(dest), 'restore refuses conflicting existing ' + str(dest))
+                    if Path('/usr/libexec/mnc-selinux').exists():
+                        run('/usr/libexec/mnc-selinux', 'maintenance', str(target))
+                    run('sync')
                     continue  # A previous restore completed this role before interruption.
 
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 run('cp', '-a', str(src), str(dest))
+                if Path('/usr/libexec/mnc-selinux').exists():
+                    run('/usr/libexec/mnc-selinux', 'maintenance', str(target))
                 run('sync')
             finally:
                 run('umount', str(target))

@@ -2,6 +2,8 @@
 addhandler mncos_validate_configuration
 mncos_validate_configuration[eventmask] = "bb.event.ConfigParsed"
 python mncos_validate_configuration() {
+    if "selinux" in (d.getVar("DISTRO_FEATURES") or "").split() and "selinux" not in (d.getVar("BBFILE_COLLECTIONS") or "").split():
+        bb.fatal("MNCOS DISTRO_FEATURES enables selinux but the matching meta-selinux layer is missing from BBLAYERS")
     if d.getVar("MNCOS_HEADLESS") not in ("0", "1"):
         bb.fatal('MNCOS_HEADLESS must be "0" or "1"')
     if d.getVar("MNCOS_MULTIMEDIA_OFF") not in ("0", "1"):
