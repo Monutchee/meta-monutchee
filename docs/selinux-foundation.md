@@ -40,3 +40,10 @@ kernel configuration, actual rootfs/SquashFS labels, systemd dependency ordering
 factory maintenance and reboot/upgrade behavior still require product and
 hardware validation before release. Enforcing mode and service policy remain
 separate product milestones.
+
+The optional `uutils-coreutils` alternative in meta-oe needs `clang-native` for
+its SELinux Rust bindings. The shared dynamic append skips that recipe when
+those bindings select the dependency and the `clang-layer` provider collection
+is absent. This avoids dependency-discovery errors for an unused alternative
+while retaining GNU coreutils, its SELinux support, and feature-off products.
+Adding meta-clang restores eligibility; this guard does not add that layer.

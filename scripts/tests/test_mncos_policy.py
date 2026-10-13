@@ -47,6 +47,28 @@ class PolicyTests(unittest.TestCase):
         self.data.setVar("BBFILE_COLLECTIONS", "core mncos selinux")
         self.run_policy_function("mncos_validate_configuration")
 
+    def test_optional_uutils_selinux_bindgen_requires_provider_layer(self):
+        recipe = ROOT / "meta-mncos/dynamic-layers/openembedded-layer/recipes-core/uutils-coreutils/uutils-coreutils_%.bbappend"
+        # Execute the actual anonymous recipe guard with BitBake's datastore
+        # and exception type; no vendor tools or task execution are needed.
+        body = recipe.read_text().split("python () {\n", 1)[1].split("\n}", 1)[0]
+        namespace = {"d": self.data, "bb": bb}
+        exec("def check():\n" + body, namespace)
+        for features, dependencies, collections, skipped in (
+                ("selinux", "clang-native libselinux-native", "core openembedded-layer", True),
+                ("selinux", "clang-native libselinux-native", "core openembedded-layer clang-layer", False),
+                ("", "", "core openembedded-layer", False),
+                ("selinux", "libselinux-native", "core openembedded-layer", False)):
+            with self.subTest(features=features, dependencies=dependencies, collections=collections):
+                self.data.setVar("PACKAGECONFIG", features)
+                self.data.setVar("DEPENDS", dependencies)
+                self.data.setVar("BBFILE_COLLECTIONS", collections)
+                if skipped:
+                    with self.assertRaisesRegex(bb.parse.SkipRecipe, "clang-native from meta-clang"):
+                        namespace["check"]()
+                else:
+                    namespace["check"]()
+
     def features(self, variable):
         return set(self.data.getVar(variable).split())
 
