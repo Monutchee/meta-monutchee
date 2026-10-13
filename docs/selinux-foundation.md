@@ -29,6 +29,13 @@ no label. Host keys therefore receive `sshd_key_t` without changing their
 contents or permissions. Root SSH backing resolves directly to `/home/root/.ssh`
 to avoid chaining through the upstream `/root` alias. The immutable runtime policy-store capture resolves
 to `/var/lib/selinux` for context lookup, while restoration still excludes it.
+Shared generic runtime context rules append to both installed and active
+`file_contexts.local` stores, preserving earlier contributions. Product rules
+must append afterward; a task post-function guarantees they follow shared
+shell install appends. Only the shared system manager's recreated hostname,
+localtime symlink and disabled-PTP marker select `initrc_runtime_t`; ordinary
+runtime objects keep `var_run_t`, and immutable store aliases remain excluded
+from restoration.
 Products can install `/etc/mnc/selinux-paths.json` with
 `writable_paths` and `factory_paths` arrays of canonical absolute paths.
 Factory context mismatches are reported at startup without remounting the
