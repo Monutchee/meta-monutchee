@@ -1,0 +1,14 @@
+[Unit]
+Description=Restore writable filesystem SELinux labels
+DefaultDependencies=no
+Requires=systemd-tmpfiles-setup.service
+After=systemd-tmpfiles-setup.service
+Before=sysinit.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mnc-selinux restore
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target
