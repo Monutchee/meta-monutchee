@@ -23,7 +23,12 @@ foundation; it does not claim confinement of those bootstrap helpers or apps.
 
 The helper restores writable state, data, runtime and persistent aliases, using
 shared file-context substitutions to give backing inodes the same labels as
-their logical paths. Products can install `/etc/mnc/selinux-paths.json` with
+their logical paths. Both persistent and runtime SSH host-key directories
+resolve directly to `/etc/ssh`; the upstream `/run/ssh` rule deliberately has
+no label. Host keys therefore receive `sshd_key_t` without changing their
+contents or permissions. The immutable runtime policy-store capture resolves
+to `/var/lib/selinux` for context lookup, while restoration still excludes it.
+Products can install `/etc/mnc/selinux-paths.json` with
 `writable_paths` and `factory_paths` arrays of canonical absolute paths.
 Factory context mismatches are reported at startup without remounting the
 read-only partition. Acceptance requires correcting them while explicitly
@@ -47,3 +52,8 @@ those bindings select the dependency and the `clang-layer` provider collection
 is absent. This avoids dependency-discovery errors for an unused alternative
 while retaining GNU coreutils, its SELinux support, and feature-off products.
 Adding meta-clang restores eligibility; this guard does not add that layer.
+
+For focused alias checks against a completed image's actual refpolicy and
+product context rules, set `MNC_SELINUX_TEST_CONTEXTS` to its installed
+`etc/selinux/targeted/contexts/files/file_contexts` and run
+`python3 -m unittest discover -s meta-mncos/tests -p test_selinux.py`.
