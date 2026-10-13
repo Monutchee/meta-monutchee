@@ -1,5 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-only
 import importlib.machinery
+import ctypes
+import ctypes.util
+import os
+import shutil
+import stat
 import importlib.util
 from pathlib import Path
 import tempfile
@@ -72,6 +77,53 @@ class SelinuxTests(unittest.TestCase):
                 selinux.restore({}, {})
                 run.assert_called_once_with(['matchpathcon', '-V', directory], check=False)
                 self.assertIn('factory label validation failed', ''.join(call.args[0] for call in stderr.write.call_args_list))
+
+
+class SelinuxPolicyAliasTests(unittest.TestCase):
+    @unittest.skipUnless(os.environ.get('MNC_SELINUX_TEST_CONTEXTS'),
+                         'set MNC_SELINUX_TEST_CONTEXTS to built refpolicy file_contexts')
+    def test_real_policy_resolves_persistent_and_immutable_aliases(self):
+        source = Path(os.environ['MNC_SELINUX_TEST_CONTEXTS'])
+        aliases = SOURCE.parents[3] / 'dynamic-layers/selinux/recipes-security/refpolicy/files/mncos-file_contexts.subs_dist'
+        lib = ctypes.CDLL(ctypes.util.find_library('selinux'), use_errno=True)
+        class Option(ctypes.Structure):
+            _fields_ = [('type', ctypes.c_int), ('value', ctypes.c_char_p)]
+        lib.selabel_open.argtypes = [ctypes.c_uint, ctypes.POINTER(Option), ctypes.c_uint]
+        lib.selabel_open.restype = ctypes.c_void_p
+        lib.selabel_lookup_raw.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_char_p), ctypes.c_char_p, ctypes.c_int]
+        lib.selabel_close.argtypes = [ctypes.c_void_p]
+        lib.freecon.argtypes = [ctypes.c_void_p]
+        with tempfile.TemporaryDirectory() as directory:
+            context = Path(directory) / 'file_contexts'
+            shutil.copyfile(source, context)
+            if source.with_suffix('.local').exists():
+                shutil.copyfile(source.with_suffix('.local'), context.with_suffix('.local'))
+            original = source.with_suffix('.subs_dist').read_bytes()
+            upstream = original.split(b'# Persistent backing inodes')[0]
+            context.with_suffix('.subs_dist').write_bytes(upstream + aliases.read_bytes())
+            option = Option(3, os.fsencode(context))
+            handle = lib.selabel_open(0, ctypes.byref(option), 1)
+            self.assertTrue(handle, 'real policy file backend failed to load')
+            cases = {'/run/ssh': (stat.S_IFDIR, 'etc_t'),
+                     '/state/os/ssh': (stat.S_IFDIR, 'etc_t'),
+                     '/run/mnc/selinux/store': (stat.S_IFDIR, 'semanage_store_t'),
+                     '/var/lib/selinux': (stat.S_IFDIR, 'semanage_store_t')}
+            for prefix in ['/run/ssh', '/state/os/ssh']:
+                for algorithm in ['rsa', 'ed25519', 'ecdsa']:
+                    for suffix in ['', '.pub']:
+                        cases[prefix + '/ssh_host_' + algorithm + '_key' + suffix] = (stat.S_IFREG, 'sshd_key_t')
+            try:
+                for path, (mode, expected) in cases.items():
+                    with self.subTest(path=path):
+                        value = ctypes.c_char_p()
+                        self.assertEqual(lib.selabel_lookup_raw(handle, ctypes.byref(value), os.fsencode(path), mode), 0,
+                                         'alias has no expected context: ' + path)
+                        try:
+                            self.assertEqual(value.value.decode().split(':')[2], expected)
+                        finally:
+                            lib.freecon(ctypes.cast(value, ctypes.c_void_p))
+            finally:
+                lib.selabel_close(handle)
 
 
 if __name__ == '__main__':
