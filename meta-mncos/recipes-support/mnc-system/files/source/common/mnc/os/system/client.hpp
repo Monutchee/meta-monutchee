@@ -26,6 +26,9 @@ class Client final : public mnc::system::SystemManager {
     mnc::system::Result<void> finishNetwork(const std::string &, bool) override;
     mnc::system::Result<mnc::system::Job> power(mnc::system::PowerAction) override;
     mnc::system::Result<mnc::system::Job> resetDevice(bool) override;
+    mnc::system::Result<void> finishNetwork(const std::string &, bool, const mnc::system::AuditContext &) override;
+    mnc::system::Result<mnc::system::Job> power(mnc::system::PowerAction, const mnc::system::AuditContext &) override;
+    mnc::system::Result<mnc::system::Job> resetDevice(bool, const mnc::system::AuditContext &) override;
     mnc::system::Result<mnc::system::Job> job() override;
   private:
     std::chrono::milliseconds timeout_;

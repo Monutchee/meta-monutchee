@@ -93,6 +93,17 @@ if(BUILD_TESTING)
     target_link_libraries(mnc_system_client_test PRIVATE mnc_os_system)
     target_compile_options(mnc_system_client_test PRIVATE -UNDEBUG)
     if(TARGET PkgConfig::SYSTEMD)
+        add_executable(mnc_journal_adapter_test tests/journal_adapter_test.cpp)
+        target_link_libraries(mnc_journal_adapter_test PRIVATE mnc_logging PkgConfig::SYSTEMD)
+        target_compile_options(mnc_journal_adapter_test PRIVATE -UNDEBUG)
+        target_link_options(mnc_journal_adapter_test PRIVATE
+            -Wl,--wrap=sd_journal_open -Wl,--wrap=sd_journal_close
+            -Wl,--wrap=sd_journal_flush_matches -Wl,--wrap=sd_journal_add_match
+            -Wl,--wrap=sd_journal_seek_tail -Wl,--wrap=sd_journal_seek_cursor
+            -Wl,--wrap=sd_journal_next -Wl,--wrap=sd_journal_previous
+            -Wl,--wrap=sd_journal_test_cursor -Wl,--wrap=sd_journal_get_cursor
+            -Wl,--wrap=sd_journal_get_realtime_usec -Wl,--wrap=sd_journal_get_data)
+        add_test(NAME mnc_journal_adapter_test COMMAND mnc_journal_adapter_test)
         target_link_libraries(mnc_system_client_test PRIVATE PkgConfig::SYSTEMD)
         target_compile_definitions(mnc_system_client_test PRIVATE MNC_CLIENT_TEST_SYSTEMD=1)
         target_link_options(mnc_system_client_test PRIVATE

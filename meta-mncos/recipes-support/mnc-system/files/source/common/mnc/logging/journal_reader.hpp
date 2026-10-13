@@ -49,6 +49,7 @@ struct Entry {
 	std::string request_id;
 	std::string configuration_generation;
 	std::string unit;
+	std::string systemd_unit; // Trusted journald provenance; never caller-supplied UNIT.
 	std::string executable;
 	std::string source_file;
 	std::string source_line;

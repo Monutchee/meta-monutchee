@@ -2,6 +2,7 @@
 #include "access_policy.hpp"
 #include "backend.hpp"
 #include "mnc/service/service.hpp"
+#include <algorithm>
 #include <array>
 #include <iostream>
 #include <pwd.h>
@@ -45,6 +46,19 @@ class Daemon final : public mnc::Service {
             const char *json = nullptr;
             if (sd_bus_message_read(m, "s", &json) < 0 || !json)
                 throw Error({ErrorCode::invalid_argument, "missing request"});
+            const auto actor = [&](const mnc::system::AuditContext &context, bool settings_peer) {
+                const auto expected = account(settings_peer ? self.profile_.settings_user : self.profile_.control_user);
+                const bool safe = !context.actor.empty() && context.actor.size() <= 256 &&
+                    std::ranges::none_of(context.actor, [](unsigned char c) { return c < 32 || c == 127; });
+                // Only the configured authority may forward server-authenticated identity.
+                return expected && uid == *expected && safe ? context.actor : "uid:" + std::to_string(uid);
+            };
+            const auto correlation = [&](const mnc::system::AuditContext &context, bool settings_peer) {
+                const auto expected = account(settings_peer ? self.profile_.settings_user : self.profile_.control_user);
+                const bool safe = context.request_id.size() <= 128 &&
+                    std::ranges::none_of(context.request_id, [](unsigned char c) { return c < 32 || c == 127; });
+                return expected && uid == *expected && safe ? context.request_id : std::string{};
+            };
             if (name == "GetStatus") {
                 decode<Empty>(json);
                 reply.json = encode(self.backend_.status());
@@ -62,8 +76,10 @@ class Daemon final : public mnc::Service {
                 reply.json = encode(self.backend_.temperatures());
             } else if (name == "ApplyPreferences")
                 self.backend_.apply(decode<Configuration>(json));
-            else if (name == "BeginNetwork")
-                reply.json = encode(self.backend_.beginNetwork(decode<NetworkProposal>(json), "uid:" + std::to_string(uid)));
+            else if (name == "BeginNetwork") {
+                const auto proposal = decode<NetworkProposal>(json);
+                reply.json = encode(self.backend_.beginNetwork(proposal, actor(proposal.audit_context, true), correlation(proposal.audit_context, true)));
+            }
             else if (name == "GetNetworkTransaction") {
                 decode<Empty>(json);
                 reply.json = encode(self.backend_.networkTransaction());
@@ -71,11 +87,14 @@ class Daemon final : public mnc::Service {
                 self.backend_.prepareNetworkCommit(decode<Id>(json).id);
             else if (name == "FinishNetwork") {
                 auto v = decode<Finish>(json);
-                self.backend_.finishNetwork(v.id, v.commit, "uid:" + std::to_string(uid));
-            } else if (name == "Power")
-                reply.json = encode(self.backend_.power(decode<Power>(json).action, "uid:" + std::to_string(uid)));
-            else if (name == "ResetDevice")
-                reply.json = encode(self.backend_.resetDevice(decode<Reset>(json).confirmed, "uid:" + std::to_string(uid)));
+                self.backend_.finishNetwork(v.id, v.commit, actor(v.audit_context, true), correlation(v.audit_context, true));
+            } else if (name == "Power") {
+                const auto request = decode<Power>(json);
+                reply.json = encode(self.backend_.power(request.action, actor(request.audit_context, false), correlation(request.audit_context, false)));
+            } else if (name == "ResetDevice") {
+                const auto request = decode<Reset>(json);
+                reply.json = encode(self.backend_.resetDevice(request.confirmed, actor(request.audit_context, false), correlation(request.audit_context, false)));
+            }
             else if (name == "GetJob") {
                 decode<Empty>(json);
                 reply.json = encode(self.backend_.job());

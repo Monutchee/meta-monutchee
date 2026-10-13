@@ -121,6 +121,7 @@ Entry current_entry(sd_journal *journal)
 	 * _SYSTEMD_UNIT identifies init.scope. Service stdout/stderr normally
 	 * has only _SYSTEMD_UNIT, so prefer UNIT when it is present.
 	 */
+	result.systemd_unit = field(journal, "_SYSTEMD_UNIT");
 	result.unit = field(journal, "UNIT");
 	if (result.unit.empty())
 		result.unit = field(journal, "_SYSTEMD_UNIT");

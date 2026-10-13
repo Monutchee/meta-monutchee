@@ -177,13 +177,13 @@ Backend::Backend(Profile profile, Platform &platform, std::function<std::uint64_
 }
 void Backend::event(std::string_view code, std::string_view category, std::string_view message,
                     std::string_view actor, std::string_view action, std::string_view outcome,
-                    std::string_view subject, mnc::logging::Priority priority) noexcept {
+                    std::string_view subject, mnc::logging::Priority priority, std::string_view request_id) noexcept {
     try {
         (void)user_log_.write(priority, {
             .code = std::string(code), .category = std::string(category),
             .message = std::string(message), .actor = std::string(actor),
             .action = std::string(action), .outcome = std::string(outcome),
-            .subject = std::string(subject), .changed_fields = {}, .request_id = {}});
+            .subject = std::string(subject), .changed_fields = {}, .request_id = std::string(request_id)});
     } catch (...) { /* Public audit is best effort and never changes control behavior. */ }
 }
 void Backend::observeNetwork() noexcept {
@@ -241,7 +241,7 @@ void Backend::settleNetwork(bool commit, bool bootstrap, std::string_view reason
     persist();
     event(commit ? "network_configuration_committed" : reason == "cancel" ? "network_configuration_cancelled" : reason == "timeout" ? "network_configuration_timed_out" : "network_configuration_rolled_back",
           "network", commit ? "Network settings confirmed" : reason == "cancel" ? "Network settings cancelled" : reason == "timeout" ? "Network settings confirmation timed out" : "Network settings restored",
-          state_.pending.actor, "configure_network", commit ? "completed" : "rolled_back", "network");
+          state_.pending.actor, "configure_network", commit ? "completed" : "rolled_back", "network", mnc::logging::Priority::info, state_.pending.request_id);
 }
 void Backend::recoverNetwork(bool bootstrap) {
     if (!pending())
@@ -278,7 +278,7 @@ void Backend::bootstrap() {
         state_.job.state = "completed";
         persist();
         event("device_reset_completed", "administration", "Device reset completed",
-              state_.job_actor, "device_reset", "completed", "device");
+              state_.job_actor, "device_reset", "completed", "device", mnc::logging::Priority::info, state_.job_request_id);
     } else if (state_.initialized) {
         recoverNetwork(true);
         platform_.network(state_.configuration.system.network, true);
@@ -318,7 +318,7 @@ void Backend::start() {
         state_.job.state = "interrupted";
         persist();
         event("system_operation_interrupted", "administration", "System operation interrupted",
-              state_.job_actor, state_.job.action, "interrupted", "device", mnc::logging::Priority::warning);
+              state_.job_actor, state_.job.action, "interrupted", "device", mnc::logging::Priority::warning, state_.job_request_id);
     }
 }
 SystemStatus Backend::status() {
@@ -355,7 +355,7 @@ void Backend::apply(const Configuration &config) {
         throw;
     }
 }
-NetworkTransaction Backend::beginNetwork(const NetworkProposal &p, std::string actor) {
+NetworkTransaction Backend::beginNetwork(const NetworkProposal &p, std::string actor, std::string request_id) {
     idle();
     auto config = state_.configuration;
     config.system.network = p.network;
@@ -380,6 +380,7 @@ NetworkTransaction Backend::beginNetwork(const NetworkProposal &p, std::string a
     next.candidate_hash = p.candidate_settings_hash;
     next.deadline = clock_() + 120000;
     next.actor = std::move(actor);
+    next.request_id = std::move(request_id);
     state_.pending = std::move(next);
     persist();
     try {
@@ -389,7 +390,7 @@ NetworkTransaction Backend::beginNetwork(const NetworkProposal &p, std::string a
         throw;
     }
     event("network_configuration_pending", "network", "Network settings await confirmation",
-          state_.pending.actor, "configure_network", "pending", "network");
+          state_.pending.actor, "configure_network", "pending", "network", mnc::logging::Priority::info, state_.pending.request_id);
     return networkTransaction();
 }
 NetworkTransaction Backend::networkTransaction() {
@@ -410,7 +411,7 @@ void Backend::prepareNetworkCommit(const std::string &id) {
     state_.pending.deadline = clock_() + 30000;
     persist();
 }
-void Backend::finishNetwork(const std::string &id, bool commit, std::string actor) {
+void Backend::finishNetwork(const std::string &id, bool commit, std::string actor, std::string request_id) {
     if (id == state_.pending.transaction.id &&
         state_.pending.transaction.state == (commit ? "committed" : "rolled_back"))
         return;
@@ -423,22 +424,24 @@ void Backend::finishNetwork(const std::string &id, bool commit, std::string acto
         fileHash(profile_.active_settings) == state_.pending.candidate_hash)
         throw Error({ErrorCode::busy, "network settings already committed"});
     state_.pending.actor = std::move(actor);
+    state_.pending.request_id = std::move(request_id);
     settleNetwork(commit, false, "cancel");
 }
-Job Backend::power(PowerAction action, std::string actor) {
+Job Backend::power(PowerAction action, std::string actor, std::string request_id) {
     idle();
     if (action != PowerAction::reboot && action != PowerAction::shutdown)
         throw Error({ErrorCode::invalid_argument, "invalid power action"});
     state_.job = {randomId(), action == PowerAction::reboot ? "reboot" : "shutdown", "accepted"};
     state_.job_actor = std::move(actor);
+    state_.job_request_id = std::move(request_id);
     persist();
     event(state_.job.action == "device_reset" ? "device_reset_requested" : "power_requested",
           "administration", state_.job.action == "device_reset" ? "Device reset requested" : "Power operation requested",
-          state_.job_actor, state_.job.action, "accepted", "device");
+          state_.job_actor, state_.job.action, "accepted", "device", mnc::logging::Priority::info, state_.job_request_id);
     job_deadline_ = clock_() + 5000;
     return state_.job;
 }
-Job Backend::resetDevice(bool confirmed, std::string actor) {
+Job Backend::resetDevice(bool confirmed, std::string actor, std::string request_id) {
     if (!confirmed)
         throw Error(
             {ErrorCode::invalid_argument, "whole-device reset requires explicit confirmation"});
@@ -448,10 +451,11 @@ Job Backend::resetDevice(bool confirmed, std::string actor) {
     state_.job = {randomId(), "device_reset", "accepted"};
     state_.reset_intent = true;
     state_.job_actor = std::move(actor);
+    state_.job_request_id = std::move(request_id);
     persist();
     event(state_.job.action == "device_reset" ? "device_reset_requested" : "power_requested",
           "administration", state_.job.action == "device_reset" ? "Device reset requested" : "Power operation requested",
-          state_.job_actor, state_.job.action, "accepted", "device");
+          state_.job_actor, state_.job.action, "accepted", "device", mnc::logging::Priority::info, state_.job_request_id);
     job_deadline_ = clock_() + 5000;
     return state_.job;
 }
@@ -474,12 +478,12 @@ void Backend::tick() {
             platform_.power(state_.job.action == "shutdown" ? PowerAction::shutdown
                                                             : PowerAction::reboot);
             event("system_operation_dispatched", "administration", "System operation dispatched",
-                  state_.job_actor, state_.job.action, "dispatched", "device");
+                  state_.job_actor, state_.job.action, "dispatched", "device", mnc::logging::Priority::info, state_.job_request_id);
         } catch (...) {
             state_.job.state = "failed";
             persist();
             event("system_operation_failed", "administration", "System operation failed",
-                  state_.job_actor, state_.job.action, "failed", "device", mnc::logging::Priority::error);
+                  state_.job_actor, state_.job.action, "failed", "device", mnc::logging::Priority::error, state_.job_request_id);
             throw;
         }
     }

@@ -125,10 +125,15 @@ struct SystemStatus {
     std::string kernel_release;
     std::string operating_system;
 };
+struct AuditContext {
+    std::string actor;
+    std::string request_id;
+};
 struct NetworkProposal {
     std::vector<NetworkConfig> network;
     std::string previous_settings_hash;
     std::string candidate_settings_hash;
+    AuditContext audit_context{};
 };
 struct NetworkTransaction {
     std::string id;
@@ -157,8 +162,11 @@ class SystemManager {
     virtual Result<NetworkTransaction> networkTransaction() = 0;
     virtual Result<void> prepareNetworkCommit(const std::string &id) = 0;
     virtual Result<void> finishNetwork(const std::string &id, bool commit) = 0;
+    virtual Result<void> finishNetwork(const std::string &id, bool commit, const AuditContext &) { return finishNetwork(id, commit); }
     virtual Result<Job> power(PowerAction action) = 0;
+    virtual Result<Job> power(PowerAction action, const AuditContext &) { return power(action); }
     virtual Result<Job> resetDevice(bool confirmed) = 0;
+    virtual Result<Job> resetDevice(bool confirmed, const AuditContext &) { return resetDevice(confirmed); }
     virtual Result<Job> job() = 0;
 };
 bool validNtpServer(const std::string &);
