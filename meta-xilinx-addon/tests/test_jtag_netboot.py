@@ -4,6 +4,7 @@ The commands use the common Hush/POSIX shell subset. Bash supplies command
 stubs here; the pinned U-Boot image build and board test validate Hush itself.
 """
 import os
+import re
 from pathlib import Path
 import shlex
 import subprocess
@@ -68,9 +69,29 @@ run bootcmd
         self.assertEqual(result.stderr, '')
         return result.stdout
 
+    def test_retry_uses_supported_hush_commands(self):
+        retry = next(line for line in ENV.read_text().splitlines()
+                     if line.startswith('mncos_net_retry='))
+        # The pinned Hush parser supports loops but has no break/continue command.
+        self.assertIsNone(re.search(r'\b(?:break|continue)\b', retry))
+
+    def test_first_success_skips_remaining_network_calls_and_failure_logs(self):
+        for dhcp in [False, True]:
+            with self.subTest(dhcp=dhcp):
+                out = self.execute(dhcp=dhcp)
+                for name in ['Image', 'system.dtb', 'rootfs.cpio.gz.u-boot', 'boot.scr']:
+                    self.assertEqual(out.count('TRANSFER ' + name + ' '), 1)
+                self.assertEqual(sum(line.startswith('DHCP ') for line in out.splitlines()),
+                                 1 if dhcp else 0)
+                self.assertNotIn('network attempt ', out)
+                self.assertNotIn('DELAY', out)
+                self.assertIn('BOOTI ', out)
+
     def test_static_transient_failures_retry_then_handoff(self):
         out = self.execute(transient=True)
         self.assertNotIn('DHCP ', out)
+        self.assertEqual(out.count('network attempt '), 8)
+        self.assertEqual(out.count('DELAY'), 8)
         for name in ['Image', 'system.dtb', 'rootfs.cpio.gz.u-boot', 'boot.scr']:
             self.assertEqual(out.count('TRANSFER ' + name + ' '), 3)
         self.assertLess(out.index('TRANSFER boot.scr 3'), out.index('SOURCE '))
