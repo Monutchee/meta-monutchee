@@ -7,6 +7,9 @@ must complete before downloads begin. DHCP and each of `Image`, `system.dtb`,
 with a one-second delay between failures. The lwIP U-Boot network stack does
 not implement the classic `netretry` setting, so retries are explicit. The
 JTAG path also sets `netretry=no` for builds using the classic network stack.
+The retry loop guards remaining iterations after success instead of using
+`break`, which the pinned Hush parser does not provide. Completed commands
+are neither repeated nor reported as failures.
 
 All four transfers must succeed before any script, FDT operation or kernel
 handoff. The downloaded script runs with `boot_targets=jtag` and `devtype=jtag`,
