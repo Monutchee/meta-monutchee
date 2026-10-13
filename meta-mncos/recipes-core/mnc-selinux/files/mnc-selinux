@@ -54,14 +54,15 @@ def loaded():
         raise RuntimeError('SELinux policy must be loaded before labeling')
 
 
-def relabel(path):
+def relabel(path, runtime='/run/mnc'):
     path = safe(path)
     if not path.exists():
         return
     if readonly(path):
         raise RuntimeError('explicit relabel requires a writable mount: ' + str(path))
     # Never traverse the immutable policy-store bind mounted within /var/lib.
-    run('restorecon', '-RF', '-e', '/var/lib/selinux', '-e', '/state/os/var-lib/selinux', str(path))
+    run('restorecon', '-RF', '-e', '/var/lib/selinux', '-e', '/state/os/var-lib/selinux',
+        '-e', str(Path(runtime) / 'selinux/store'), str(path))
 
 
 def restore(policy, extra):
@@ -71,7 +72,7 @@ def restore(policy, extra):
     for name in dict.fromkeys(paths):
         path = safe(name)
         if path.exists() and not readonly(path):
-            relabel(path)
+            relabel(path, policy.get('runtime_root', '/run/mnc'))
     # Factory is never made writable at startup. Report every incorrect context
     # for acceptance/maintenance; permissive startup can still proceed.
     errors = 0
@@ -103,7 +104,7 @@ def main():
         if not args.path or not any(args.path == root or args.path.startswith(root + '/')
                                     for root in ['/factory', '/state', '/data']):
             raise RuntimeError('maintenance path must be within factory, state or data')
-        relabel(args.path)
+        relabel(args.path, policy.get('runtime_root', '/run/mnc'))
     else:
         config = Path('/etc/mnc/selinux-paths.json')
         restore(policy, json.loads(config.read_text()) if config.exists() else {})
