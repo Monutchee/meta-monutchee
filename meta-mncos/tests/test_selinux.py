@@ -62,7 +62,7 @@ class SelinuxTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with patch.object(selinux, 'readonly', return_value=False), patch.object(selinux, 'run') as run:
                 selinux.relabel(directory)
-                run.assert_called_once_with('restorecon', '-RF', '-e', '/var/lib/selinux', '-e', '/state/os/var-lib/selinux', directory)
+                run.assert_called_once_with('restorecon', '-RF', '-e', '/var/lib/selinux', '-e', '/state/os/var-lib/selinux', '-e', '/run/mnc/selinux/store', directory)
 
     def test_factory_mismatch_is_visible_without_relabel_or_remount(self):
         with tempfile.TemporaryDirectory() as directory:
