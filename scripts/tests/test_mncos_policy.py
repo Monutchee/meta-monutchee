@@ -69,6 +69,26 @@ class PolicyTests(unittest.TestCase):
                 else:
                     namespace["check"]()
 
+    def test_selinux_kernel_requires_network_hooks_and_exact_lsm(self):
+        append = "meta-mncos/dynamic-layers/xilinx/recipes-kernel/linux/linux-xlnx_%.bbappend"
+        fragment = ROOT / "meta-mncos/dynamic-layers/xilinx/recipes-kernel/linux/files/mncos-selinux.cfg"
+        config = Path(self.temporary.name) / ".config"
+        self.data.setVar("B", self.temporary.name)
+        self.data.setVar("DISTRO_FEATURES", "systemd selinux")
+        config.write_text(fragment.read_text())
+        self.run_policy_function("mncos_check_selinux_kernel", append)
+        for bad, expected in (
+                (fragment.read_text().replace("CONFIG_SECURITY_NETWORK=y", "# CONFIG_SECURITY_NETWORK is not set"), "SECURITY_NETWORK"),
+                (fragment.read_text().replace("CONFIG_SECURITY_SELINUX=y", "# CONFIG_SECURITY_SELINUX is not set"), "SECURITY_SELINUX"),
+                (fragment.read_text().replace(",selinux,", ",noselinux,"), "LSM containing selinux")):
+            with self.subTest(expected=expected):
+                config.write_text(bad)
+                with self.assertRaisesRegex(ValueError, expected):
+                    self.run_policy_function("mncos_check_selinux_kernel", append)
+        self.data.setVar("DISTRO_FEATURES", "systemd")
+        config.unlink()
+        self.run_policy_function("mncos_check_selinux_kernel", append)
+
     def features(self, variable):
         return set(self.data.getVar(variable).split())
 
