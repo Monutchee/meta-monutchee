@@ -26,7 +26,8 @@ shared file-context substitutions to give backing inodes the same labels as
 their logical paths. Both persistent and runtime SSH host-key directories
 resolve directly to `/etc/ssh`; the upstream `/run/ssh` rule deliberately has
 no label. Host keys therefore receive `sshd_key_t` without changing their
-contents or permissions. The immutable runtime policy-store capture resolves
+contents or permissions. Root SSH backing resolves directly to `/home/root/.ssh`
+to avoid chaining through the upstream `/root` alias. The immutable runtime policy-store capture resolves
 to `/var/lib/selinux` for context lookup, while restoration still excludes it.
 Products can install `/etc/mnc/selinux-paths.json` with
 `writable_paths` and `factory_paths` arrays of canonical absolute paths.
