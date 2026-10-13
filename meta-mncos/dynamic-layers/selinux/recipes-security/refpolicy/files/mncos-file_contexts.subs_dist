@@ -2,7 +2,7 @@
 /state/os/var-lib /var/lib
 /state/os/machine-id /etc/machine-id
 /state/os/ssh /etc/ssh
-/state/os/root-ssh /root/.ssh
+/state/os/root-ssh /home/root/.ssh
 /data/log /var/log
 
 # Persisted host keys use their canonical SSH configuration-path types.

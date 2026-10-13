@@ -96,8 +96,9 @@ class SelinuxPolicyAliasTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             context = Path(directory) / 'file_contexts'
             shutil.copyfile(source, context)
-            if source.with_suffix('.local').exists():
-                shutil.copyfile(source.with_suffix('.local'), context.with_suffix('.local'))
+            for sidecar in ['.local', '.homedirs']:
+                if source.with_suffix(sidecar).exists():
+                    shutil.copyfile(source.with_suffix(sidecar), context.with_suffix(sidecar))
             original = source.with_suffix('.subs_dist').read_bytes()
             upstream = original.split(b'# Persistent backing inodes')[0]
             context.with_suffix('.subs_dist').write_bytes(upstream + aliases.read_bytes())
@@ -107,7 +108,9 @@ class SelinuxPolicyAliasTests(unittest.TestCase):
             cases = {'/run/ssh': (stat.S_IFDIR, 'etc_t'),
                      '/state/os/ssh': (stat.S_IFDIR, 'etc_t'),
                      '/run/mnc/selinux/store': (stat.S_IFDIR, 'semanage_store_t'),
-                     '/var/lib/selinux': (stat.S_IFDIR, 'semanage_store_t')}
+                     '/var/lib/selinux': (stat.S_IFDIR, 'semanage_store_t'),
+                     '/state/os/root-ssh': (stat.S_IFDIR, 'ssh_home_t'),
+                     '/root/.ssh': (stat.S_IFDIR, 'ssh_home_t')}
             for prefix in ['/run/ssh', '/state/os/ssh']:
                 for algorithm in ['rsa', 'ed25519', 'ecdsa']:
                     for suffix in ['', '.pub']:
