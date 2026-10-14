@@ -54,3 +54,9 @@ automatic shared-library dependency resolution enabled.
 - `meta-mncos/scripts/make-ram-root.py` wraps an immutable SquashFS root in a
   minimal BusyBox initramfs. Product image recipes select it and provide the
   kernel support; hardware/Station payload policy remains in its owning layer.
+
+- The SDK logging template method (`LogBase`) shares an injectable thread-safe sink
+  between source-bearing `DeveloperLog` (`Logger` compatibility) and bounded typed
+  `UserLog`. Reserved audience/audit fields cannot be overridden by developer extras.
+  Product layers own public event catalogs, authenticated actor propagation, event
+  allowlists and journal retention policy; shared audit delivery is best effort.

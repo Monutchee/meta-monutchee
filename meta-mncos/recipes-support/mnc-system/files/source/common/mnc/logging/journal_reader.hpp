@@ -10,6 +10,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <stdexcept>
 #include <vector>
 
 namespace mnc::logging {
@@ -20,6 +21,16 @@ struct Cursor {
 	explicit operator bool() const noexcept { return !value.empty(); }
 };
 
+enum class JournalErrorCode { unavailable, cursor_expired, read_failed };
+class JournalError : public std::runtime_error {
+public:
+	JournalError(JournalErrorCode code, const char *message)
+		: std::runtime_error(message), code_(code) {}
+	JournalErrorCode code() const noexcept { return code_; }
+private:
+	JournalErrorCode code_;
+};
+
 struct Entry {
 	std::chrono::system_clock::time_point timestamp;
 	Cursor cursor;
@@ -28,9 +39,17 @@ struct Entry {
 	std::string component;
 	std::string module;
 	std::string event;
+	std::string audience = "developer"; // Legacy unclassified entries stay private.
+	std::string category;
+	std::string actor;
+	std::string action;
+	std::string outcome;
+	std::string subject;
+	std::vector<std::string> changed_fields;
 	std::string request_id;
 	std::string configuration_generation;
 	std::string unit;
+	std::string systemd_unit; // Trusted journald provenance; never caller-supplied UNIT.
 	std::string executable;
 	std::string source_file;
 	std::string source_line;
@@ -46,6 +65,12 @@ struct Query {
 	std::vector<std::string> components;
 	std::vector<std::string> units;
 	std::size_t limit = 100;
+	std::optional<std::string> audience;
+	std::optional<std::string> category;
+	std::optional<std::string> event;
+	std::optional<std::chrono::system_clock::time_point> until;
+	bool newest_first = false;
+	bool strict_cursor = false; // Expired cursors fail instead of guessing a position.
 };
 
 /*

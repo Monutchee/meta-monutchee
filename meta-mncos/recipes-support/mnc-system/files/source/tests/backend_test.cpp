@@ -20,6 +20,8 @@ template <class F> void fails(F f) {
 }
 struct Fake : Platform {
     Configuration config;
+    std::vector<NetworkStatus> links;
+    std::vector<NetworkStatus> networkLinks() override { return links; }
     bool fail_network = false, fail_power = false;
     unsigned reboots = 0;
     bool fail_preferences_once = false;
@@ -47,6 +49,13 @@ struct Fake : Platform {
         if (fail_power)
             throw Error({ErrorCode::apply_failed, "injected power failure"});
         ++reboots;
+    }
+};
+struct EventSink : mnc::logging::Sink {
+    std::vector<std::string> codes;
+    bool write(std::span<const mnc::logging::Field> fields) noexcept override {
+        for (const auto &field : fields) if (field.name == "MNC_EVENT") codes.push_back(field.value);
+        return true;
     }
 };
 int main() {
@@ -79,6 +88,31 @@ int main() {
         p.defaults = fake.config;
         std::uint64_t now = 1000;
         auto clock = [&] { return now; };
+        {
+            auto events = std::make_shared<EventSink>();
+            auto eventProfile = p;
+            eventProfile.state_directory = (root / "events").string();
+            eventProfile.interfaces = {{.name = "end0"}};
+            Fake observed;
+            observed.config = fake.config;
+            observed.links = {{.interface = "end0", .carrier = true}};
+            Backend b(eventProfile, observed, clock, events);
+            b.start(); b.tick(); check(events->codes.empty());
+            observed.links[0].carrier = false; now += 1000; b.tick();
+            check(events->codes.back() == "network_down");
+            const auto count = events->codes.size(); now += 1000; b.tick(); check(events->codes.size() == count);
+            observed.links.clear(); now += 1000; b.tick();
+            observed.links = {{.interface = "end0", .carrier = false}}; now += 1000; b.tick();
+            check(events->codes.size() == count);
+            observed.links[0].carrier = true; now += 1000; b.tick();
+            check(events->codes.back() == "network_recovered");
+            b.power(PowerAction::reboot, "uid:200"); now += 5000; b.tick();
+            check(events->codes.back() == "system_operation_dispatched");
+            const auto dispatched = events->codes.size();
+            Backend restarted(eventProfile, observed, clock, events); restarted.start();
+            check(events->codes.size() == dispatched);
+        }
+        now = 1000;
         atomicWrite(p.active_settings, "previous");
         atomicWrite(root / "candidate", "candidate");
         auto oldhash = fileHash(p.active_settings), newhash = fileHash(root / "candidate");

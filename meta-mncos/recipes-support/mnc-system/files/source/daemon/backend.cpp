@@ -443,6 +443,28 @@ class Native final : public Platform {
         else
             atomicWrite(marker, "disabled\n");
     }
+    std::vector<NetworkStatus> networkLinks() override {
+        std::vector<NetworkStatus> result;
+        for (const auto &policy : profile_.interfaces) {
+            try {
+                const auto link_path = fs::path("/sys/class/net") / policy.name;
+                const auto flags = trim(readFile(link_path / "flags", 32));
+                unsigned numeric_flags = 0;
+                const auto flag_text = flags.starts_with("0x") ? std::string_view(flags).substr(2) : std::string_view(flags);
+                const auto parsed = std::from_chars(flag_text.data(), flag_text.data() + flag_text.size(), numeric_flags, 16);
+                if (parsed.ec != std::errc{} || !(numeric_flags & 1U)) continue;
+                const auto carrier = trim(readFile(link_path / "carrier", 8));
+                if (carrier != "0" && carrier != "1") continue;
+                NetworkStatus status;
+                status.interface = policy.name;
+                status.carrier = carrier == "1";
+                result.push_back(std::move(status));
+            } catch (const Error &) {
+                // An unavailable observation is not evidence of link loss.
+            }
+        }
+        return result;
+    }
     void power(PowerAction action) override {
         Bus b;
         Message m;

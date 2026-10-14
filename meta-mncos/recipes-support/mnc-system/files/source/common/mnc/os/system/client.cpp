@@ -91,6 +91,11 @@ Result<void> Client::prepareNetworkCommit(const std::string &id) {
 Result<void> Client::finishNetwork(const std::string &id, bool commit) {
     return call<void>(timeout_, "FinishNetwork", Finish{id, commit});
 }
+Result<void> Client::finishNetwork(const std::string &id, bool commit, const AuditContext &context) {
+    return call<void>(timeout_, "FinishNetwork", Finish{id, commit, context});
+}
+Result<Job> Client::power(PowerAction action, const AuditContext &context) { return call<Job>(timeout_, "Power", Power{action, context}); }
+Result<Job> Client::resetDevice(bool confirmed, const AuditContext &context) { return call<Job>(timeout_, "ResetDevice", Reset{confirmed, context}); }
 Result<Job> Client::power(PowerAction action) { return call<Job>(timeout_, "Power", Power{action}); }
 Result<Job> Client::resetDevice(bool confirmed) {
     return call<Job>(timeout_, "ResetDevice", Reset{confirmed});

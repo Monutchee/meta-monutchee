@@ -55,7 +55,7 @@ if(MNC_SYSTEM_BUILD_DAEMON)
     find_package(OpenSSL REQUIRED COMPONENTS Crypto)
     add_library(mnc_system_backend STATIC daemon/backend.cpp daemon/storage.cpp daemon/timezone_catalog.cpp daemon/network_config.cpp daemon/ptp.cpp daemon/clock_config.cpp)
     target_include_directories(mnc_system_backend PUBLIC daemon)
-    target_link_libraries(mnc_system_backend PUBLIC mnc_system glaze::glaze PkgConfig::SYSTEMD OpenSSL::Crypto)
+    target_link_libraries(mnc_system_backend PUBLIC mnc_system mnc_logging glaze::glaze PkgConfig::SYSTEMD OpenSSL::Crypto)
     target_compile_options(mnc_system_backend PRIVATE -Wall -Wextra -Wpedantic)
     add_executable(mnc-system-manager daemon/main.cpp)
     target_compile_options(mnc-system-manager PRIVATE -Wall -Wextra -Wpedantic)
@@ -85,10 +85,25 @@ include(CMakePackageConfigHelpers)
 configure_package_config_file(MncSystemConfig.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/MncSystemConfig.cmake INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/MncSystem)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/MncSystemConfig.cmake DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/MncSystem)
 if(BUILD_TESTING)
+    add_executable(mnc_logging_test tests/logging_test.cpp)
+    target_link_libraries(mnc_logging_test PRIVATE mnc_logging Threads::Threads)
+    target_compile_options(mnc_logging_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    add_test(NAME mnc_logging_test COMMAND mnc_logging_test)
     add_executable(mnc_system_client_test tests/client_test.cpp)
     target_link_libraries(mnc_system_client_test PRIVATE mnc_os_system)
     target_compile_options(mnc_system_client_test PRIVATE -UNDEBUG)
     if(TARGET PkgConfig::SYSTEMD)
+        add_executable(mnc_journal_adapter_test tests/journal_adapter_test.cpp)
+        target_link_libraries(mnc_journal_adapter_test PRIVATE mnc_logging PkgConfig::SYSTEMD)
+        target_compile_options(mnc_journal_adapter_test PRIVATE -UNDEBUG)
+        target_link_options(mnc_journal_adapter_test PRIVATE
+            -Wl,--wrap=sd_journal_open -Wl,--wrap=sd_journal_close
+            -Wl,--wrap=sd_journal_flush_matches -Wl,--wrap=sd_journal_add_match
+            -Wl,--wrap=sd_journal_seek_tail -Wl,--wrap=sd_journal_seek_cursor
+            -Wl,--wrap=sd_journal_next -Wl,--wrap=sd_journal_previous
+            -Wl,--wrap=sd_journal_test_cursor -Wl,--wrap=sd_journal_get_cursor
+            -Wl,--wrap=sd_journal_get_realtime_usec -Wl,--wrap=sd_journal_get_data)
+        add_test(NAME mnc_journal_adapter_test COMMAND mnc_journal_adapter_test)
         target_link_libraries(mnc_system_client_test PRIVATE PkgConfig::SYSTEMD)
         target_compile_definitions(mnc_system_client_test PRIVATE MNC_CLIENT_TEST_SYSTEMD=1)
         target_link_options(mnc_system_client_test PRIVATE

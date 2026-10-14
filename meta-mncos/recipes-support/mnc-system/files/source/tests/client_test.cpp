@@ -1,18 +1,27 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "mnc/os/system/client.hpp"
 #include <cassert>
+#include "mnc/system/audit.hpp"
 #ifdef MNC_CLIENT_TEST_SYSTEMD
 #include <systemd/sd-bus.h>
 #include <cerrno>
-namespace { std::uint64_t applied_timeout = 0; bool setter_failure = false; unsigned method_calls = 0; }
+#include <cstdarg>
+#include <string>
+namespace { std::uint64_t applied_timeout = 0; bool setter_failure = false; unsigned method_calls = 0; std::string request_json; }
 extern "C" int __wrap_sd_bus_open_system(sd_bus **bus) { *bus = reinterpret_cast<sd_bus *>(1); return 0; }
 extern "C" int __wrap_sd_bus_set_method_call_timeout(sd_bus *, std::uint64_t timeout) { applied_timeout = timeout; return setter_failure ? -EINVAL : 0; }
-extern "C" int __wrap_sd_bus_call_method(sd_bus *, const char *, const char *, const char *, const char *, sd_bus_error *, sd_bus_message **, const char *, ...) { ++method_calls; return -ETIMEDOUT; }
+extern "C" int __wrap_sd_bus_call_method(sd_bus *, const char *, const char *, const char *, const char *, sd_bus_error *, sd_bus_message **, const char *signature, ...) { va_list args; va_start(args, signature); request_json = va_arg(args, const char *); va_end(args); ++method_calls; return -ETIMEDOUT; }
 extern "C" sd_bus * __wrap_sd_bus_unref(sd_bus *) { return nullptr; }
 extern "C" sd_bus_message * __wrap_sd_bus_message_unref(sd_bus_message *) { return nullptr; }
 extern "C" void __wrap_sd_bus_error_free(sd_bus_error *) {}
 #endif
 int main() {
+    const mnc::system::AuditContext submitted{"administrator", "request"};
+    assert(mnc::system::trustedAuditContext(submitted, 100, 100).actor == "administrator");
+    auto untrusted = mnc::system::trustedAuditContext(submitted, 200, 100);
+    assert(untrusted.actor == "uid:200" && untrusted.request_id.empty());
+    assert(mnc::system::trustedAuditContext(submitted, 100, {}).actor == "uid:100");
+    assert(mnc::system::trustedAuditContext({"bad\nactor", "request"}, 100, 100).actor == "unknown");
     using namespace std::chrono_literals;
     using mnc::os::system::Client;
     assert(Client{}.requestTimeout() == 60s);
@@ -23,6 +32,13 @@ int main() {
     assert(applied_timeout == 1500000);
     const auto legacy = Client{}.status();
     assert(!legacy && applied_timeout == 60000000);
+    Client client;
+    (void)client.power(mnc::system::PowerAction::reboot, {"operator", "correlation"});
+    assert(request_json.find("operator") != std::string::npos && request_json.find("correlation") != std::string::npos);
+    (void)client.power(mnc::system::PowerAction::reboot);
+    assert(request_json.find("operator") == std::string::npos);
+    (void)client.finishNetwork("transaction", true, {"confirmer", "network-correlation"});
+    assert(request_json.find("confirmer") != std::string::npos);
     setter_failure = true;
     const auto count = method_calls;
     const auto failure = Client{1500ms}.time();

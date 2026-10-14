@@ -2,6 +2,8 @@
 #include "access_policy.hpp"
 #include "backend.hpp"
 #include "mnc/service/service.hpp"
+#include <algorithm>
+#include "mnc/system/audit.hpp"
 #include <array>
 #include <iostream>
 #include <pwd.h>
@@ -45,6 +47,10 @@ class Daemon final : public mnc::Service {
             const char *json = nullptr;
             if (sd_bus_message_read(m, "s", &json) < 0 || !json)
                 throw Error({ErrorCode::invalid_argument, "missing request"});
+            const auto context = [&](const mnc::system::AuditContext &value, bool settings_peer) {
+                return mnc::system::trustedAuditContext(value, uid,
+                    account(settings_peer ? self.profile_.settings_user : self.profile_.control_user));
+            };
             if (name == "GetStatus") {
                 decode<Empty>(json);
                 reply.json = encode(self.backend_.status());
@@ -62,8 +68,10 @@ class Daemon final : public mnc::Service {
                 reply.json = encode(self.backend_.temperatures());
             } else if (name == "ApplyPreferences")
                 self.backend_.apply(decode<Configuration>(json));
-            else if (name == "BeginNetwork")
-                reply.json = encode(self.backend_.beginNetwork(decode<NetworkProposal>(json)));
+            else if (name == "BeginNetwork") {
+                const auto proposal = decode<NetworkProposal>(json);
+                reply.json = encode(self.backend_.beginNetwork(proposal, context(proposal.audit_context, true).actor, context(proposal.audit_context, true).request_id));
+            }
             else if (name == "GetNetworkTransaction") {
                 decode<Empty>(json);
                 reply.json = encode(self.backend_.networkTransaction());
@@ -71,11 +79,14 @@ class Daemon final : public mnc::Service {
                 self.backend_.prepareNetworkCommit(decode<Id>(json).id);
             else if (name == "FinishNetwork") {
                 auto v = decode<Finish>(json);
-                self.backend_.finishNetwork(v.id, v.commit);
-            } else if (name == "Power")
-                reply.json = encode(self.backend_.power(decode<Power>(json).action));
-            else if (name == "ResetDevice")
-                reply.json = encode(self.backend_.resetDevice(decode<Reset>(json).confirmed));
+                self.backend_.finishNetwork(v.id, v.commit, context(v.audit_context, true).actor, context(v.audit_context, true).request_id);
+            } else if (name == "Power") {
+                const auto request = decode<Power>(json);
+                reply.json = encode(self.backend_.power(request.action, context(request.audit_context, false).actor, context(request.audit_context, false).request_id));
+            } else if (name == "ResetDevice") {
+                const auto request = decode<Reset>(json);
+                reply.json = encode(self.backend_.resetDevice(request.confirmed, context(request.audit_context, false).actor, context(request.audit_context, false).request_id));
+            }
             else if (name == "GetJob") {
                 decode<Empty>(json);
                 reply.json = encode(self.backend_.job());
