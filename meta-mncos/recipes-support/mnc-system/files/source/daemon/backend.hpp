@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 #include "mnc/os/system/protocol.hpp"
+#include "mnc/logging/logging.hpp"
+#include <map>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -51,6 +53,7 @@ class Platform {
     virtual Configuration discover() = 0;
     virtual SystemStatus status() = 0;
     virtual TimeStatus time() = 0;
+    virtual std::vector<NetworkStatus> networkLinks() { return {}; }
     virtual std::vector<std::string> timezones() = 0;
     virtual TimezoneCatalog timezoneCatalog() = 0;
     virtual std::vector<Temperature> temperatures() = 0;
@@ -71,6 +74,8 @@ struct Pending {
     std::string previous_hash;
     std::string candidate_hash;
     std::uint64_t deadline = 0;
+    std::string actor = "system";
+    std::string request_id;
 };
 struct State {
     Configuration configuration;
@@ -78,12 +83,15 @@ struct State {
     Pending pending;
     Job job;
     bool reset_intent = false;
+    std::string job_actor = "system";
+    std::string job_request_id;
 };
 /** Serialized by the sd-bus worker. All durable changes precede their effects. */
 class Backend {
   public:
     Backend(Profile profile, Platform &platform,
-            std::function<std::uint64_t()> clock = bootMilliseconds);
+            std::function<std::uint64_t()> clock = bootMilliseconds,
+            std::shared_ptr<mnc::logging::Sink> sink = {});
     void bootstrap();
     void start();
     void tick();
@@ -93,19 +101,24 @@ class Backend {
     TimezoneCatalog timezoneCatalog() { return platform_.timezoneCatalog(); }
     std::vector<Temperature> temperatures() { return platform_.temperatures(); }
     void apply(const Configuration &);
-    NetworkTransaction beginNetwork(const NetworkProposal &);
+    NetworkTransaction beginNetwork(const NetworkProposal &, std::string actor = "system", std::string request_id = {});
     NetworkTransaction networkTransaction();
     void prepareNetworkCommit(const std::string &);
-    void finishNetwork(const std::string &, bool);
-    Job power(PowerAction);
-    Job resetDevice(bool);
+    void finishNetwork(const std::string &, bool, std::string actor = "system", std::string request_id = {});
+    Job power(PowerAction, std::string actor = "system", std::string request_id = {});
+    Job resetDevice(bool, std::string actor = "system", std::string request_id = {});
     Job job() const { return state_.job; }
     const Profile &profile() const { return profile_; }
 
   private:
+    void event(std::string_view code, std::string_view category, std::string_view message,
+               std::string_view actor, std::string_view action, std::string_view outcome,
+               std::string_view subject, mnc::logging::Priority priority = mnc::logging::Priority::info,
+               std::string_view request_id = {}) noexcept;
+    void observeNetwork() noexcept;
     void persist();
     void recoverNetwork(bool bootstrap);
-    void settleNetwork(bool commit, bool bootstrap = false);
+    void settleNetwork(bool commit, bool bootstrap = false, std::string_view reason = "recovery");
     void idle();
     bool pending() const;
     void checkId(const std::string &);
@@ -113,6 +126,9 @@ class Backend {
     Platform &platform_;
     std::function<std::uint64_t()> clock_;
     State state_;
+    mnc::logging::UserLog user_log_;
+    std::map<std::string, bool> carriers_;
+    std::uint64_t next_network_observation_ = 0;
     bool storage_failed_ = false;
     std::uint64_t job_deadline_ = 0;
 };

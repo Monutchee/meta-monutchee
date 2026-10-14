@@ -47,6 +47,33 @@ bool listed(const std::vector<std::string> &values, const std::string &value)
 		std::find(values.begin(), values.end(), value) != values.end();
 }
 
+// The writer only emits bounded identifier arrays, never arbitrary JSON values.
+[[maybe_unused]] std::vector<std::string> changed_fields(std::string_view value)
+{
+	std::vector<std::string> result;
+	if (value == "[]") return result;
+	if (value.size() > 64 * 132 || !value.starts_with("[\"") || !value.ends_with("\"]")) return {};
+	value.remove_prefix(1); value.remove_suffix(1);
+	while (!value.empty()) {
+		if (value.front() != '\"') return {};
+		value.remove_prefix(1);
+		const auto end = value.find('\"');
+		if (end == std::string_view::npos || end == 0 || end > 128) return {};
+		const auto name = value.substr(0, end);
+		if (!std::ranges::all_of(name, [](unsigned char c) {
+			return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+				(c >= '0' && c <= '9') || c == '.' || c == '-' || c == '_';
+		})) return {};
+		result.emplace_back(name);
+		if (result.size() > 64) return {};
+		value.remove_prefix(end + 1);
+		if (value.empty()) break;
+		if (!value.starts_with(",\"")) return {};
+		value.remove_prefix(1);
+	}
+	return result;
+}
+
 #if defined(MNC_LOGGING_HAVE_SYSTEMD)
 std::string field(sd_journal *journal, const char *name)
 {
@@ -78,6 +105,14 @@ Entry current_entry(sd_journal *journal)
 	result.component = field(journal, "MNC_COMPONENT");
 	result.module = field(journal, "MNC_MODULE");
 	result.event = field(journal, "MNC_EVENT");
+	result.audience = field(journal, "MNC_LOG_AUDIENCE");
+	if (result.audience.empty()) result.audience = "developer";
+	result.category = field(journal, "MNC_EVENT_CATEGORY");
+	result.actor = field(journal, "MNC_ACTOR");
+	result.action = field(journal, "MNC_ACTION");
+	result.outcome = field(journal, "MNC_OUTCOME");
+	result.subject = field(journal, "MNC_SUBJECT");
+	result.changed_fields = changed_fields(field(journal, "MNC_CHANGED_FIELDS"));
 	result.request_id = field(journal, "MNC_REQUEST_ID");
 	result.configuration_generation =
 		field(journal, "MNC_CONFIGURATION_GENERATION");
@@ -86,6 +121,7 @@ Entry current_entry(sd_journal *journal)
 	 * _SYSTEMD_UNIT identifies init.scope. Service stdout/stderr normally
 	 * has only _SYSTEMD_UNIT, so prefer UNIT when it is present.
 	 */
+	result.systemd_unit = field(journal, "_SYSTEMD_UNIT");
 	result.unit = field(journal, "UNIT");
 	if (result.unit.empty())
 		result.unit = field(journal, "_SYSTEMD_UNIT");
@@ -111,6 +147,11 @@ namespace detail {
 
 bool matches_query(const Entry &entry, const Query &query) noexcept
 {
+	if (query.audience && entry.audience != *query.audience) return false;
+	if (query.category && entry.category != *query.category) return false;
+	if (query.event && entry.event != *query.event) return false;
+	if (query.since && entry.timestamp < *query.since) return false;
+	if (query.until && entry.timestamp > *query.until) return false;
 	if (query.component && entry.component != *query.component)
 		return false;
 	if (query.module && entry.module != *query.module)
@@ -136,19 +177,18 @@ std::vector<Entry> bounded_page(std::span<const Entry> entries,
 	result.reserve(std::min(query.limit, entries.size()));
 
 	bool after_cursor = !query.after || !*query.after;
-	for (const auto &entry : entries) {
+	if (query.strict_cursor && !after_cursor && std::ranges::none_of(entries, [&](const Entry &entry) {
+		return entry.cursor.value == query.after->value;
+	})) throw JournalError(JournalErrorCode::cursor_expired, "journal cursor is no longer valid");
+	for (std::size_t offset = 0; offset < entries.size(); ++offset) {
+		const auto &entry = entries[query.newest_first ? entries.size() - 1 - offset : offset];
 		if (!after_cursor) {
-			if (entry.cursor.value == query.after->value)
-				after_cursor = true;
+			if (entry.cursor.value == query.after->value) after_cursor = true;
 			continue;
 		}
-		if (query.since && entry.timestamp < *query.since)
-			continue;
-		if (!matches_query(entry, query))
-			continue;
+		if (!matches_query(entry, query)) continue;
 		result.push_back(entry);
-		if (result.size() == query.limit)
-			break;
+		if (result.size() == query.limit) break;
 	}
 	return result;
 }
@@ -195,60 +235,65 @@ bool JournalReader::available() const noexcept
 
 std::vector<Entry> JournalReader::read(const Query &query)
 {
-	if (query.limit == 0)
-		return {};
+	if (query.limit == 0) return {};
 #if !defined(MNC_LOGGING_HAVE_SYSTEMD)
 	(void)query;
-	throw std::runtime_error("journald support is unavailable in this build");
+	throw JournalError(JournalErrorCode::unavailable, "journald support is unavailable in this build");
 #else
 	if (!available())
-		throw std::runtime_error("failed to open the system journal");
+		throw JournalError(JournalErrorCode::unavailable, "failed to open the system journal");
 	auto *journal = implementation_->journal_;
+	sd_journal_flush_matches(journal);
+	// Native audience match bounds traversal of the public stream; all further
+	// policy filters also apply to each decoded entry.
+	if (query.audience && *query.audience == "user") {
+		constexpr char match[] = "MNC_LOG_AUDIENCE=user";
+		if (sd_journal_add_match(journal, match, sizeof(match) - 1) < 0)
+			throw JournalError(JournalErrorCode::read_failed, "failed to filter the system journal");
+	}
 	std::vector<Entry> result;
 	result.reserve(query.limit);
-
+	auto step = [&] { return query.newest_first ? sd_journal_previous(journal) : sd_journal_next(journal); };
+	auto read_error = [] {
+		throw JournalError(JournalErrorCode::read_failed, "failed to read the system journal");
+	};
 	if (query.after && *query.after) {
-		if (sd_journal_seek_cursor(
-			    journal, query.after->value.c_str()) < 0)
-			throw std::runtime_error("journal cursor is no longer valid");
-		bool skipped_cursor = false;
-		while (result.size() < query.limit &&
-		       sd_journal_next(journal) > 0) {
-			auto entry = current_entry(journal);
-			if (!skipped_cursor && entry.cursor.value ==
-						      query.after->value) {
-				skipped_cursor = true;
-				continue;
+		if (sd_journal_seek_cursor(journal, query.after->value.c_str()) < 0)
+			throw JournalError(JournalErrorCode::cursor_expired, "journal cursor is no longer valid");
+		const auto positioned = sd_journal_next(journal);
+		if (positioned < 0) read_error();
+		if (positioned == 0 || sd_journal_test_cursor(journal, query.after->value.c_str()) != 1) {
+			if (query.strict_cursor)
+				throw JournalError(JournalErrorCode::cursor_expired, "journal cursor is no longer valid");
+			// Legacy continuation tolerates vacuumed cursors at the nearest position.
+			if (positioned > 0 && !query.newest_first) {
+				auto entry = current_entry(journal);
+				if (detail::matches_query(entry, query)) result.push_back(std::move(entry));
 			}
-			skipped_cursor = true;
-			if (detail::matches_query(entry, query))
-				result.push_back(std::move(entry));
 		}
-		return result;
-	}
-
-	if (query.since) {
-		const auto usec = std::chrono::duration_cast<std::chrono::microseconds>(
-			query.since->time_since_epoch());
-		if (sd_journal_seek_realtime_usec(journal, usec.count()) < 0)
-			throw std::runtime_error("failed to seek the system journal");
-		while (result.size() < query.limit &&
-		       sd_journal_next(journal) > 0) {
-			auto entry = current_entry(journal);
-			if (detail::matches_query(entry, query))
-				result.push_back(std::move(entry));
+	} else if (query.newest_first || !query.since) {
+		if (sd_journal_seek_tail(journal) < 0) read_error();
+		// Legacy unbounded reads retrieve a recent page and return it oldest first.
+		if (!query.newest_first) {
+			int state;
+			while (result.size() < query.limit && (state = sd_journal_previous(journal)) > 0) {
+				auto entry = current_entry(journal);
+				if (detail::matches_query(entry, query)) result.push_back(std::move(entry));
+			}
+			if (result.size() < query.limit && state < 0) read_error();
+			std::reverse(result.begin(), result.end());
+			return result;
 		}
-		return result;
+	} else {
+		const auto usec = std::chrono::duration_cast<std::chrono::microseconds>(query.since->time_since_epoch());
+		if (sd_journal_seek_realtime_usec(journal, std::max<std::int64_t>(0, usec.count())) < 0) read_error();
 	}
-
-	if (sd_journal_seek_tail(journal) < 0)
-		throw std::runtime_error("failed to seek the system journal");
-	while (result.size() < query.limit && sd_journal_previous(journal) > 0) {
+	int state = 0;
+	while (result.size() < query.limit && (state = step()) > 0) {
 		auto entry = current_entry(journal);
-		if (detail::matches_query(entry, query))
-			result.push_back(std::move(entry));
+		if (detail::matches_query(entry, query)) result.push_back(std::move(entry));
 	}
-	std::reverse(result.begin(), result.end());
+	if (state < 0) read_error();
 	return result;
 #endif
 }
@@ -262,10 +307,12 @@ void JournalReader::follow(const Query &query, const FollowHandler &handler,
 	(void)handler;
 	(void)wake_interval;
 	(void)keep_running;
-	throw std::runtime_error("journald support is unavailable in this build");
+	throw JournalError(JournalErrorCode::unavailable, "journald support is unavailable in this build");
 #else
 	if (!available())
 		throw std::runtime_error("failed to open the system journal");
+	if (query.newest_first)
+		throw std::invalid_argument("journal follow requires oldest-first order");
 	Query continuation = query;
 	auto entries = read(continuation);
 	for (const auto &entry : entries) {
@@ -273,7 +320,7 @@ void JournalReader::follow(const Query &query, const FollowHandler &handler,
 			return;
 		continuation.after = entry.cursor;
 		continuation.since =
-			entry.timestamp + std::chrono::microseconds{1};
+			entry.timestamp;
 	}
 	if (!continuation.after) {
 		if (sd_journal_seek_tail(implementation_->journal_) < 0)
@@ -295,8 +342,7 @@ void JournalReader::follow(const Query &query, const FollowHandler &handler,
 					return;
 				continuation.after = entry.cursor;
 				continuation.since =
-					entry.timestamp +
-					std::chrono::microseconds{1};
+					entry.timestamp;
 			}
 			continue;
 		}
@@ -341,7 +387,19 @@ std::string entry_to_json(const Entry &entry)
 	       << "\",\"source_file\":\"" << json_escape(entry.source_file)
 	       << "\",\"source_line\":\"" << json_escape(entry.source_line)
 	       << "\",\"source_function\":\""
-	       << json_escape(entry.source_function) << "\"}";
+	       << json_escape(entry.source_function)
+		   << "\",\"audience\":\"" << json_escape(entry.audience)
+		   << "\",\"category\":\"" << json_escape(entry.category)
+		   << "\",\"actor\":\"" << json_escape(entry.actor)
+		   << "\",\"action\":\"" << json_escape(entry.action)
+		   << "\",\"outcome\":\"" << json_escape(entry.outcome)
+		   << "\",\"subject\":\"" << json_escape(entry.subject)
+		   << "\",\"changed_fields\":[";
+	for (std::size_t index = 0; index < entry.changed_fields.size(); ++index) {
+		if (index) output << ',';
+		output << '\"' << json_escape(entry.changed_fields[index]) << '\"';
+	}
+	output << "]}";
 	return output.str();
 }
 
