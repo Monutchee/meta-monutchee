@@ -74,6 +74,31 @@ class PolicyTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             storage.disk_guard(policy(), '/dev/sdb', [disk()], 'rootfs')
 
+    def test_journal_directory_defaults_override_and_links(self):
+        for configured in (None, 'custom/logs/journal'):
+            with tempfile.TemporaryDirectory() as tmp:
+                p = policy()
+                if configured:
+                    p['journal_directory'] = configured
+                storage.validate(p)
+                p['roles']['data']['mount'] = tmp
+                storage.prepare_journal(p)
+                self.assertTrue((Path(tmp) / (configured or 'log/journal')).is_dir())
+        for value in ('../escape', '/etc/journal', 'logs/../journal', 'logs//journal', ''):
+            p = policy()
+            p['journal_directory'] = value
+            with self.subTest(value=value), self.assertRaises(RuntimeError):
+                storage.validate(p)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'outside').mkdir()
+            (root / 'log').symlink_to(root / 'outside', target_is_directory=True)
+            p = policy()
+            p['roles']['data']['mount'] = tmp
+            with self.assertRaises(OSError):
+                storage.prepare_journal(p)
+            self.assertFalse((root / 'outside/journal').exists())
+
     def test_bad_policy_paths(self):
         for path in ('../etc', '/etc', 'x/../../etc', 'x//y'):
             p = policy()
