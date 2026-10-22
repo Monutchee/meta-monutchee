@@ -75,4 +75,5 @@ build, IPC and product-policy integration contracts.
 
 Storage policies may set `journal_directory` relative to the data role (default
 `log/journal`). Boot creation rejects traversal and symlinked components; journal
-creation errors retain mounted storage and allow runtime journaling.
+unsafe journal directories fail storage preparation and require media repair.
+Missing media retains the normal runtime journaling fallback.
