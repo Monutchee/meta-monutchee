@@ -289,6 +289,7 @@ def prepare(p):
                 require(not list((Path('/sys/class/block') / Path(devices[role]).name / 'holders').iterdir()),
                         'reset data has block holders')
                 run('mkfs.ext4', '-F', '-L', spec['label'], devices[role])
+        mounted = False
         if role in devices:
             try:
                 if not spec['readonly']:
@@ -297,14 +298,13 @@ def prepare(p):
                 run('mount', '-t', 'ext4', '-o', ('ro,noload' if spec['readonly'] else 'rw') + ',nosuid,nodev,noexec',
                     devices[role], str(path))
                 status['roles'][role] = {'persistent': True, 'device': devices[role], 'error': ''}
-                if role == 'data':
-                    try:
-                        prepare_journal(p)
-                    except OSError as exc:
-                        status['roles'][role]['journal_error'] = str(exc)
-                continue
+                mounted = True
             except (RuntimeError, OSError, subprocess.CalledProcessError) as exc:
                 error = str(exc)
+        if mounted:
+            if role == 'data':
+                prepare_journal(p)
+            continue
         # No files may leak into the underlying rootfs. Only state gets writable fallback.
         options = 'nosuid,nodev,noexec,mode=0755,size=' + str(p['state_tmpfs_mib'] if role == 'state' else 1) + 'm'
         if role != 'state':
