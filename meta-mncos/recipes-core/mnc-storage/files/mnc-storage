@@ -49,6 +49,24 @@ def relative(value):
         part not in ('', '.', '..') for part in value.split('/'))
 
 
+def prepare_journal(p):
+    """Create directories beneath the mounted data role without following links."""
+    directory = Path(p['roles']['data']['mount'])
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    fd = os.open(directory, flags)
+    try:
+        for part in p.get('journal_directory', 'log/journal').split('/'):
+            try:
+                os.mkdir(part, mode=0o755, dir_fd=fd)
+            except FileExistsError:
+                pass
+            child = os.open(part, flags, dir_fd=fd)
+            os.close(fd)
+            fd = child
+    finally:
+        os.close(fd)
+
+
 def validate(p):
     require(p.get('schema_version') == 1, 'unsupported storage policy')
     require(re.fullmatch(r'/run/[A-Za-z][A-Za-z0-9_-]*', p.get('runtime_root', '/run/mnc')),
@@ -69,6 +87,7 @@ def validate(p):
     require(1 <= p['state_tmpfs_mib'] <= 256, 'invalid tmpfs limit')
     for key in ('settings', 'product_info', 'reset_journal'):
         require(relative(p[key]), 'invalid relative policy path')
+    require(relative(p.get('journal_directory', 'log/journal')), 'invalid journal directory')
     for key in ('legacy_settings', 'legacy_product_info'):
         require(p[key].startswith('/data/') and '..' not in p[key].split('/'), 'invalid legacy path')
     require(all(re.fullmatch(r'[a-zA-Z0-9@_.-]+\.service', u) for u in p['quiesce_units']), 'invalid unit')
@@ -270,6 +289,7 @@ def prepare(p):
                 require(not list((Path('/sys/class/block') / Path(devices[role]).name / 'holders').iterdir()),
                         'reset data has block holders')
                 run('mkfs.ext4', '-F', '-L', spec['label'], devices[role])
+        mounted = False
         if role in devices:
             try:
                 if not spec['readonly']:
@@ -278,11 +298,13 @@ def prepare(p):
                 run('mount', '-t', 'ext4', '-o', ('ro,noload' if spec['readonly'] else 'rw') + ',nosuid,nodev,noexec',
                     devices[role], str(path))
                 status['roles'][role] = {'persistent': True, 'device': devices[role], 'error': ''}
-                if role == 'data':
-                    Path('/data/log/journal').mkdir(parents=True, exist_ok=True)
-                continue
-            except (RuntimeError, subprocess.CalledProcessError) as exc:
+                mounted = True
+            except (RuntimeError, OSError, subprocess.CalledProcessError) as exc:
                 error = str(exc)
+        if mounted:
+            if role == 'data':
+                prepare_journal(p)
+            continue
         # No files may leak into the underlying rootfs. Only state gets writable fallback.
         options = 'nosuid,nodev,noexec,mode=0755,size=' + str(p['state_tmpfs_mib'] if role == 'state' else 1) + 'm'
         if role != 'state':
