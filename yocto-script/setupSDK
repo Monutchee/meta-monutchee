@@ -1,7 +1,7 @@
 _monutchee_setupsdk_usage() {
     cat <<'EOF'
 Usage:
-  source ./setupSDK [--product PRODUCT] [BUILD_DIR]
+  source ./setupSDK [--product PRODUCT] [--template-dir DIRECTORY] [BUILD_DIR]
 
 Products:
   zudemo       Use meta-zuboard/conf/templates/default and build
@@ -11,6 +11,9 @@ Other products use meta-<product>/conf/templates/default, either directly in
 sources/ or nested inside a sources/meta-* repository, when that directory
 exists and the product name contains only lowercase letters, digits, and
 single hyphen separators.
+
+An explicit --template-dir, or TEMPLATECONF, selects an external product template.
+The argument takes precedence over TEMPLATECONF; discovery is the fallback.
 
 Examples:
   source ./setupSDK --product zudemo
@@ -37,6 +40,7 @@ if [ -z "${_monutchee_product}" ] && [ -r "${ROOT}/.mncos-product" ]; then
     _monutchee_product="$(tr -d '[:space:]' < "${ROOT}/.mncos-product" 2>/dev/null)"
 fi
 _monutchee_build_dir=""
+_monutchee_explicit_template="${TEMPLATECONF:-}"
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -51,6 +55,19 @@ while [ "$#" -gt 0 ]; do
 
         --product=*)
             _monutchee_product="${1#*=}"
+            shift
+            ;;
+
+        --template-dir)
+            if [ "$#" -lt 2 ] || [ -z "$2" ]; then
+                printf 'Error: --template-dir requires a directory.\n' >&2
+                return 2 2>/dev/null || exit 2
+            fi
+            _monutchee_explicit_template="$2"
+            shift 2
+            ;;
+        --template-dir=*)
+            _monutchee_explicit_template="${1#*=}"
             shift
             ;;
 
@@ -105,6 +122,13 @@ esac
 
 
 _monutchee_template_dir=""
+if [ -n "${_monutchee_explicit_template}" ]; then
+    if [ ! -d "${_monutchee_explicit_template}" ]; then
+        printf 'Error: explicit template directory does not exist.\n' >&2
+        return 2 2>/dev/null || exit 2
+    fi
+    _monutchee_template_dir="$(readlink -f "${_monutchee_explicit_template}")"
+else
 # NUL-delimited paths support spaces and missing repositories in bash and zsh.
 while IFS= read -r -d '' _monutchee_repository; do
     _monutchee_candidate="${_monutchee_repository}/${_monutchee_template_layer}/conf/templates/default"
@@ -117,6 +141,7 @@ while IFS= read -r -d '' _monutchee_repository; do
     _monutchee_template_dir="${_monutchee_candidate}"
 done < <(printf '%s\0' "${ROOT}/sources"; find -L "${ROOT}/sources" \
     -mindepth 1 -maxdepth 1 -type d -name 'meta-*' -print0 2>/dev/null)
+fi
 if [ -z "${_monutchee_template_dir}" ]; then
     printf 'Error: unsupported product or missing build template: %s. Synchronize its product layer first.\n' "${_monutchee_product}" >&2
     return 2 2>/dev/null || exit 2

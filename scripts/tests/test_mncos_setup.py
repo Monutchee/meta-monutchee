@@ -28,6 +28,7 @@ class SetupSDKTests(unittest.TestCase):
     def run_setup(self, product="example", build="build", shell="bash"):
         env = os.environ.copy()
         env.pop("MONUTCHEE_PRODUCT", None)
+        env.pop("TEMPLATECONF", None)
         return subprocess.run(
             [shell, "-c", 'source ./setupSDK --product "$1" "$2"', "test", product, build],
             cwd=self.workspace, env=env, text=True, capture_output=True,
@@ -39,6 +40,29 @@ class SetupSDKTests(unittest.TestCase):
                 result = self.run_setup(product)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn(f"INITIALIZED:build:{self.workspace}/sources/bitbake", result.stdout)
+
+    def test_explicit_template_argument_and_environment_in_both_shells(self):
+        external = self.workspace / "outside sources/product/conf/templates/default"
+        external.mkdir(parents=True)
+        for shell in ("bash", "zsh"):
+            if not shutil.which(shell):
+                continue
+            for argument in (False, True):
+                env = os.environ.copy()
+                env["TEMPLATECONF"] = str(external) if not argument else "/missing"
+                command = ('source ./setupSDK --product missing ' +
+                           ('--template-dir "$1" ' if argument else '') +
+                           '&& printf "TEMPLATE:%s\\n" "$TEMPLATECONF"')
+                result = subprocess.run([shell, "-c", command, "test", str(external)],
+                                        cwd=self.workspace, env=env, text=True, capture_output=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f"TEMPLATE:{external}", result.stdout)
+
+    def test_missing_explicit_template_fails_before_initialization(self):
+        result = subprocess.run(["bash", "-c", 'source ./setupSDK --product example --template-dir /nonexistent'],
+                                cwd=self.workspace, text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("INITIALIZED", result.stdout)
 
     def test_missing_product_template_fails(self):
         result = self.run_setup("missing")
