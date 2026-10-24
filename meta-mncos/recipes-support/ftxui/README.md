@@ -1,11 +1,13 @@
 # ftxui recipe
 
 Provides upstream 7.0.3 headers and installed CMake exports (`ftxui::ftxui`).
-FTXUI supplies position-independent static archives; Glaze is header-only.
+Supplies position-independent static archives.
 Consumers add `ftxui` to `DEPENDS` and use `find_package(ftxui CONFIG REQUIRED)`.
 No CMake dependency downloads, examples, tests, docs or modules are enabled.
 
-Update `FTXUI_TAG` and `SRCREV` together in build configuration or the recipe.
+Update `FTXUI_TAG` and `SRCREV` together in the recipe. Build configuration
+overrides must be recipe-scoped, for example `FTXUI_TAG:pn-ftxui` and
+`SRCREV:pn-ftxui`.
 The immutable revision controls fetching; unpack rejects a mismatched tag.
 Keep the recipe version and upstream license checksum aligned when upgrading.
 
