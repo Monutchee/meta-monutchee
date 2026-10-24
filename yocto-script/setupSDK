@@ -66,6 +66,10 @@ while [ "$#" -gt 0 ]; do
             _monutchee_explicit_template="$2"
             shift 2
             ;;
+        --template-dir=)
+            printf 'Error: --template-dir requires a directory.\n' >&2
+            return 2 2>/dev/null || exit 2
+            ;;
         --template-dir=*)
             _monutchee_explicit_template="${1#*=}"
             shift

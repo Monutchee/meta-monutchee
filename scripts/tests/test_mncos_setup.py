@@ -64,6 +64,13 @@ class SetupSDKTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn("INITIALIZED", result.stdout)
 
+    def test_empty_explicit_template_fails(self):
+        for value in ('--template-dir=', '--template-dir ""'):
+            result = subprocess.run(["bash", "-c", 'source ./setupSDK --product example ' + value],
+                                    cwd=self.workspace, text=True, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn("INITIALIZED", result.stdout)
+
     def test_missing_product_template_fails(self):
         result = self.run_setup("missing")
         self.assertNotEqual(result.returncode, 0)
