@@ -1,4 +1,3 @@
-From: MSAP1 maintainers
 Subject: [PATCH] ssl_util: keep internal public operations out of PKCS11
 
 A same-process OpenSSL PKCS11 provider may otherwise route the module
