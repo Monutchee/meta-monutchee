@@ -1,0 +1,57 @@
+Subject: [PATCH] sign: identify RSA keys and persist successful PSS discovery
+
+RSA is a key type, not an object class. Comparing CKA_CLASS with CKK_RSA
+skips the PSS format probe on all private keys. Also retain successful probe
+results and execute the database update rather than assigning token state only after a failed probe. This
+makes standard RSA signing discover and persist digest-length salt support
+before OpenSSL providers query the advertised mechanism list.
+
+Upstream-Status: Pending
+
+--- a/src/lib/sign.c
++++ b/src/lib/sign.c
+@@ -113,13 +113,13 @@
+ 
+ static CK_RV update_pss_sig_state(token *tok, tobject *tobj) {
+ 
+-    CK_RV rv = CKR_GENERAL_ERROR;
++    CK_RV rv = CKR_OK;
+ 
+     /*
+      * Only test for PSS signature state if it's an RSA object. This avoids printing superfluous errors
+      */
+-    CK_OBJECT_CLASS cka_class = attr_list_get_CKA_CLASS(tobj->attrs, CK_OBJECT_CLASS_BAD);
+-    if (cka_class != CKK_RSA) {
++    CK_KEY_TYPE key_type = attr_list_get_CKA_KEY_TYPE(tobj->attrs, CKA_KEY_TYPE_BAD);
++    if (key_type != CKK_RSA) {
+         return CKR_OK;
+     }
+ 
+@@ -135,9 +135,9 @@
+         if (rv != CKR_OK) {
+             LOGW("Could not determine PSS signature format,"
+                     "assuming maximized slen");
+-            tok->config.pss_sigs_good = pss_sigs_good ?
+-                    pss_config_state_good : pss_config_state_bad;
+-        }
++        }
++        tok->config.pss_sigs_good = pss_sigs_good ?
++                pss_config_state_good : pss_config_state_bad;
+ 
+         mdetail_set_pss_status(tok->mdtl, pss_sigs_good);
+         rv = backend_update_token_config(tok);
+--- a/src/lib/db.c
++++ b/src/lib/db.c
+@@ -950,6 +950,12 @@
+ 
+     rc = sqlite3_bind_int(stmt, 2, tok->id);
+     gotobinderror(rc, "id");
++
++    rc = sqlite3_step(stmt);
++    if (rc != SQLITE_DONE) {
++        LOGE("%s", sqlite3_errmsg(global.db));
++        goto error;
++    }
+ 
+     rv = CKR_OK;
+ 
