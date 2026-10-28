@@ -1,0 +1,57 @@
+Subject: [PATCH] ssl_util: keep internal public operations out of PKCS11
+
+A same-process OpenSSL PKCS11 provider may otherwise route the module
+software verification back into C_VerifyFinal while the token lock is held.
+Use explicit default-provider key import and operation contexts on OpenSSL3.
+Keep the global application library context and mandatory properties.
+
+Upstream-Status: Pending
+
+--- a/src/lib/ssl_util.c
++++ b/src/lib/ssl_util.c
+@@ -124,7 +124,7 @@
+     }
+ 
+     /* convert params to EVP key */
+-    evp_ctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
++    evp_ctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", "provider=default");
+     if (!evp_ctx) {
+         SSL_UTIL_LOGE("EVP_PKEY_CTX_new_id");
+         goto out;
+@@ -211,7 +211,7 @@
+     }
+ 
+     /* convert params to EVP key */
+-    evp_ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
++    evp_ctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", "provider=default");
+     if (!evp_ctx) {
+         SSL_UTIL_LOGE("EVP_PKEY_CTX_new_id");
+         goto out;
+@@ -433,7 +433,13 @@
+         return CKR_OK;
+     }
+ 
++    /* Internal public-key crypto must never reenter a PKCS11 provider.
++     * Keep the application libctx and its mandatory policy properties. */
++#if defined(LIB_TPM2_OPENSSL_OPENSSL_POST300)
++    EVP_PKEY_CTX *pkey_ctx = EVP_PKEY_CTX_new_from_pkey(NULL, pkey, "provider=default");
++#else
+     EVP_PKEY_CTX *pkey_ctx = EVP_PKEY_CTX_new(pkey, NULL);
++#endif
+     if (!pkey_ctx) {
+         LOGE("OOM");
+         return CKR_HOST_MEMORY;
+@@ -509,7 +515,13 @@
+         fn_EVP_PKEY_init init_fn,
+         EVP_PKEY_CTX **outpkey_ctx) {
+ 
++    /* Internal public-key crypto must never reenter a PKCS11 provider.
++     * Keep the application libctx and its mandatory policy properties. */
++#if defined(LIB_TPM2_OPENSSL_OPENSSL_POST300)
++    EVP_PKEY_CTX *pkey_ctx = EVP_PKEY_CTX_new_from_pkey(NULL, pkey, "provider=default");
++#else
+     EVP_PKEY_CTX *pkey_ctx = EVP_PKEY_CTX_new(pkey, NULL);
++#endif
+     if (!pkey_ctx) {
+         SSL_UTIL_LOGE("EVP_PKEY_CTX_new failed");
+         return CKR_GENERAL_ERROR;
