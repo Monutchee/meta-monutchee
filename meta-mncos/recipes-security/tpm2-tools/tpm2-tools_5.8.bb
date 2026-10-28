@@ -1,0 +1,11 @@
+SUMMARY = "TPM 2.0 command line administration and qualification tools"
+HOMEPAGE = "https://github.com/tpm2-software/tpm2-tools"
+LICENSE = "BSD-3-Clause"
+LIC_FILES_CHKSUM = "file://docs/LICENSE;md5=a846608d090aa64494c45fc147cc12e3"
+SRC_URI = "https://github.com/tpm2-software/tpm2-tools/releases/download/${PV}/tpm2-tools-${PV}.tar.gz"
+SRC_URI[sha256sum] = "1cb73185cae814b4e15c7c2d0b22642d640faf48775f4156a1fd92edf84bef73"
+DEPENDS = "autoconf-archive-native tpm2-tss openssl curl"
+inherit autotools pkgconfig bash-completion
+EXTRA_OECONF = "--disable-unit --disable-fapi --without-efivar"
+RDEPENDS:${PN} += "bash"
+BBCLASSEXTEND = "native"
