@@ -9,6 +9,7 @@ MNC_ARTIFACT_TFTP_ROOT = "tftp"
 MNC_XILINX_JTAG_IMAGE_RECIPE ?= ""
 MNC_XILINX_JTAG_LOADER_TCL ?= "${XILINX_ADDON_LAYERDIR}/recipes-core/images/files/load-jtag-image-station.tcl"
 MNC_XILINX_JTAG_FORCE_JTAG_BOOT ?= "0"
+MNC_XILINX_JTAG_BOARD_RESET ?= "srst"
 
 MNC_XILINX_JTAG_FSBL ?= "${DEPLOY_DIR_IMAGE}/fsbl-${MACHINE}.elf"
 MNC_XILINX_JTAG_PMUFW ?= "${DEPLOY_DIR_IMAGE}/pmu-firmware-${MACHINE}.elf"
@@ -83,7 +84,11 @@ mnc_artifact_populate() {
     if ! grep -q 'MNC_STATION_TARGET_SELECTOR_V2' "${MNC_XILINX_JTAG_LOADER_TCL}"; then
         bbfatal "Station JTAG loader lacks multi-device target selection"
     fi
+    if [ "${@mnc_xilinx_jtag_board_reset(d)}" = "por" ] && ! grep -q '@JTAG_LOADER_BOARD_RESET@' "${MNC_XILINX_JTAG_LOADER_TCL}"; then
+        bbfatal "Station JTAG loader lacks the board-reset substitution token"
+    fi
     sed \
+        -e 's|@JTAG_LOADER_BOARD_RESET@|${@mnc_xilinx_jtag_board_reset(d)}|g' \
         -e 's|@JTAG_LOADER_FORCE_JTAG_BOOT@|${MNC_XILINX_JTAG_FORCE_JTAG_BOOT}|g' \
         "${MNC_XILINX_JTAG_LOADER_TCL}" \
         > "${MNC_ARTIFACT_STAGING_DIR}/jtag/load-jtag-image.tcl"
@@ -117,3 +122,15 @@ mnc_artifact_populate() {
 }
 
 do_deploy[file-checksums] += "${MNC_XILINX_JTAG_LOADER_TCL}:True"
+
+python __anonymous() {
+    reset = d.getVar("MNC_XILINX_JTAG_BOARD_RESET")
+    if reset not in ("srst", "por"):
+        bb.fatal("MNC_XILINX_JTAG_BOARD_RESET must be srst or por")
+}
+
+def mnc_xilinx_jtag_board_reset(d):
+    reset = d.getVar("MNC_XILINX_JTAG_BOARD_RESET")
+    if reset not in ("srst", "por"):
+        bb.fatal("MNC_XILINX_JTAG_BOARD_RESET must be srst or por")
+    return reset
