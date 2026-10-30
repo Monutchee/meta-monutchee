@@ -1,10 +1,15 @@
 TFTPBOOT_DEST_DIR ?= "${TOPDIR}/export/tftpboot"
 JTAG_LOADER_TCL ?= ""
 JTAG_LOADER_FORCE_JTAG_BOOT ?= "0"
+JTAG_LOADER_BOARD_RESET ?= "srst"
 
 # Copy the ZynqMP boot bundle used by the JTAG/TFTP test flow.
 do_copy_tftpboot() {
     set -eu
+
+    if [ "${@mnc_jtag_loader_board_reset(d)}" = "por" ] && [ -n "${JTAG_LOADER_TCL}" ] && ! grep -q '@JTAG_LOADER_BOARD_RESET@' "${JTAG_LOADER_TCL}"; then
+        bbfatal "JTAG loader lacks the board-reset substitution token"
+    fi
 
     DEST_DIR="${TFTPBOOT_DEST_DIR}"
     mkdir -p "${DEST_DIR}"
@@ -39,7 +44,8 @@ do_copy_tftpboot() {
     # Optional JTAG loader. Network settings are runtime TCL arguments.
     if [ -n "${JTAG_LOADER_TCL}" ]; then
         if [ -e "${JTAG_LOADER_TCL}" ]; then
-            if sed -e 's|@JTAG_LOADER_FORCE_JTAG_BOOT@|${JTAG_LOADER_FORCE_JTAG_BOOT}|g' \
+            if sed -e 's|@JTAG_LOADER_BOARD_RESET@|${@mnc_jtag_loader_board_reset(d)}|g' \
+                -e 's|@JTAG_LOADER_FORCE_JTAG_BOOT@|${JTAG_LOADER_FORCE_JTAG_BOOT}|g' \
                 "${JTAG_LOADER_TCL}" > "${DEST_DIR}/load-jtag-image.tcl"; then
                 chmod 0755 "${DEST_DIR}/load-jtag-image.tcl" || retVal=1
             else
@@ -62,3 +68,15 @@ do_copy_tftpboot() {
 
 do_copy_tftpboot[nostamp] = "1"
 addtask copy_tftpboot after do_image_complete before do_build
+
+python __anonymous() {
+    reset = d.getVar("JTAG_LOADER_BOARD_RESET")
+    if reset not in ("srst", "por"):
+        bb.fatal("JTAG_LOADER_BOARD_RESET must be srst or por")
+}
+
+def mnc_jtag_loader_board_reset(d):
+    reset = d.getVar("JTAG_LOADER_BOARD_RESET")
+    if reset not in ("srst", "por"):
+        bb.fatal("JTAG_LOADER_BOARD_RESET must be srst or por")
+    return reset

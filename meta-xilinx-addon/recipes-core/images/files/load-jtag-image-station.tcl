@@ -269,6 +269,98 @@ proc download_data_with_retry {label name_pattern path address {scope "device"}}
     error "$label failed after 3 attempts: $last_message"
 }
 
+# Resolve the FSBL status targets on the same physical device.
+proc fsbl_target {pattern} {
+    set matches {}
+    foreach target [targets -target-properties -nocase -filter \
+            [format {name =~ "%s"} $pattern]] {
+        if { [dict exists $target name] &&
+             [string match -nocase $pattern [dict get $target name]] } {
+            global TARGET_ID
+            if { $TARGET_ID ne "" &&
+                 ![target_matches_selected_hardware $target device] } {
+                continue
+            }
+            lappend matches $target
+        }
+    }
+    if { [llength $matches] != 1 } {
+        error "expected one $pattern FSBL target, found [llength $matches]"
+    }
+    return [lindex $matches 0]
+}
+
+# Error lockdown also reaches XFsbl_Exit. Require the success marker there,
+# and always restore the same physically bound A53 before breakpoint cleanup.
+proc require_fsbl_success {} {
+    set core [fsbl_target "*A53*#0"]
+    set psu [fsbl_target "*PSU*"]
+    foreach key {jtag_cable_ctx jtag_device_index} {
+        if { ![dict exists $core $key] || ![dict exists $psu $key] ||
+             [dict get $core $key] ne [dict get $psu $key] } {
+            error "cannot bind FSBL status PSU and A53 using $key"
+        }
+    }
+    set core_id [dict get $core target_id]
+    set status [catch {
+        targets [dict get $psu target_id]
+        set value [mrd -value 0xffd80060]
+        if { ![string is entier -strict $value] || $value != 0 } {
+            error "FSBL did not report successful completion: $value"
+        }
+    } message options]
+    set restore_status [catch {targets $core_id} restore_message restore_options]
+    if { $status } {
+        if { $restore_status } {
+            puts "FSBL status target restoration failed: $restore_message"
+        }
+        return -options $options $message
+    }
+    if { $restore_status } {
+        return -options $restore_options $restore_message
+    }
+}
+
+# AMD's ZynqMP download flow stops at XFsbl_Exit before its parking loop.
+# FSBL_STATUS == 0 alone is not completion proof: it is also the reset value,
+# and psu_init runs before FSBL marks itself running.
+proc run_fsbl_to_exit {} {
+    set breakpoint ""
+    set status [catch {
+        set exit_address [dict get [print -dict &XFsbl_Exit] &XFsbl_Exit]
+        if { ![string is entier -strict $exit_address] || $exit_address <= 0 ||
+             ($exit_address & 3) != 0 } {
+            error "Invalid XFsbl_Exit symbol address: $exit_address"
+        }
+        set breakpoint [bpadd -addr &XFsbl_Exit]
+        con -block -timeout 60
+        # XSDB -nvlist returns register values as hexadecimal without 0x.
+        set pc_hex [dict get [rrd -nvlist pc] pc]
+        if { ![regexp {^[0-9a-fA-F]+$} $pc_hex] } {
+            error "Invalid FSBL completion PC: $pc_hex"
+        }
+        set pc [expr "0x$pc_hex"]
+        if { $pc != $exit_address } {
+            error [format "FSBL halted at 0x%x, expected XFsbl_Exit at 0x%x" $pc $exit_address]
+        }
+        require_fsbl_success
+        puts [format "FSBL reached XFsbl_Exit at 0x%x with successful status" $pc]
+    } message options]
+    set cleanup_status 0
+    if { $breakpoint ne "" } {
+        set cleanup_status [catch {bpremove $breakpoint} cleanup_message cleanup_options]
+    }
+    if { $status || $cleanup_status } {
+        if { $status } {
+            if { $cleanup_status } {
+                puts "FSBL breakpoint cleanup failed: $cleanup_message"
+            }
+            return -options $options $message
+        }
+        return -options $cleanup_options $cleanup_message
+    }
+}
+
 proc parse_bool {label value} {
     set normalized [string tolower [string trim $value]]
     switch -exact -- $normalized {
@@ -299,11 +391,12 @@ proc switch_to_jtag_boot_mode { } {
     rst -system
 }
 
-proc pulse_board_srst { } {
+proc pulse_board_reset { } {
+    global BOARD_RESET
     select_target "*PSU*"
-    puts "Pulsing board SRST through the JTAG cable"
-    if { [catch {rst -srst} message] } {
-        error "Could not pulse cable SRST: $message"
+    puts "Pulsing board [string toupper $BOARD_RESET] through the JTAG cable"
+    if { [catch {rst -$BOARD_RESET} message] } {
+        error "Could not pulse cable [string toupper $BOARD_RESET]: $message"
     }
 }
 
@@ -343,6 +436,7 @@ set JTAG_DIR [file dirname $SCRIPT_PATH]
 set ARTIFACT_DIR [file dirname $JTAG_DIR]
 set TFTP_DIR [file join $ARTIFACT_DIR "tftp"]
 set FORCE_JTAG_BOOT "@JTAG_LOADER_FORCE_JTAG_BOOT@"
+set BOARD_RESET "@JTAG_LOADER_BOARD_RESET@"
 set MNCOS_JTAG_MAGIC_ADDR 0x1ff00000
 set MNCOS_JTAG_ENV_MAGIC_ADDR 0x1ff00004
 set MNCOS_JTAG_ENV_ADDR 0x1ff00100
@@ -358,6 +452,16 @@ if { [info exists ::env(MNCOS_FORCE_JTAG_BOOT)] && [string trim $::env(MNCOS_FOR
     set FORCE_JTAG_BOOT $::env(MNCOS_FORCE_JTAG_BOOT)
 }
 set FORCE_JTAG_BOOT [parse_bool "MNCOS_FORCE_JTAG_BOOT" $FORCE_JTAG_BOOT]
+
+if { [string match "@*" $BOARD_RESET] && [string match "*@" $BOARD_RESET] } {
+    set BOARD_RESET "srst"
+}
+if { [info exists ::env(MNCOS_JTAG_BOARD_RESET)] } {
+    set BOARD_RESET $::env(MNCOS_JTAG_BOARD_RESET)
+}
+if { $BOARD_RESET ni {srst por} } {
+    error "MNCOS_JTAG_BOARD_RESET must be srst or por: $BOARD_RESET"
+}
 
 if { [llength $argv] > 2 } {
     set BOARD_IP [lindex $argv 2]
@@ -403,10 +507,15 @@ puts "Connecting to the Xilinx hw_server at $HW_SERVER_URL"
 connect -url $HW_SERVER_URL
 initialize_target_selector $TARGET_ID $TARGET_CABLE_SERIAL $TARGET_DEVICE_INDEX
 
-if { [catch {pulse_board_srst} message] } {
+if { [catch {pulse_board_reset} message] } {
     error $message
 }
-after 2000
+# Allow autonomous POR boot to settle before reconnect and JTAG takeover.
+if { $BOARD_RESET eq "por" } {
+    after 5000
+} else {
+    after 2000
+}
 
 if { $FORCE_JTAG_BOOT } {
     disconnect
@@ -438,10 +547,7 @@ after 500
 download_elf_with_retry "Downloading FSBL" "*A53*#0" \
     [file join $JTAG_DIR "fsbl.elf"]
 select_target "*A53*#0"
-con
-after 4000
-select_target "*A53*#0"
-stop
+run_fsbl_to_exit
 
 download_elf_with_retry "Downloading TF-A" "*A53*#0" \
     [file join $JTAG_DIR "tfa.elf"]
