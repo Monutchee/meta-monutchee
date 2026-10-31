@@ -140,7 +140,7 @@ void validate(const Configuration &c) {
               std::ranges::all_of(c.system.hostname,
                                   [](unsigned char x) { return std::isalnum(x) || x == '-'; }),
           "invalid hostname");
-    check(c.time.synchronization == "ntp" || c.time.synchronization == "ptp" || c.time.synchronization == "local",
+    check(c.time.synchronization == "ntp" || c.time.synchronization == "ptp" || c.time.synchronization == "irig" || c.time.synchronization == "local",
           "invalid time synchronization mode");
     check(!c.time.timezone.empty() && c.time.timezone.size() <= 128 &&
               c.time.timezone.front() != '/' && c.time.timezone.find("..") == std::string::npos &&

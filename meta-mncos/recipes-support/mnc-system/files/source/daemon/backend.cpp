@@ -248,6 +248,7 @@ class Native final : public Platform {
                         s.operating_system.substr(1, s.operating_system.size() - 2);
             }
         s.ptp_interfaces = discoverPtpInterfaces(profile_);
+        s.irig_selectable = !profile_.irig_units.empty();
         s.ssh_listening = unitState(bus, profile_.ssh_socket) == "active" ||
                           unitState(bus, profile_.ssh_service) == "active";
         for (const auto &p : profile_.interfaces) {
@@ -342,6 +343,8 @@ class Native final : public Platform {
         if (std::ranges::find(zones, c.time.timezone) == zones.end())
             throw Error({ErrorCode::invalid_argument, "timezone is not installed"});
         validatePtpSelection(c.time, discoverPtpInterfaces(profile_));
+        if (c.time.synchronization == "irig" && profile_.irig_units.empty())
+            throw Error({ErrorCode::unsupported, "IRIG source profile is unavailable"});
     }
     void bootHostname(const std::string& hostname) override {
         // This runs before D-Bus/network/SSH/Avahi. Do not activate hostnamed here.
