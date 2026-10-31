@@ -121,6 +121,7 @@ struct SystemStatus {
     Configuration configuration;
     std::vector<NetworkStatus> network;
     std::vector<PtpInterface> ptp_interfaces;
+    bool irig_selectable = false; // Immutable product profile; not a lock/UTC-quality verdict.
     bool ssh_listening = false;
     std::string kernel_release;
     std::string operating_system;

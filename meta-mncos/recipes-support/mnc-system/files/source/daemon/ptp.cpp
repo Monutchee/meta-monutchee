@@ -74,6 +74,11 @@ void validatePtpSelection(const TimePreferences &time, const std::vector<PtpInte
 
 ClockUnits clockUnits(const Profile &profile, const TimePreferences &time) {
     std::vector<std::string> selected;
+    if (time.synchronization == "irig") {
+        if (profile.irig_units.empty())
+            throw Error({ErrorCode::unsupported, "IRIG source profile is unavailable"});
+        selected = profile.irig_units;
+    }
     auto instance = [](const std::string &unit, const std::string &name) {
         if (!validInterfaceName(name) || !unit.ends_with("@.service"))
             throw Error({ErrorCode::invalid_argument, "Invalid PTP unit template or interface"});
@@ -95,6 +100,8 @@ ClockUnits clockUnits(const Profile &profile, const TimePreferences &time) {
             const auto name = instance(unit, port.name);
             if (std::ranges::find(all, name) == all.end()) all.push_back(name);
         }
+    // IRIG servo and network servos are mutually exclusive, including mode changes.
+    all.insert(all.end(), profile.irig_units.begin(), profile.irig_units.end());
     ClockUnits result;
     for (auto it = all.rbegin(); it != all.rend(); ++it)
         if (std::ranges::find(selected, *it) == selected.end()) result.stop.push_back(*it);
