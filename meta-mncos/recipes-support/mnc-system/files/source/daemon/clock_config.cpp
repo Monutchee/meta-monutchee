@@ -27,8 +27,10 @@ ClockPolicyChanges writeClockPolicy(const Profile &profile, const TimePreference
     Configuration validation;
     validation.time = time;
     validate(validation); // Reject configuration injection even on bootstrap.
+    if (time.synchronization == "irig" && profile.irig_units.empty())
+        throw Error({ErrorCode::unsupported, "IRIG source profile is unavailable"});
     ClockPolicyChanges changes;
-    for (const auto *mode : {"ntp", "ptp"}) {
+    for (const auto *mode : {"ntp", "ptp", "irig"}) {
         const auto marker = runtime / fs::path(profile.runtime_root).filename() / "system" / (std::string(mode) + "-disabled");
         if (time.synchronization == mode) durableRemove(marker);
         else atomicWrite(marker, "disabled\n");

@@ -53,6 +53,21 @@ int main() {
     time = {"ptp", "UTC", "../bad"};
     rejects([&] { validate(Configuration{{}, time}); });
     rejects([&] { clockUnits(profile, time); });
+    time = {"irig", "UTC", "lan7"};
+    validate(Configuration{{}, time});
+    rejects([&] { clockUnits(profile, time); }); // No product/source profile.
+    profile.irig_units = {"receiver-servo.service"};
+    const auto irig = clockUnits(profile, time);
+    assert(irig.start == profile.irig_units);
+    assert(irig.stop.size() == 5 && irig.stop.back() == "systemd-timesyncd.service");
+    time.synchronization = "ntp";
+    const auto back = clockUnits(profile, time);
+    assert(back.stop.front() == "receiver-servo.service" && back.start == profile.ntp_units);
+    time.synchronization = "local";
+    const auto irigLocal = clockUnits(profile, time);
+    assert(irigLocal.start.empty() && irigLocal.stop.front() == "receiver-servo.service");
+    profile.irig_units.clear();
+    time = {"ptp", "UTC", "lan7"};
     profile.interfaces = {{"lan-1", ""}};
     time.ptp_interface = "lan-1";
     assert(clockUnits(profile, time).start[0] == "ptp4l@lan\\x2d1.service");

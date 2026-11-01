@@ -55,7 +55,12 @@ PHC index. Product `ptp_unit_templates` are instantiated only for validated
 interface names; transitions stop competing instances before starting the selected
 pair. `ptp_units` is retained only to stop legacy fixed services during migration.
 
-Time preferences support `ntp`, `ptp` and `local`. Local mode stops every managed
+Time preferences support `ntp`, `ptp`, `irig` and `local`.
+IRIG is selectable only when the immutable product profile declares `irig_units`;
+its absence rejects activation, including bootstrap. Transitions stop the IRIG
+servo before network servos and stop network servos before IRIG. Products own
+receiver capability/qualification and the isolated servo configuration; this SDK
+does not infer UTC accuracy from service state or automatically select a fallback. Local mode stops every managed
 clock discipline; Linux starts from the RTC at boot and then runs its own clock.
 Changing mode does not step the running clock or prove UTC accuracy.
 `ntp_servers` contains up to eight unique hostnames, IPv4 or IPv6 addresses without
