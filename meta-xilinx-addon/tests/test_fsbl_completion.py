@@ -11,14 +11,13 @@ FILES = Path(__file__).resolve().parents[1] / 'recipes-core/images/files'
 @unittest.skipUnless(shutil.which('tclsh'), 'tclsh is unavailable')
 class FsblCompletionTests(unittest.TestCase):
     def execute(self, station, scenario):
-        source = (FILES / ('load-jtag-image-station.tcl' if station else
-                           'load-jtag-image.tcl')).read_text()
+        source = (FILES / 'load-jtag-image.tcl').read_text()
         helpers = source.split('proc fsbl_target', 1)[1].split(
             'proc parse_bool', 1)[0]
         harness = r'''
 set scenario SCENARIO
 set station STATION
-set TARGET_ID 1
+set TARGET_ID [expr {$station ? 1 : ""}]
 set selected 3
 set selections {}
 set operations {}

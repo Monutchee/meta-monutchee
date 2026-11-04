@@ -45,6 +45,7 @@ do_copy_tftpboot() {
     if [ -n "${JTAG_LOADER_TCL}" ]; then
         if [ -e "${JTAG_LOADER_TCL}" ]; then
             if sed -e 's|@JTAG_LOADER_BOARD_RESET@|${@mnc_jtag_loader_board_reset(d)}|g' \
+                -e 's|@JTAG_LOADER_LAYOUT@|flat|g' \
                 -e 's|@JTAG_LOADER_FORCE_JTAG_BOOT@|${JTAG_LOADER_FORCE_JTAG_BOOT}|g' \
                 "${JTAG_LOADER_TCL}" > "${DEST_DIR}/load-jtag-image.tcl"; then
                 chmod 0755 "${DEST_DIR}/load-jtag-image.tcl" || retVal=1

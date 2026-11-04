@@ -4,7 +4,7 @@ Shared Xilinx utilities for MNCOS product layers.
 
 This layer provides:
 
-- `xilinx-jtag-artifact.bbclass` and `load-jtag-image-station.tcl`, which
+- `xilinx-jtag-artifact.bbclass` and `load-jtag-image.tcl`, which
   package a self-contained v2 Provisioning Station JTAG/TFTP artifact.
 - `xilinx-dfx-firmware.bbclass`, a generic dfx-mgr packager for PL bitstreams,
   optional overlays, and Cortex-R firmware in the dfx-mgr RPU layout.
@@ -45,7 +45,7 @@ can be queued safely by the Station.
 
 ### JTAG cable reset selection
 
-Both loaders default to the cable SRST pulse. For hardware whose cable advertises
+Both layouts default to the cable SRST pulse. For hardware whose cable advertises
 and physically wires POR, the Station artifact recipe can explicitly set:
 
 ```bitbake
@@ -101,3 +101,9 @@ There is no fixed-delay completion assumption or reset/retry fallback.
 `FSBL_STATUS == 0` alone cannot prove completion: zero is also its initial
 value. The exit breakpoint and successful status jointly establish completed
 JTAG initialization before TF-A is downloaded.
+
+Both exporters render the canonical `load-jtag-image.tcl` with an explicit layout.
+The `flat` layout stages files from the current directory into the host TFTP
+root; `station` reads sibling `jtag/` and `tftp/` directories without writing the
+artifact or TFTP root. Direct source invocation defaults to the legacy flat
+interface.

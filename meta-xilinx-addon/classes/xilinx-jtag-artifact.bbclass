@@ -7,7 +7,7 @@ MNC_ARTIFACT_ENTRYPOINT = "jtag/load-jtag-image.tcl"
 MNC_ARTIFACT_TFTP_ROOT = "tftp"
 
 MNC_XILINX_JTAG_IMAGE_RECIPE ?= ""
-MNC_XILINX_JTAG_LOADER_TCL ?= "${XILINX_ADDON_LAYERDIR}/recipes-core/images/files/load-jtag-image-station.tcl"
+MNC_XILINX_JTAG_LOADER_TCL ?= "${XILINX_ADDON_LAYERDIR}/recipes-core/images/files/load-jtag-image.tcl"
 MNC_XILINX_JTAG_FORCE_JTAG_BOOT ?= "0"
 MNC_XILINX_JTAG_BOARD_RESET ?= "srst"
 
@@ -89,6 +89,7 @@ mnc_artifact_populate() {
     fi
     sed \
         -e 's|@JTAG_LOADER_BOARD_RESET@|${@mnc_xilinx_jtag_board_reset(d)}|g' \
+        -e 's|@JTAG_LOADER_LAYOUT@|station|g' \
         -e 's|@JTAG_LOADER_FORCE_JTAG_BOOT@|${MNC_XILINX_JTAG_FORCE_JTAG_BOOT}|g' \
         "${MNC_XILINX_JTAG_LOADER_TCL}" \
         > "${MNC_ARTIFACT_STAGING_DIR}/jtag/load-jtag-image.tcl"

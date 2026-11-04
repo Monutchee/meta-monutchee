@@ -13,7 +13,7 @@ LAYER = Path(__file__).resolve().parents[1]
 class JtagResetConfigTests(unittest.TestCase):
     def test_export_policy_validation_and_rendering(self):
         for filename, variable, loader_name in (
-            ("xilinx-jtag-artifact.bbclass", "MNC_XILINX_JTAG_BOARD_RESET", "load-jtag-image-station.tcl"),
+            ("xilinx-jtag-artifact.bbclass", "MNC_XILINX_JTAG_BOARD_RESET", "load-jtag-image.tcl"),
             ("export-tftpboot-file.bbclass", "JTAG_LOADER_BOARD_RESET", "load-jtag-image.tcl"),
         ):
             source = (LAYER / "classes" / filename).read_text()
@@ -60,6 +60,7 @@ class JtagResetConfigTests(unittest.TestCase):
                 ).stdout
                 self.assertIn(f'set BOARD_RESET "{mode}"', rendered)
                 self.assertNotIn("@JTAG_LOADER_BOARD_RESET@", rendered)
+                self.assertIn('set LOADER_LAYOUT "' + ("station" if filename.startswith("xilinx") else "flat") + '"', rendered)
                 self.assertIn("rst -system", rendered)
 
     def test_missing_reset_token_rejects_por_before_loader_export(self):
@@ -95,9 +96,9 @@ class JtagResetConfigTests(unittest.TestCase):
         if not shutil.which("tclsh"):
             self.skipTest("tclsh is unavailable")
         source = (LAYER / "recipes-core/images/files/load-jtag-image.tcl").read_text()
-        procedures = source.split('if { [llength $argv] < 2', 1)[0]
-        sequence = source.split('puts "Connecting to the Xilinx hw_server"', 1)[1]
-        sequence = sequence.split('puts "Downloading FSBL"', 1)[0]
+        procedures = source.split('set LOADER_LAYOUT', 1)[0]
+        sequence = source.split('puts "Connecting to the Xilinx hw_server at $HW_SERVER_URL"', 1)[1]
+        sequence = sequence.split('download_elf_with_retry "Downloading FSBL"', 1)[0]
         stubs = """
 proc targets {args} {}
 proc rst {args} {puts "RESET:$args"}
@@ -110,7 +111,15 @@ proc con {args} {}
 proc dow {args} {puts "DOWNLOAD"}
 rename after real_after
 proc after {args} {puts "WAIT:$args"}
-set HW_IP 127.0.0.1
+set HW_SERVER_URL tcp:127.0.0.1:3121
+set JTAG_DIR .
+set TARGET_ID ""
+rename select_target original_select_target
+proc select_target {args} {}
+rename initialize_target_selector original_initialize_target_selector
+proc initialize_target_selector {args} {}
+set TARGET_CABLE_SERIAL ""
+set TARGET_DEVICE_INDEX ""
 """
         with tempfile.TemporaryDirectory() as temporary:
             script = Path(temporary) / "test.tcl"
@@ -136,11 +145,11 @@ set HW_IP 127.0.0.1
             self.skipTest("tclsh is unavailable")
         source = (LAYER / "recipes-core/images/files/load-jtag-image.tcl").read_text()
         # Evaluate maintained procedure definitions without staging legacy TFTP.
-        procedures = source.split('if { [llength $argv] < 2', 1)[0]
+        procedures = source.split('set LOADER_LAYOUT', 1)[0]
         with tempfile.TemporaryDirectory() as temporary:
             script = Path(temporary) / "test.tcl"
             script.write_text(procedures + '''
-proc targets {args} {}
+proc select_target {args} {}
 proc rst {args} {puts "RESET:$args"; error "unsupported"}
 set BOARD_RESET por
 if {![catch {pulse_board_reset} message]} {error "expected failure"}

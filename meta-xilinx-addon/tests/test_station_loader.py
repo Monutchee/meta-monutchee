@@ -13,13 +13,13 @@ LOADER = (
     / "recipes-core"
     / "images"
     / "files"
-    / "load-jtag-image-station.tcl"
+    / "load-jtag-image.tcl"
 )
 
 
 class StationLoaderTests(unittest.TestCase):
     def _execute_bound_loader(self, mode=None, *, unsupported=False, rendered="por", force=None,
-                              binding="complete", rendered_force="1"):
+                              binding="complete", rendered_force="1", layout="station"):
         tclsh = shutil.which("tclsh")
         if tclsh is None:
             self.skipTest("tclsh is unavailable")
@@ -27,11 +27,15 @@ class StationLoaderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             jtag = root / "jtag"
-            tftp = root / "tftp"
+            tftp = root / "tftp" if layout == "station" else jtag
             jtag.mkdir()
-            tftp.mkdir()
+            if tftp != jtag:
+                tftp.mkdir()
+            host_tftp = root / "host-tftp"
+            if layout == "station":
+                host_tftp.write_text("must remain untouched")
             loader = jtag / "load-jtag-image.tcl"
-            source = LOADER.read_text().replace("@JTAG_LOADER_FORCE_JTAG_BOOT@", rendered_force)
+            source = LOADER.read_text().replace("@JTAG_LOADER_LAYOUT@", layout).replace("@JTAG_LOADER_FORCE_JTAG_BOOT@", rendered_force)
             if rendered is not None:
                 source = source.replace("@JTAG_LOADER_BOARD_RESET@", rendered)
             loader.write_text(source)
@@ -40,6 +44,8 @@ class StationLoaderTests(unittest.TestCase):
             for name in ("Image", "system.dtb", "rootfs.cpio.gz.u-boot", "boot.scr"):
                 (tftp / name).write_bytes(b"test")
 
+            for name in ("target.wic.xz", "target.wic.xz.sha256"):
+                (tftp / name).write_bytes(b"optional")
             harness = root / "test-loader.tcl"
             harness.write_text(
                 f"""
@@ -114,6 +120,10 @@ proc after {{args}} {{puts "WAIT:$args"}}
 set argv [list tcp:127.0.0.1:3121 192.0.2.10 "" 5 SERIAL-B 1]
 if {{"{binding}" eq "missing-device"}} {{set argv [lrange $argv 0 4]}}
 if {{"{binding}" eq "unbound"}} {{set argv [lrange $argv 0 3]}}
+if {{"{layout}" eq "flat"}} {{
+    set argv {{127.0.0.1 192.0.2.10}}
+    set ::target_properties [lrange $::target_properties 0 2]
+}}
 source {{{loader.as_posix()}}}
 puts "MNC_SELECTED_TARGETS:[join $::selected_targets ,]"
 """,
@@ -124,13 +134,23 @@ puts "MNC_SELECTED_TARGETS:[join $::selected_targets ,]"
                 check=False,
                 capture_output=True,
                 text=True,
+                cwd=jtag,
                 env={**{key: value for key, value in os.environ.items()
                          if key not in ("MNCOS_JTAG_BOARD_RESET", "MNCOS_FORCE_JTAG_BOOT", "TEST_POR_UNSUPPORTED")},
+                     "MNCOS_TFTP_ROOT": str(host_tftp),
                      **({"MNCOS_FORCE_JTAG_BOOT": str(int(force)) if isinstance(force, bool) else str(force)}
                         if force is not None else {}),
                      **({"MNCOS_JTAG_BOARD_RESET": mode} if mode is not None else {}),
                      **({"TEST_POR_UNSUPPORTED": "1"} if unsupported else {})},
             )
+            if result.returncode == 0:
+                if layout == "station":
+                    self.assertEqual(host_tftp.read_text(), "must remain untouched")
+                else:
+                    for name in ("Image", "system.dtb", "rootfs.cpio.gz.u-boot", "boot.scr",
+                                 "target.wic.xz", "target.wic.xz.sha256"):
+                        self.assertEqual((host_tftp / name).read_bytes(), (tftp / name).read_bytes())
+                self.assertFalse(list(jtag.glob("*env*")))
             return result
 
     def test_stable_cable_identity_survives_a_stale_target_id(self) -> None:
@@ -227,9 +247,16 @@ puts "MNC_SELECTED_TARGETS:[join $::selected_targets ,]"
                 self.assertNotIn("EVENT:", result.stdout)
 
     def test_station_loader_never_uses_legacy_tftp_root(self) -> None:
-        source = LOADER.read_text(encoding="utf-8")
-        self.assertNotIn("/srv/tftp", source)
-        self.assertIn('set TFTP_DIR [file join $ARTIFACT_DIR "tftp"]', source)
+        result = self._execute_bound_loader()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_flat_loader_stages_required_and_optional_payloads(self):
+        for mode in ("srst", "por"):
+            with self.subTest(mode=mode):
+                result = self._execute_bound_loader(mode, layout="flat")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("Staging TFTP files", result.stdout)
+                self.assertIn(f"EVENT:rst:-{mode}", result.stdout)
 
     def test_all_payload_downloads_use_retry_helpers(self) -> None:
         source = LOADER.read_text(encoding="utf-8")
